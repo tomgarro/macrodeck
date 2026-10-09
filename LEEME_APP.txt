@@ -1,0 +1,80 @@
+APP WEB DE D&D  -  como ponerla, instalarla y usarla
+====================================================
+Es una "web app" (PWA): no es un APK. Se abre en Chrome y se "instala" en la pantalla de inicio sin permisos especiales.
+No se descarga nada raro: la bajas de una direccion web y listo. Tus sonidos NO se suben a ningun lado: quedan en el
+celu/la compu (en el almacenamiento del navegador).
+
+0) QUE NECESITAS
+   - Celular Android con Chrome. (iPhone: Safari NO tiene Bluetooth web, no sirve para conectar con el Macrodeck.
+     Si algun dia Tom usa iPhone, hay que buscar otro camino.)
+   - Las carpetas "macrodeck_dnd_app" (la app) del zip.
+   - Una cuenta gratuita de GitHub (o Netlify). Es lo unico "tecnico" del proceso, y se hace UNA vez.
+
+1) PROBARLA YA EN LA COMPU (sin hosting, 2 minutos)
+   Windows: abri una terminal (cmd) en la carpeta macrodeck_dnd_app y corre:     python -m http.server 8000
+   Despues abri Chrome en:  http://localhost:8000
+   (localhost cuenta como "sitio seguro": el Bluetooth web funciona). Toca "Probar con el simulador" y
+   Herramientas > "Cargar pack de prueba". Con el teclado: Q W E R T / A S D F G son las 10 teclas.
+   Con la placa encendida y D&D abierto: "Conectar Macrodeck" y elegi "Macrodeck".
+   (Si no tenes Python: instalalo de python.org, o salta al paso 2 y proba directo online.)
+
+2) PUBLICARLA (para usarla en el celu) - OPCION A: GitHub Pages (recomendada, gratis)
+   a) Entra a github.com, crea cuenta, boton verde "New" -> nombre "macrodeck" -> Public -> Create repository.
+   b) En la pagina del repo: "uploading an existing file". Arrastra TODO el contenido de la carpeta macrodeck_dnd_app
+      (index.html, style.css, sw.js, manifest.webmanifest, icon-192.png, icon-512.png y las carpetas js y vendor).
+      Si arrastrar carpetas no te deja, subi primero los archivos sueltos y despues entra a "Add file > Upload files" otra
+      vez arrastrando cada carpeta (en Chrome de escritorio las carpetas si se pueden arrastrar). "Commit changes".
+   c) Settings > Pages > "Build and deployment": Source = "Deploy from a branch", Branch = main, carpeta "/ (root)" > Save.
+   d) En 1-2 minutos arriba aparece la direccion:  https://TU-USUARIO.github.io/macrodeck/
+      Esa es la direccion de la app (no lleva datos tuyos: es solo el programa; tus sonidos quedan en tu navegador).
+   OPCION B: Netlify Drop - entra a app.netlify.com/drop, arrastra la carpeta macrodeck_dnd_app: te da una direccion
+   https://algo.netlify.app (puede pedir crear cuenta para que no caduque).
+   El Bluetooth web EXIGE https (por eso hace falta hosting; el Artifact de Claude no sirve para esto).
+
+3) INSTALARLA EN EL CELU
+   Chrome (Android) > abri tu direccion > menu (3 puntos) > "Instalar app" / "Agregar a la pantalla de inicio".
+   Queda un icono "Macrodeck". Abrila desde ahi: se ve a pantalla completa. Funciona sin internet despues de la primera vez.
+   Si el celu no deja instalar APKs, esto igual funciona (es una pagina, no un APK).
+   Tip: Herramientas > "Proteger datos" evita que Chrome borre tus sonidos si le falta espacio.
+
+4) USARLA
+   Pestanas: MESA (jugar) - ESCENAS (editar) - SONIDOS (biblioteca) - HERRAMIENTAS (packs, logos, ayuda).
+   - SONIDOS: "Importar sonidos" (mp3/wav/ogg/m4a). Apareceran en la biblioteca para usar en cualquier tecla.
+   - ESCENAS: una escena = un conjunto de 10 teclas (ej. "Taberna", "Combate", "Dungeon"). Hasta 10 escenas.
+     Toca una tecla > nombre, categoria (color), tipo, sonidos, volumen, fundidos, icono.
+     Tipos: Una vez / Loop (ambiente, se prende y apaga con fundido) / Al azar (sin repetir seguido) / Mantener /
+     Secuencia / Dado (d4..d100, con sonido de critico y de pifia) / Silenciar todo / Fade-out total.
+     "Grupo": los loops con el mismo grupo se reemplazan entre si con fundido cruzado (musica de taberna -> musica de combate).
+     Avisos en naranja: nombres con palabras de mas de 7 letras (en la e-Paper se cortan), teclas sin sonido, etc.
+   - MESA: jugar desde el celu/compu con la pantalla, o con el Macrodeck (conectado). Volumen general = perilla.
+   - Cada cambio que hagas se manda al Macrodeck solo (mapa de la e-Paper incluido; la e-Paper tarda ~16 s en refrescar).
+
+5) FRODO Y TOM (compartir)
+   Frodo arma todo en la compu y va a HERRAMIENTAS > "Exportar pack": baja un .zip (escenas + sonidos + iconos).
+   Tom lo recibe (WhatsApp, Drive, cable...), abre la app > HERRAMIENTAS > "Importar pack". Reemplaza lo que haya.
+   Para actualizar: Frodo exporta de nuevo y Tom importa de nuevo. (Mas adelante se puede automatizar con Google Drive.)
+
+6) ETAPA 0 - LA PRUEBA QUE DECIDE TODO (hacerla en cuanto tengas la placa con v4.2)
+   El riesgo de una web app es que Android "congele" la pagina con la pantalla apagada y se corte el Bluetooth.
+   Prueba:
+     1. App instalada, pack de prueba cargado, conectada al Macrodeck. Prende un loop (Musica) para que haya sonido.
+     2. Apaga la pantalla del celu (boton lateral). Espera 30 s. Toca teclas del Macrodeck.
+     3. Anota: a) siguen sonando los sonidos al tocar? b) sigue el loop? c) pasados 5 minutos?
+     4. Repetilo con la pantalla prendida pero con otra app adelante (WhatsApp, Spotify).
+   La app hace lo posible para quedar viva (un audio silencioso, controles de multimedia, pantalla encendida mientras
+   esta en primer plano), pero no puedo garantizarlo sin ver tu celu. Resultados posibles:
+     - Todo anda: perfecto, nada mas que hacer.
+     - Anda solo con la pantalla encendida: se usa asi (el celu en la mesa con la app a la vista; la app mantiene la pantalla prendida).
+     - No anda ni asi: hay plan B (una app nativa; requiere un celu que acepte instalar APKs, el "telefono definitivo").
+   Avisame el resultado y seguimos desde ahi.
+
+7) CUANDO ALGO NO ANDA
+   - "Este navegador no tiene Bluetooth web": usa Chrome (no Firefox ni Safari).
+   - No aparece "Macrodeck" en la lista: confirma que el Macrodeck esta en el programa D&D ("Buscando...") y que el
+     Bluetooth del celu y la ubicacion estan prendidos (Android los exige para buscar).
+   - Se desconecta: la app reintenta sola. Si no, "Desconectar" y "Conectar".
+   - No suena nada: toca cualquier boton de la app una vez (el navegador exige un toque para habilitar el audio);
+     la etiqueta de arriba tiene que decir "audio listo".
+   - Sonidos muy grandes (mas de ~6 MB) se reproducen "en directo" y no permiten fundidos tan finos. Para ambientes largos
+     convienen mp3 de 128 kbps.
+   - Para limpiar todo: HERRAMIENTAS > Borrar todo.
