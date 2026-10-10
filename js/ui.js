@@ -179,15 +179,24 @@ window.MD = window.MD || {};
       caja.append(h('label', null, 'Grupo exclusivo (los loops con el mismo grupo se reemplazan entre si con fundido cruzado; ej: "amb")'), h('input', { type: 'text', maxlength: 20, value: t.grupo, oninput: cam('grupo') }));
 
     const icoBox = h('div', { class: 'tarjeta', style: 'background:var(--panel2);margin-top:14px' });
+    const hexLib = MD.Iconos.lista.map(ic => MD.Iconos.hexDe(ic.id));
+    const sel = hexLib.indexOf(t.icono);
     const prev = t.icono ? icoCanvas(t.icono) : h('span', { class: 'suave' }, 'sin icono');
     if (t.icono) prev.style.cssText = 'width:72px;height:72px;image-rendering:pixelated;background:#0b0a08;border-radius:6px';
     icoBox.append(h('div', { class: 'fila' }, h('strong', null, 'Icono (24 × 24, un solo color)'), prev, t.icono ? h('button', { type: 'button', onclick: () => { t.icono = ''; A.cambio(true); A.render(); } }, 'Quitar') : null));
+    icoBox.append(h('div', { class: 'aviso', style: 'margin-top:8px' },
+      sel >= 0 ? [h('strong', null, MD.Iconos.lista[sel].nombre), ' · ', MD.Iconos.lista[sel].desc]
+               : (t.icono ? 'Icono propio (una imagen tuya).' : 'Toca un icono para ver para que sirve.')));
     const grid = h('div', { class: 'icos' });
-    MD.Iconos.lista.forEach(ic => {
-      const hex = MD.Iconos.aHex(MD.Iconos.deBiblioteca(ic.id));
-      grid.append(h('button', { type: 'button', title: ic.nombre, onclick: () => { t.icono = hex; A.cambio(true); A.render(); } }, icoCanvas(hex)));
-    });
+    const botones = MD.Iconos.lista.map((ic, k) => h('button', { type: 'button', class: k === sel ? 'on' : '', title: ic.nombre + ': ' + ic.desc, 'data-q': (ic.nombre + ' ' + ic.desc).toLowerCase(),
+      onclick: () => { A._icoScroll = grid.scrollTop; A._icoFiltro = buscar.value; t.icono = hexLib[k]; A.cambio(true); A.render(); } }, icoCanvas(hexLib[k])));
+    const buscar = h('input', { type: 'text', placeholder: 'Buscar icono (fuego, hielo, curacion…)', style: 'margin:8px 0', value: A._icoFiltro || '',
+      oninput: () => { const q = buscar.value.trim().toLowerCase(); botones.forEach(b => { b.style.display = (!q || b.dataset.q.includes(q)) ? '' : 'none'; }); } });
+    botones.forEach(b => grid.append(b));
+    icoBox.append(buscar);
     icoBox.append(grid);
+    if (A._icoFiltro) buscar.dispatchEvent(new Event('input'));
+    setTimeout(() => { grid.scrollTop = A._icoScroll || 0; }, 0);
     icoBox.append(h('div', { class: 'fila', style: 'margin-top:8px' }, h('button', { type: 'button', onclick: () => A.abrirConversor(i) }, 'Usar mi propia imagen…')));
     caja.append(icoBox);
 
@@ -223,18 +232,18 @@ window.MD = window.MD || {};
 
   // ===================== HERRAMIENTAS =====================
   function vistaHerramientas(A, el) {
-    const cfg = A.cfg;
-    const packIn = h('input', { type: 'file', accept: '.zip', hidden: true, onchange: async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) await A.importarPack(f); } });
-    el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Packs (pasar todo de Frodo a Tom)'),
-      h('p', { class: 'suave' }, 'Un pack es un archivo .zip con escenas, teclas, iconos y sonidos. Frodo lo exporta; Tom lo importa en su celu (por WhatsApp, Drive, cable, como sea).'),
-      h('div', { class: 'fila' }, h('button', { class: 'primario', type: 'button', onclick: () => A.exportarPack() }, 'Exportar pack'), h('button', { type: 'button', onclick: () => packIn.click() }, 'Importar pack'), packIn),
-      h('p', { class: 'suave' }, A.estadoPack || ''),
+    const cfg = A.cfg, demo = A.demoCuenta();
+    el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Campana'),
       h('label', null, 'Nombre de la campana'), h('input', { type: 'text', value: cfg.nombre, maxlength: 60, oninput: (e) => { cfg.nombre = e.target.value; A.cambio(false); } })));
     el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Probar sin sonidos propios'),
-      h('p', { class: 'suave' }, 'Carga 2 escenas de ejemplo con sonidos sintetizados (lluvia, fogata, espadas, dado…). Reemplaza lo que haya.'),
-      h('button', { type: 'button', id: 'btnDemo', onclick: () => A.cargarDemo() }, 'Cargar pack de prueba')));
-    el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Conversor de logo → icono del lobby'),
-      h('p', { class: 'suave' }, 'Para poner TU propio logo de D&D o de Spotify en el lobby del Macrodeck (los logos oficiales no los puedo dibujar yo). Elegi una imagen, ajusta y copia el archivo .h al sketch.'),
+      h('p', { class: 'suave' }, 'Agrega 2 escenas de ejemplo con sonidos sintetizados (lluvia, fogata, espadas, dado…). No toca lo que ya tengas. Despues se pueden borrar de una vez.'),
+      h('div', { class: 'fila' },
+        h('button', { type: 'button', id: 'btnDemo', onclick: () => A.cargarDemo() }, 'Agregar contenido de prueba'),
+        (demo.sonidos || demo.escenas) ? h('button', { class: 'peligro', type: 'button', onclick: async (e) => { if (!A._borrDemo) { A._borrDemo = 1; e.target.textContent = 'Seguro? ' + demo.sonidos + ' sonidos y ' + demo.escenas + ' escenas'; return; } A._borrDemo = 0; await A.borrarDemo(); } },
+          'Borrar contenido de prueba (' + demo.sonidos + ' sonidos, ' + demo.escenas + ' escenas)') : null),
+      A.estadoPack ? h('p', { class: 'suave', style: 'margin-top:8px' }, A.estadoPack) : null));
+    el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Conversor de imagen a icono del lobby'),
+      h('p', { class: 'suave' }, 'Convierte una imagen en un icono de un solo color para la pantalla de inicio del Macrodeck. Elegi la imagen, ajusta el umbral y descarga el archivo .h.'),
       h('button', { type: 'button', onclick: () => A.abrirConversorLogo() }, 'Abrir conversor')));
     el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Almacenamiento'),
       h('p', { class: 'suave' }, A.infoAlmacen || ''),
@@ -244,5 +253,5 @@ window.MD = window.MD || {};
   }
 
   MD.UI = { h, icoCanvas, vistaMesa, vistaEscenas, vistaSonidos, vistaHerramientas, NOM };
-  MD.VERSION = '1.0';
+  MD.VERSION = '1.1';
 })(window.MD);

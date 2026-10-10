@@ -87,3 +87,10 @@ kbd{background:var(--panel2);border:1px solid var(--linea);border-radius:4px;pad
 .sim-pie label{margin:0;display:flex;gap:8px;align-items:center}
 .sim-ayuda{font-size:.8rem;color:var(--tx2);margin:0}
 [hidden]{display:none!important}
+
+.icos button.on{outline:2px solid var(--ambar);outline-offset:-2px}
+.mini{border-top:1px solid var(--ambar);background:var(--panel);padding:8px 16px;display:flex;flex-direction:column;gap:6px}
+.mini[hidden]{display:none}
+.mini-fila{display:flex;gap:10px;align-items:center}
+.mini-nombre{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini button{min-width:46px}

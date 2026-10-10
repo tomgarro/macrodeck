@@ -51,7 +51,10 @@ window.MD = window.MD || {};
       grupos.get(s.carpeta).push(s);
     });
     grupos.forEach((items, carpeta) => {
-      const caja = h('div', { class: 'tarjeta' }, h('h3', null, carpeta + ' (' + items.length + ')'));
+      const pend = items.filter(s => estadoDe(A, s) !== 'ok');
+      const caja = h('div', { class: 'tarjeta' }, h('div', { class: 'fila', style: 'margin-bottom:8px' },
+        h('h3', { class: 'crece', style: 'margin:0' }, carpeta + ' (' + items.length + ')'),
+        pend.length ? h('button', { type: 'button', disabled: !!A.driveBajandoTodo, onclick: () => A.driveBajarTodo(pend) }, 'Bajar carpeta (' + pend.length + ')') : h('small', { class: 'suave' }, '✓ toda en este celu')));
       const l = h('div', { class: 'lista-s' });
       items.forEach(s => {
         const est = estadoDe(A, s), bajando = A.driveBajando && A.driveBajando[s.id];

@@ -53,6 +53,67 @@ window.MD = window.MD || {};
   def('altavoz', 'Sonido', c => { poli(c, [2, 9, 7, 9, 12, 4, 12, 20, 7, 15, 2, 15]); c.lineWidth = 2; c.beginPath(); c.arc(12, 12, 5, -0.9, 0.9); c.stroke(); c.beginPath(); c.arc(12, 12, 9, -0.9, 0.9); c.stroke(); });
   def('dragon', 'Dragon', c => { c.beginPath(); c.moveTo(2, 20); c.bezierCurveTo(6, 10, 10, 4, 22, 3); c.bezierCurveTo(19, 7, 17, 8, 16, 11); c.bezierCurveTo(19, 11, 21, 13, 22, 16); c.bezierCurveTo(17, 14, 13, 16, 10, 22); c.bezierCurveTo(10, 17, 7, 16, 2, 20); c.fill(); c.globalCompositeOperation = 'destination-out'; circ(c, 16.5, 6.5, 1, true); c.globalCompositeOperation = 'source-over'; });
 
+
+  // ---------- iconos de fantasia / magia ----------
+  function chispa(c, x, y, r) { poli(c, [x, y - r, x + r * 0.28, y - r * 0.28, x + r, y, x + r * 0.28, y + r * 0.28, x, y + r, x - r * 0.28, y + r * 0.28, x - r, y, x - r * 0.28, y - r * 0.28]); }
+  const quitar = c => { c.globalCompositeOperation = 'destination-out'; };
+  const poner = c => { c.globalCompositeOperation = 'source-over'; };
+  def('bola_fuego', 'Bola de fuego', c => { poli(c, [1.5, 22.5, 8, 6.5, 14.5, 12.5]); circ(c, 15, 9, 6.5, true); quitar(c); circ(c, 15.5, 9.5, 2.4, true); poner(c); });
+  def('hielo', 'Hielo', c => { for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 - Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a); linea(c, [12, 12, 12 + 10.5 * ca, 12 + 10.5 * sa], 1.8); const bx = 12 + 6.2 * ca, by = 12 + 6.2 * sa; [-0.85, 0.85].forEach(d => linea(c, [bx, by, bx + 3.6 * Math.cos(a + d), by + 3.6 * Math.sin(a + d)], 1.6)); } });
+  def('varita', 'Varita magica', c => { linea(c, [3.5, 21, 14.5, 10], 2.6); chispa(c, 18, 6, 5.5); chispa(c, 20.5, 14.5, 2.8); chispa(c, 8, 5.5, 3); });
+  def('libro', 'Libro de hechizos', c => { c.fillRect(5, 3, 14, 18); quitar(c); c.fillRect(7.2, 3, 1.2, 18); chispa(c, 13.5, 11, 4.4); c.fillRect(9.5, 18, 8, 1.2); poner(c); });
+  def('cristal', 'Cristal', c => { poli(c, [12, 2, 20, 9, 12, 22, 4, 9]); quitar(c); linea(c, [4.5, 9, 19.5, 9], 1.3); linea(c, [12, 9.5, 12, 19], 1.3); poner(c); });
+  def('destellos', 'Destellos', c => { chispa(c, 9.5, 14, 8.5); chispa(c, 18.5, 6, 4.6); chispa(c, 19.5, 18.5, 3.2); });
+  def('runa', 'Runa', c => { circ(c, 12, 12, 10, false, 2); linea(c, [12, 18.5, 12, 6], 2.2); linea(c, [6.8, 7.2, 12, 13.2, 17.2, 7.2], 2.2); });
+  def('pentagrama', 'Invocacion', c => { circ(c, 12, 12, 10.2, false, 1.8); const P = []; for (let k = 0; k < 5; k++) { const a = -Math.PI / 2 + k * 2 * Math.PI / 5; P.push([12 + 9.4 * Math.cos(a), 12 + 9.4 * Math.sin(a)]); } [0, 2, 4, 1, 3, 0].reduce((p, q) => { linea(c, [P[p][0], P[p][1], P[q][0], P[q][1]], 1.7); return q; }); });
+  def('portal', 'Portal', c => { c.lineWidth = 3; c.beginPath(); c.ellipse(12, 12, 6.5, 10.5, 0, 0, Math.PI * 2); c.stroke(); circ(c, 12, 12, 2.6, true); });
+  def('curacion', 'Curacion', c => { c.fillRect(9.5, 5, 5, 16); c.fillRect(4, 10.5, 16, 5); chispa(c, 19.5, 4.5, 3.6); });
+  def('escudo_magico', 'Escudo magico', c => { poli(c, [4, 3, 20, 3, 20, 12, 12, 22, 4, 12]); quitar(c); chispa(c, 12, 10.5, 5.6); poner(c); });
+  def('terremoto', 'Terremoto', c => { poli(c, [1, 12, 6, 10, 9, 14, 13, 9, 17, 13, 23, 11, 23, 22.5, 1, 22.5]); quitar(c); linea(c, [12.5, 14, 10, 17, 13.5, 19, 11, 22.5], 1.5); poner(c); circ(c, 6, 4, 2, true); circ(c, 17.5, 4.8, 2.5, true); circ(c, 11.5, 6.5, 1.5, true); });
+  def('ola', 'Ola', c => { c.beginPath(); c.moveTo(1, 22.5); c.lineTo(1, 15); c.bezierCurveTo(5, 5, 11, 5, 12.5, 13); c.bezierCurveTo(14.5, 8, 19.5, 8, 23, 14); c.lineTo(23, 22.5); c.closePath(); c.fill(); quitar(c); linea(c, [3, 19, 8, 17.5, 13, 19.5, 21, 18], 1.3); poner(c); });
+  def('niebla', 'Niebla', c => { linea(c, [3, 6, 16, 6], 2.4); linea(c, [7, 11, 21, 11], 2.4); linea(c, [3, 16, 14, 16], 2.4); linea(c, [17, 16, 21, 16], 2.4); linea(c, [6, 21, 17, 21], 2.4); });
+  def('tornado', 'Tornado', c => { linea(c, [3, 4, 21, 4], 2.4); linea(c, [5, 8.5, 19, 8.5], 2.4); linea(c, [7, 13, 17, 13], 2.4); linea(c, [9, 17.5, 15, 17.5], 2.4); linea(c, [11, 21.5, 13.5, 21.5], 2.4); });
+  def('aura', 'Aura', c => { circ(c, 12, 12, 4.6, true); for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6, r0 = 7.6, r1 = k % 2 ? 10 : 11.4; linea(c, [12 + r0 * Math.cos(a), 12 + r0 * Math.sin(a), 12 + r1 * Math.cos(a), 12 + r1 * Math.sin(a)], 1.8); } });
+  def('telarana', 'Telarana', c => { for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; linea(c, [12, 12, 12 + 10.8 * Math.cos(a), 12 + 10.8 * Math.sin(a)], 1.4); } [5, 9.2].forEach(r => { const P = []; for (let k = 0; k <= 8; k++) { const a = k * Math.PI / 4; P.push(12 + r * Math.cos(a), 12 + r * Math.sin(a)); } linea(c, P, 1.5); }); });
+  def('bola_cristal', 'Bola de cristal', c => { circ(c, 12, 10, 8.2, true); poli(c, [6, 22, 8.5, 17.5, 15.5, 17.5, 18, 22]); quitar(c); c.lineWidth = 1.7; c.lineCap = 'round'; c.beginPath(); c.arc(12, 10, 5.4, Math.PI * 1.1, Math.PI * 1.5); c.stroke(); poner(c); });
+  def('baculo', 'Baculo', c => { linea(c, [5.5, 22, 15, 9.5], 2.7); c.lineWidth = 2; c.beginPath(); c.arc(17, 7, 4.4, 0, Math.PI * 2); c.stroke(); circ(c, 17, 7, 1.7, true); chispa(c, 21.2, 2.6, 2.2); });
+  def('tormenta', 'Tormenta', c => { circ(c, 8, 8, 4.4, true); circ(c, 13.5, 6.5, 5.2, true); circ(c, 18, 9.5, 3.8, true); c.fillRect(6, 8, 14, 5); const B = [14.5, 11, 9, 18.5, 12.5, 18.5, 10.5, 23, 17, 15, 13.5, 15, 15.5, 11]; quitar(c); c.lineWidth = 3.4; c.lineJoin = 'round'; c.beginPath(); c.moveTo(B[0], B[1]); for (let i = 2; i < B.length; i += 2) c.lineTo(B[i], B[i + 1]); c.closePath(); c.stroke(); c.fill(); poner(c); poli(c, B); });
+
+  const DESC = {
+    espada: 'Un espadazo o desenvainar. Combate cuerpo a cuerpo.', espadas: 'Choque de espadas. Una pelea en marcha o el inicio del combate.',
+    escudo: 'Bloquear un golpe, defensa, parada.', calavera: 'Muerte, tension, enemigos peligrosos o musica de combate oscura.',
+    fuego: 'Fogata, incendio, llamas o hechizos de fuego.', lluvia: 'Lluvia suave o clima gris. Bueno para loops de ambiente.',
+    trueno: 'Rayo o trueno. Tormentas y hechizos electricos.', viento: 'Viento, ventisca, corrientes de aire.',
+    puerta: 'Abrir, cerrar o golpear una puerta.', antorcha: 'Luz de una antorcha, mazmorras, cuevas.',
+    pocion: 'Beber una pocion, frascos, alquimia.', moneda: 'Monedas, tesoro, compras y recompensas.',
+    llave: 'Cerraduras, llaves, cofres que se abren.', jarra: 'Taberna: bullicio, brindis, jarras.',
+    nota: 'Musica de fondo, un bardo, cualquier melodia.', campana: 'Campanas, alarmas, templos.',
+    huella: 'Pasos, rastros, criaturas que se acercan.', corazon: 'Latidos, curacion, emociones fuertes.',
+    cuerno: 'Cuerno de guerra o de aviso. Llamadas y senales.', pergamino: 'Cartas, mapas, lectura de un mensaje.',
+    dado20: 'Tirada de dado. Usalo con el tipo "Dado" de la tecla.', ojo: 'Percepcion, vigilancia, alguien mirando.',
+    fantasma: 'Espiritus, apariciones, lugares embrujados.', arco: 'Disparo de flecha, arqueros.',
+    hacha: 'Golpe de hacha, talar, barbaros.', martillo: 'Martillazos, herreria, golpes pesados.',
+    estrella: 'Efecto brillante, logros, destellos de luz.', luna: 'Noche, hombres lobo, escenas nocturnas.',
+    sol: 'Dia, calor, luz sagrada.', castillo: 'Fortalezas, ciudades, ambientes de realeza.',
+    arbol: 'Bosque, naturaleza, ambiente de exterior.', gota: 'Agua, goteras, cuevas humedas, arroyos.',
+    caldero: 'Pociones en preparacion, brujas, cocina magica.', magia: 'Hechizo generico: un destello de energia magica.',
+    corona: 'Reyes, nobles, coronaciones, poder.', hueso: 'Esqueletos, no-muertos, criptas.',
+    murcielago: 'Cuevas, vampiros, noche tenebrosa.', silencio: 'Corta todo el sonido de la app (otra vez lo devuelve).',
+    fadeout: 'Apaga con un fundido todos los loops y sonidos largos.', altavoz: 'Sonido general, anuncios, efectos de voz.',
+    dragon: 'Rugidos, criaturas gigantes, jefes finales.',
+    bola_fuego: 'Hechizo de bola de fuego: lanzamiento y explosion.', hielo: 'Hechizos de hielo, frio extremo, congelar.',
+    varita: 'Lanzar un hechizo con varita, magia de aprendiz.', libro: 'Leer un libro de hechizos, grimorios, estudio arcano.',
+    cristal: 'Gemas, cristales magicos, energia arcana.', destellos: 'Chispas de magia, encantamientos, polvo magico.',
+    runa: 'Runas, glifos, inscripciones antiguas, magia ritual.', pentagrama: 'Invocaciones, rituales oscuros, circulos magicos.',
+    portal: 'Portales, teletransporte, puertas dimensionales.', curacion: 'Hechizos de curacion, bendiciones, restaurar vida.',
+    escudo_magico: 'Escudo o barrera magica, proteccion arcana.', terremoto: 'Temblores, derrumbes, hechizos de tierra.',
+    ola: 'Olas, mar, hechizos de agua, inundaciones.', niebla: 'Niebla, bruma, ocultarse, escenas misteriosas.',
+    tornado: 'Tornados, remolinos, hechizos de viento fuerte.', aura: 'Auras, bendiciones, poder que se acumula.',
+    telarana: 'Telaranas, trampas, aranas gigantes, mazmorras.', bola_cristal: 'Adivinacion, videncia, profecias.',
+    baculo: 'Baculo de mago, canalizar magia, magos poderosos.', tormenta: 'Tormenta electrica: nubes y rayos.',
+  };
+  Object.values(lib).forEach(e => { e.desc = DESC[e.id] || ''; });
+
   const lista = Object.values(lib);
 
   function lienzo() { const cv = document.createElement('canvas'); cv.width = L; cv.height = L; return cv; }
@@ -93,5 +154,7 @@ window.MD = window.MD || {};
     ctx.fillStyle = color;
     for (let j = 0; j < L; j++) for (let i = 0; i < L; i++) if (bits[j * 3 + (i >> 3)] & (0x80 >> (i & 7))) ctx.fillRect(x + i * escala, y + j * escala, escala, escala);
   }
-  MD.Iconos = { lista, deBiblioteca, deImagen, aHex, deHex, pintar, aBits, L };
+  const cacheHex = {};
+  function hexDe(id) { if (!cacheHex[id]) { const b = deBiblioteca(id); cacheHex[id] = b ? aHex(b) : ''; } return cacheHex[id]; }
+  MD.Iconos = { lista, hexDe, deBiblioteca, deImagen, aHex, deHex, pintar, aBits, L };
 })(window.MD);

@@ -61,15 +61,49 @@
     pillCon.textContent = c ? (A.tr.tipo === 'sim' ? 'simulador' : 'Macrodeck conectado') : (A.tr && A.tr.estado && A.tr.estado !== 'desconectado' ? A.tr.estado + '…' : 'sin Macrodeck');
     pillCon.className = 'pill ' + (c ? 'ok' : 'mal');
   }
-  let prevAudio = null;
+  // ---------- escuchar un sonido (con pausa, barra y parar) ----------
+  // Pasa por el MISMO camino que la Mesa (volumen del sonido x volumen general), asi se oye igual.
+  const mini = document.getElementById('miniPlayer');
+  const miniNombre = h('strong', { class: 'mini-nombre' }), miniTiempo = h('small', null, ''),
+        miniBarra = h('input', { type: 'range', min: 0, max: 1000, value: 0, style: 'flex:1' }),
+        miniPausa = h('button', { type: 'button', title: 'Pausa / seguir' }, '⏸'), miniParar = h('button', { type: 'button', title: 'Detener' }, '■');
+  mini.append(h('div', { class: 'mini-fila' }, miniNombre, miniTiempo), h('div', { class: 'mini-fila' }, miniPausa, miniBarra, miniParar));
+  let prev = null;
+  const mmss = (s) => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+  function pintarMini() {
+    if (!prev) return;
+    const el = prev.el, d = isFinite(el.duration) ? el.duration : 0;
+    miniTiempo.textContent = mmss(el.currentTime) + (d ? ' / ' + mmss(d) : '');
+    if (d && document.activeElement !== miniBarra) miniBarra.value = Math.round(el.currentTime / d * 1000);
+    miniPausa.textContent = el.paused ? '▶' : '⏸';
+  }
+  miniPausa.addEventListener('click', () => { if (!prev) return; if (prev.el.paused) prev.el.play().catch(() => {}); else prev.el.pause(); pintarMini(); });
+  miniParar.addEventListener('click', () => A.detenerPrevia());
+  miniBarra.addEventListener('input', () => { if (prev && isFinite(prev.el.duration)) prev.el.currentTime = miniBarra.value / 1000 * prev.el.duration; });
+  A.detenerPrevia = function () {
+    if (!prev) { mini.hidden = true; return; }
+    const p = prev; prev = null;
+    try { p.el.pause(); } catch (e) {}
+    try { p.fuente.disconnect(); p.g.disconnect(); } catch (e) {}
+    URL.revokeObjectURL(p.url); mini.hidden = true;
+  };
   A.previa = async function (id) {
     await A.audioPrimero();
-    if (prevAudio) { const mismo = A._prevId === id; prevAudio.pause(); prevAudio = null; A._prevId = null; if (mismo) return; }
+    if (prev && prev.id === id) { A.detenerPrevia(); return; }          // el mismo boton otra vez: parar
+    A.detenerPrevia();
     const reg = A.regs.get(id) || A.motor.regs.get(id); if (!reg) return;
-    A._prevId = id;
-    const url = URL.createObjectURL(reg.blob); prevAudio = new Audio(url); prevAudio.volume = 0.8;
-    prevAudio.onended = () => { URL.revokeObjectURL(url); prevAudio = null; A._prevId = null; };
-    prevAudio.play().catch(() => {});
+    const m = A.motor; await m.iniciar();
+    const url = URL.createObjectURL(reg.blob), el = new Audio(url);
+    const fuente = m.ctx.createMediaElementSource(el), g = m.ctx.createGain(), meta = m.sonidos.get(id);
+    g.gain.value = meta ? meta.volumen : 1;
+    fuente.connect(g); g.connect(m.master);
+    prev = { id, el, url, fuente, g };
+    miniNombre.textContent = (meta && meta.nombre) || reg.nombre || 'Sonido';
+    miniBarra.value = 0; miniTiempo.textContent = ''; mini.hidden = false;
+    el.addEventListener('timeupdate', pintarMini); el.addEventListener('play', pintarMini); el.addEventListener('pause', pintarMini);
+    el.addEventListener('ended', () => { if (prev && prev.el === el) A.detenerPrevia(); });
+    el.play().catch(() => { if (prev && prev.el === el) A.detenerPrevia(); });
+    pintarMini();
   };
 
   // ---------- tramas que llegan ----------
@@ -245,9 +279,36 @@
   A.cargarDemo = async function () {
     await A.audioPrimero();
     const d = MDg.Demo.crear();
-    await MDg.Almacen.instalarPack(d, true);
-    await A.recargar();
-    A.estadoPack = 'Pack de prueba cargado.'; A.tab = 'mesa'; A.render();
+    const vacia = A.cfg.escenas.length === 1 && A.cfg.escenas[0].teclas.every(t => !t);   // la escena inicial sin usar se reemplaza
+    if (10 - (vacia ? 0 : A.cfg.escenas.length) < 2) { A.estadoPack = 'No hay lugar para 2 escenas de prueba (el maximo es 10). Borra alguna escena primero.'; A.render(); return; }
+    if (vacia) A.cfg.escenas = [];
+    for (const s of d.sonidos) {
+      if (A.regs.has(s.id)) continue;
+      const reg = { blob: s.blob, nombre: s.nombre, tipo: s.tipo };
+      await MDg.Almacen.guardarSonido(s.id, reg); A.regs.set(s.id, reg); await A.motor.fijarArchivo(s.id, reg);
+    }
+    d.config.sonidos.forEach(m => { if (!A.cfg.sonidos.some(x => x.id === m.id)) A.cfg.sonidos.push(m); });
+    d.config.escenas.forEach(e => { if (!A.cfg.escenas.some(x => x.id === e.id)) A.cfg.escenas.push(e); });
+    A.cambio(true); await A.guardarYa(); await A.infoStorage();
+    A.activar(Math.min(A.activa, A.cfg.escenas.length - 1));
+    A.estadoPack = 'Contenido de prueba agregado.'; A.tab = 'mesa'; A.render();
+  };
+  // El contenido de prueba se reconoce por el nombre interno: sonidos "demo_..." y escenas "demo_e...".
+  A.demoCuenta = function () { return { sonidos: A.cfg.sonidos.filter(s => /^demo_/.test(s.id)).length, escenas: A.cfg.escenas.filter(e => /^demo_e/.test(e.id)).length }; };
+  A.borrarDemo = async function () {
+    const ids = A.cfg.sonidos.filter(s => /^demo_/.test(s.id)).map(s => s.id), n = A.demoCuenta();
+    A.detenerPrevia();
+    A.cfg.escenas = A.cfg.escenas.filter(e => !/^demo_e/.test(e.id));
+    if (!A.cfg.escenas.length) A.cfg.escenas.push(MDg.Config.escenaNueva('Escena 1'));
+    for (const id of ids) {
+      for (const e of A.cfg.escenas) for (const t of e.teclas) if (t) { t.sonidos = t.sonidos.filter(x => x !== id); if (t.dadoCritico === id) t.dadoCritico = ''; if (t.dadoPifia === id) t.dadoPifia = ''; }
+      A.regs.delete(id); A.motor.olvidarArchivo(id); await MDg.Almacen.borrarSonido(id);
+    }
+    A.cfg.sonidos = A.cfg.sonidos.filter(s => !/^demo_/.test(s.id));
+    A.motor.pararTodo(); A.edEsc = 0; A.edTecla = null;
+    A.cambio(true); await A.guardarYa(); await A.infoStorage();
+    A.activar(Math.min(A.activa, A.cfg.escenas.length - 1));
+    A.estadoPack = 'Listo: se borraron ' + n.sonidos + ' sonidos y ' + n.escenas + ' escenas de prueba.'; A.render();
   };
   A.borrarTodo = async function () {
     await MDg.Almacen.borrarTodo(); await A.recargar(); A.estadoPack = 'Todo borrado.'; A.render();
@@ -292,7 +353,7 @@
   };
   A.abrirConversorLogo = function () {
     let im = null, res = null;
-    const prog = h('select', null, h('option', { value: 'spotify' }, 'Spotify (icono_propio_spotify.h)'), h('option', { value: 'dnd' }, 'D&D (icono_propio_dnd.h)'));
+    const prog = h('select', null, h('option', { value: 'spotify' }, 'Programa de musica'), h('option', { value: 'dnd' }, 'Programa de rol'));
     const tam = h('input', { type: 'range', min: 32, max: 96, value: 88 }), umbral = h('input', { type: 'range', min: 10, max: 245, value: 128 }), inv = h('input', { type: 'checkbox', style: 'width:auto' });
     const prev = h('canvas', { class: 'prev', width: 8, height: 8 }), cod = h('pre', { class: 'cod' }, '(elegi una imagen)'), info = h('small', null, '');
     const hacer = () => {
@@ -319,8 +380,8 @@
     };
     [tam, umbral, inv, prog].forEach(e => e.addEventListener('input', hacer)); inv.addEventListener('change', hacer);
     const archivo = h('input', { type: 'file', accept: 'image/*', onchange: async (e) => { try { im = await cargarImagen(e.target.files[0]); hacer(); } catch (x) { cod.textContent = x.message; } } });
-    dialogo('Conversor de logo para el lobby', h('div', null,
-      h('p', { class: 'suave' }, 'Elegi el programa y tu imagen. Despues: copia el archivo .h a la carpeta del sketch y en iconos_propios.h cambia el 0 por 1 de esa linea.'),
+    dialogo('Conversor de imagen a icono del lobby', h('div', null,
+      h('p', { class: 'suave' }, 'Elegi el programa y la imagen. Despues: copia el archivo .h a la carpeta del firmware y en iconos_propios.h cambia el 0 por 1 de esa linea.'),
       prog, h('label', null, 'Imagen'), archivo, h('label', null, 'Tamano maximo (puntos)'), tam, h('label', null, 'Umbral (cuando no hay transparencia)'), umbral,
       h('label', null, inv, ' Invertir (logo oscuro sobre fondo claro)'), h('div', { style: 'margin:10px 0' }, prev, h('br'), info), cod,
       h('div', { class: 'fila', style: 'margin-top:8px' },
