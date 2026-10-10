@@ -13,14 +13,16 @@ window.MD = window.MD || {};
 
   function vista(A, el) {
     const h = MD.UI.h, D = MD.Drive, aj = D.ajustes();
-    const url = h('input', { type: 'text', value: aj.url || '', placeholder: 'https://script.google.com/macros/s/.../exec', autocapitalize: 'off', spellcheck: 'false' });
-    const clave = h('input', { type: 'password', value: aj.clave || '', placeholder: 'La clave del script', autocomplete: 'off' });
-    const por = h('input', { type: 'text', value: aj.por || '', placeholder: 'Tu nombre (Tom, Frodo...)' });
-    el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Conexion con Drive'),
-      h('p', { class: 'suave' }, 'Los sonidos viven en una carpeta de Google Drive. Pega aca la direccion y la clave que te paso Tom (se guardan solo en este celu).'),
-      h('label', null, 'Direccion del Apps Script'), url, h('label', null, 'Clave'), clave, h('label', null, 'Tu nombre'), por,
-      h('div', { class: 'fila', style: 'margin-top:10px' },
-        h('button', { class: 'primario', type: 'button', onclick: () => { D.fijar(url.value, clave.value, por.value); A.driveActualizar(); } }, 'Guardar y conectar')),
+    const url = D.urlFija ? null : h('input', { type: 'text', value: aj.url || '', placeholder: 'https://script.google.com/macros/s/.../exec', autocapitalize: 'off', spellcheck: 'false' });
+    const clave = h('input', { type: 'password', value: aj.clave || '', placeholder: 'La clave', autocomplete: 'off' });
+    const por = h('select', null, D.usuarios.map(n => h('option', { value: n, selected: n === aj.por }, n)));
+    const entrar = () => { D.fijar(url ? url.value : '', clave.value, por.value); A.driveLista = null; A.driveActualizar(); };
+    clave.addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); });
+    el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Entrar a la biblioteca de Drive'),
+      h('p', { class: 'suave' }, 'Los sonidos viven en una carpeta de Google Drive compartida. Elegi quien sos y pone la clave (se guarda solo en este celu).'),
+      url ? [h('label', null, 'Direccion del Apps Script (falta cargarla en drive_config.js)'), url] : null,
+      h('label', null, 'Quien sos'), por, h('label', null, 'Clave'), clave,
+      h('div', { class: 'fila', style: 'margin-top:10px' }, h('button', { class: 'primario', type: 'button', onclick: entrar }, 'Entrar')),
       A.driveError ? h('p', { class: 'aviso', style: 'margin-top:10px' }, A.driveError) : null));
 
     if (!D.configurado()) return;
