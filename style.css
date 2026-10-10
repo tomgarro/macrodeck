@@ -19,6 +19,7 @@ input[type=range]{width:100%;accent-color:var(--ambar)}
 label{display:block;font-size:.85rem;color:var(--tx2);margin:.7em 0 .2em}
 #app{display:flex;flex-direction:column;height:100%;max-width:980px;margin:0 auto}
 header.cab{display:flex;align-items:center;gap:.7rem;padding:.6rem 16px;border-bottom:1px solid var(--linea)}
+header.cab h1 small.ver{display:block;font-size:.68rem;font-weight:400;color:var(--tx2);letter-spacing:.02em}
 header.cab h1{font-size:1.05rem;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pill{font-size:.78rem;border:1px solid var(--linea);border-radius:99px;padding:.2em .7em;white-space:nowrap}
 .pill.ok{border-color:var(--ok);color:var(--ok)}.pill.mal{border-color:var(--rojo);color:#ff9a92}
