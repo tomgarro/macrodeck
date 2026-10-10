@@ -217,7 +217,7 @@
     A.cambio(true); await A.guardarYa(); await A.infoStorage(); A.render();
   };
 
-  // ---------- Drive (solo lectura) ----------
+  // ---------- Drive (sonidos y escenas) ----------
   A.driveLista = null; A.driveCategorias = []; A.driveCarpeta = ''; A.driveError = ''; A.driveMsg = ''; A.driveCargando = false; A.driveBajando = {}; A.driveBajandoTodo = '';
   A.driveActualizar = async function () {
     A.driveCargando = true; A.driveError = ''; A.driveMsg = ''; if (A.tab === 'drive') A.render();
@@ -225,8 +225,11 @@
       const p = await MDg.Drive.ping(); A.driveCarpeta = p.carpeta;
       const j = await MDg.Drive.listar();
       A.driveLista = j.sonidos; A.driveCategorias = j.categorias;
+      A.drivePend = j.sonidos.filter(x => MDg.DriveUI.estadoDe(A, x) !== 'ok').length;
     } catch (e) { A.driveError = e.message; A.driveLista = null; }
-    A.driveCargando = false; if (A.tab === 'drive') A.render();
+    A.driveCargando = false;
+    if (A.tab === 'drive') A.render();
+    else { const b = tabsEl.querySelector('[data-tab="drive"]'); if (b) b.textContent = 'Drive' + (A.drivePend ? ' (' + A.drivePend + ')' : ''); }
   };
   // Baja un sonido de Drive y lo deja en la biblioteca de este celu (el id es el mismo de Drive: sirve en todos los celus)
   A.driveBajar = async function (s) {
@@ -245,6 +248,67 @@
     } catch (e) { A.driveMsg = 'No se pudo bajar "' + s.nombre + '": ' + e.message; }
     delete A.driveBajando[s.id]; if (A.tab === 'drive') A.render();
   };
+  // Sube sonidos de este celu a Drive (los demas los ven como "nuevos"). Tambien quedan en la biblioteca de este celu con el mismo id.
+  A.driveSubiendo = ''; A.driveSubidaMsg = '';
+  A.driveSubir = async function (archivos, carpeta) {
+    const lista = Array.from(archivos || []); if (!lista.length || A.driveSubiendo) return;
+    const ok = [], mal = [];
+    for (let i = 0; i < lista.length; i++) {
+      const f = lista[i];
+      A.driveSubiendo = 'Subiendo ' + (i + 1) + ' de ' + lista.length + ': ' + f.name; if (A.tab === 'drive') A.render();
+      try {
+        const r = await MDg.Drive.subir(f, carpeta);
+        const reg = { blob: f, nombre: r.nombre, tipo: f.type || 'audio/mpeg' };
+        await MDg.Almacen.guardarSonido(r.id, reg); A.regs.set(r.id, reg); await A.motor.fijarArchivo(r.id, reg);
+        A.cfg.sonidos.push({ id: r.id, nombre: r.nombre.replace(/\.[a-z0-9]+$/i, '').replace(/[_]+/g, ' ').trim().slice(0, 60), volumen: 1, duracion: await duracionDe(f), archivoOriginal: r.nombre, carpeta: r.carpeta, driveMod: Date.now() + 120000 });
+        ok.push(r.nombre);
+      } catch (e) { mal.push(f.name + ': ' + e.message); }
+    }
+    A.driveSubiendo = ''; A.cambio(false); await A.guardarYa(); await A.infoStorage();
+    A.driveSubidaMsg = (ok.length ? ok.length + ' sonido(s) subidos a Drive. ' : '') + (mal.length ? 'No se pudo: ' + mal.join(' | ') : '');
+    await A.driveActualizar();
+  };
+
+  // Escenas compartidas: junta las de este celu con las de Drive (ver drive_escenas.js).
+  A.escCargando = false; A.escMsg = ''; A.escConflictos = []; A.escElec = {};
+  A.driveEscenas = async function () {
+    if (A.escCargando) return;
+    A.escCargando = true; A.escMsg = ''; A.render();
+    try {
+      for (let intento = 0; intento < 3; intento++) {
+        const r = await MDg.Drive.escenasLeer();
+        const remoto = (r.config && r.config.escenas) || [], base = MDg.Drive.baseEscenas();
+        const f = MDg.DriveEsc.fusionar(base && base.escenas, A.cfg.escenas, remoto, A.escElec);
+        if (f.conflictos.length) {
+          A.escConflictos = f.conflictos.map(id => ({ id, mia: A.cfg.escenas.find(e => e.id === id), drive: remoto.find(e => e.id === id) }));
+          A.escMsg = 'La escena ' + f.conflictos.map(id => '"' + ((A.cfg.escenas.find(e => e.id === id) || {}).nombre || id) + '"').join(', ') + ' se cambio en los dos lados. Elegi con cual quedarte.';
+          break;
+        }
+        A.escConflictos = [];
+        const nuevas = MDg.Config.normalizar({ escenas: f.escenas }).escenas;
+        const cambioLocal = MDg.DriveEsc.estable(nuevas) !== MDg.DriveEsc.estable(A.cfg.escenas);
+        if (cambioLocal) {
+          A.cfg.escenas = nuevas; A.activa = Math.min(A.activa, nuevas.length - 1); A.edEsc = Math.min(A.edEsc, nuevas.length - 1); A.edTecla = null;
+          A.cambio(true); await A.guardarYa();
+        }
+        let version = r.version;
+        if (!f.igual) {
+          const g = await MDg.Drive.escenasGuardar(r.version, { escenas: nuevas });
+          if (g.conflicto) continue;                                   // alguien guardo justo en el medio: se vuelve a juntar
+          version = g.version;
+        }
+        MDg.Drive.fijarBaseEscenas(version, nuevas); A.escElec = {};
+        const faltan = new Set(); nuevas.forEach(e => e.teclas.forEach(t => t && t.sonidos.forEach(id => { if (!A.regs.has(id)) faltan.add(id); })));
+        const x = f.resumen;
+        A.escMsg = 'Escenas sincronizadas (' + (x.traidas ? x.traidas + ' traida(s) de Drive' : 'nada nuevo en Drive') + ', ' + (x.subidas ? x.subidas + ' subida(s)' : 'nada para subir') + (x.borradas ? ', ' + x.borradas + ' borrada(s)' : '') + ').'
+          + (faltan.size ? ' Ojo: faltan ' + faltan.size + ' sonido(s) en este celu; usa "Bajar lo nuevo".' : '');
+        break;
+      }
+    } catch (e) { A.escMsg = 'No se pudo sincronizar: ' + e.message; }
+    A.escCargando = false; A.render();
+  };
+  A.driveElegir = function (id, quien) { A.escElec[id] = quien; A.driveEscenas(); };
+
   A.driveBajarTodo = async function (lista) {
     A.driveMsg = '';
     for (let i = 0; i < lista.length; i++) { A.driveBajandoTodo = (i + 1) + ' / ' + lista.length; if (A.tab === 'drive') A.render(); await A.driveBajar(lista[i]); }
@@ -395,7 +459,7 @@
     vista.innerHTML = ''; A.mesaCeldas = []; A.mesaVol = A.mesaSonando = A.mesaDado = null;
     ({ mesa: MDg.UI.vistaMesa, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     tabsEl.innerHTML = '';
-    TABS.forEach(([id, n]) => tabsEl.append(h('button', { type: 'button', class: id === A.tab ? 'on' : '', 'data-tab': id, onclick: () => { A.tab = id; A.render(); vista.scrollTop = 0; } }, n)));
+    TABS.forEach(([id, n]) => tabsEl.append(h('button', { type: 'button', class: id === A.tab ? 'on' : '', 'data-tab': id, onclick: () => { A.tab = id; A.render(); vista.scrollTop = 0; } }, n + (id === 'drive' && A.drivePend ? ' (' + A.drivePend + ')' : ''))));
     vista.scrollTop = sc; pintarPills(); A.actualizarEstado(false);
   };
 
@@ -403,6 +467,7 @@
   (async function () {
     await A.recargar();
     A.render();
+    if (MDg.Drive.configurado() && navigator.onLine) A.driveActualizar();     // mira en silencio si hay sonidos nuevos (aparece el numero en la pestana Drive)
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
     window.addEventListener('beforeunload', () => { try { MDg.Almacen.guardarConfig(A.cfg); } catch (e) {} });
     window.appListo = true;

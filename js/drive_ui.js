@@ -44,6 +44,28 @@ window.MD = window.MD || {};
           A.driveBajandoTodo ? ('Bajando… ' + A.driveBajandoTodo) : (pendientes.length ? 'Bajar lo nuevo (' + pendientes.length + ')' : 'Todo al dia'))),
       A.driveMsg ? h('p', { class: 'suave', style: 'margin-top:8px' }, A.driveMsg) : null));
 
+    // escenas compartidas
+    const teclasDe = (e) => e ? e.teclas.filter(Boolean).length : 0;
+    el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Escenas compartidas'),
+      h('p', { class: 'suave' }, 'Junta las escenas de este celu con las de Drive. Si Tom y Frodo cambiaron escenas distintas, se suman solas; si tocaron la misma, te pregunta.'),
+      h('div', { class: 'fila' }, h('button', { class: 'primario', type: 'button', disabled: !!A.escCargando, onclick: () => A.driveEscenas() }, A.escCargando ? 'Sincronizando…' : 'Sincronizar escenas')),
+      A.escMsg ? h('p', { class: 'suave', style: 'margin-top:8px' }, A.escMsg) : null,
+      (A.escConflictos || []).map(c => h('div', { class: 's', style: 'margin-top:8px' },
+        h('div', { class: 'crece' }, h('div', null, (c.mia && c.mia.nombre) || (c.drive && c.drive.nombre) || c.id), h('small', null, 'En este celu: ' + teclasDe(c.mia) + ' tecla(s) · En Drive: ' + teclasDe(c.drive) + ' tecla(s)')),
+        h('button', { type: 'button', onclick: () => A.driveElegir(c.id, 'mia') }, 'Quedarme con la mia'),
+        h('button', { type: 'button', onclick: () => A.driveElegir(c.id, 'drive') }, 'Usar la de Drive')))));
+
+    // subir sonidos
+    const cats = ['Sin categoria'].concat((A.driveCategorias || []).filter(c => c !== 'Sin categoria'));
+    const sel = h('select', { onchange: () => { A.driveCatSel = sel.value; } }, cats.map(c => h('option', { value: c === 'Sin categoria' ? '' : c, selected: (A.driveCatSel || '') === (c === 'Sin categoria' ? '' : c) }, c)));
+    const arch = h('input', { type: 'file', multiple: true, accept: 'audio/*,.mp3,.wav,.ogg,.m4a,.flac,.opus,.aac,.webm' });
+    el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Subir sonidos a Drive'),
+      h('p', { class: 'suave' }, 'Los sonidos que subas les aparecen a los demas como "nuevos". Maximo 12 MB cada uno. Las categorias son las subcarpetas de Drive (para crear una nueva, hacela a mano en Drive).'),
+      h('label', null, 'Categoria'), sel, h('label', null, 'Archivos'), arch,
+      h('div', { class: 'fila', style: 'margin-top:10px' }, h('button', { class: 'primario', type: 'button', disabled: !!A.driveSubiendo, onclick: () => { if (!arch.files.length) { A.driveSubidaMsg = 'Primero elegi uno o mas archivos.'; A.render(); return; } A.driveSubidaMsg = ''; A.driveSubir(arch.files, sel.value); } }, A.driveSubiendo ? 'Subiendo…' : 'Subir')),
+      A.driveSubiendo ? h('p', { class: 'suave', style: 'margin-top:8px' }, A.driveSubiendo) : null,
+      A.driveSubidaMsg ? h('p', { class: 'suave', style: 'margin-top:8px' }, A.driveSubidaMsg) : null));
+
     // agrupado por categoria (subcarpeta)
     const grupos = new Map();
     lista.slice().sort((a, b) => (a.carpeta + '/' + a.nombre).localeCompare(b.carpeta + '/' + b.nombre, 'es')).forEach(s => {

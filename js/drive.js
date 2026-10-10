@@ -1,5 +1,5 @@
 // drive.js - Habla con tu Google Drive a traves del Apps Script (herramientas/drive/Code.gs).
-// Solo LEE por ahora (listar y bajar sonidos). La direccion y la clave se guardan en este celu (localStorage).
+// Lista y baja sonidos, sube sonidos nuevos y sincroniza las escenas. La direccion fija va en drive_config.js; la clave se guarda en este celu (localStorage).
 window.MD = window.MD || {};
 (function (MD) {
   const LS = 'md_drive';
@@ -25,13 +25,41 @@ window.MD = window.MD || {};
     return j;
   }
 
+  // Los POST van como texto plano con fetch: asi el navegador no hace la consulta previa (CORS) que Apps Script no contesta.
+  // OJO: no usar XMLHttpRequest con upload.onprogress, eso fuerza esa consulta previa y el POST falla con "No se pudo conectar".
+  async function post(obj) {
+    if (!urlActual() || !aj.clave) throw new Error('Falta la direccion o la clave de Drive.');
+    obj.clave = aj.clave;
+    let r;
+    try { r = await fetch(urlActual(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(obj) }); }
+    catch (e) { throw new Error('No se pudo conectar con Drive. Revisa internet (si es un archivo grande, puede haberse cortado).'); }
+    let j;
+    try { j = await r.json(); } catch (e) { throw new Error('Drive contesto algo raro. Si cambiaste el script, publica una nueva version en Implementar > Administrar implementaciones.'); }
+    if (!j.ok && !j.conflicto) throw new Error(j.error === 'clave' ? 'La clave no coincide con la del script.' : (j.error || 'Error de Drive.'));
+    return j;
+  }
+  const LSB = 'md_drive_base';
+  function leerBase() { try { return JSON.parse(localStorage.getItem(LSB) || 'null'); } catch (e) { return null; } }
+  function leerArchivo(f) { return new Promise((ok, mal) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = () => mal(new Error('No se pudo leer el archivo.')); r.readAsDataURL(f); }); }
+
   MD.Drive = {
     usuarios: USUARIOS,
     urlFija: !!URL_FIJA,
     ajustes: () => ({ url: urlActual(), clave: aj.clave || '', por: aj.por || USUARIOS[0] }),
     configurado: () => !!(urlActual() && aj.clave),
     fijar(url, clave, por) { aj = { url: URL_FIJA ? '' : String(url || '').trim(), clave: String(clave || ''), por: String(por || '').trim() }; guardar(aj); },
+    MAX_SUBIDA: 12 * 1048576,
     ping: () => get({ accion: 'ping' }),
+    // Sube un sonido a la subcarpeta 'carpeta' (si no existe, va a "Sin categoria"). Devuelve {id, nombre, carpeta, tam}.
+    async subir(file, carpeta) {
+      if (file.size > MD.Drive.MAX_SUBIDA) throw new Error('"' + file.name + '" pesa ' + (file.size / 1048576).toFixed(1) + ' MB y el maximo es 12 MB.');
+      return post({ accion: 'subir', nombre: file.name, mime: file.type || 'audio/mpeg', carpeta: carpeta || '', por: aj.por || 'alguien', datos: await leerArchivo(file) });
+    },
+    // Escenas compartidas (con numero de version para detectar si alguien guardo en el medio)
+    escenasLeer: () => get({ accion: 'escenas' }),
+    escenasGuardar: (baseVersion, config) => post({ accion: 'escenas_guardar', baseVersion: baseVersion, config: config, por: aj.por || '' }),
+    baseEscenas: leerBase,
+    fijarBaseEscenas(version, escenas) { try { localStorage.setItem(LSB, JSON.stringify({ version: version, escenas: escenas })); } catch (e) {} },
     listar: () => get({ accion: 'listar' }),
     // Baja un sonido entero (el script lo entrega en trozos). 'progreso' recibe 0..1.
     async bajar(id, progreso) {
