@@ -42,7 +42,7 @@ window.MD = window.MD || {};
     const out = { version: 1, nombre: String(c.nombre || base.nombre).slice(0, 60), escenas: [], sonidos: [], ajustes: Object.assign({}, base.ajustes, c.ajustes || {}) };
     out.ajustes.volMax = num(out.ajustes.volMax, 0.9, 0.1, 1);
     out.ajustes.escenaInicial = num(out.ajustes.escenaInicial, 0, 0, 9) | 0;
-    for (const s of c.sonidos || []) out.sonidos.push({ id: String(s.id), nombre: String(s.nombre || 'Sonido').slice(0, 60), volumen: num(s.volumen, 1, 0, 2), duracion: num(s.duracion, 0, 0, 36000), archivoOriginal: s.archivoOriginal || '' });
+    for (const s of c.sonidos || []) out.sonidos.push({ id: String(s.id), nombre: String(s.nombre || 'Sonido').slice(0, 60), volumen: num(s.volumen, 1, 0, 2), duracion: num(s.duracion, 0, 0, 36000), archivoOriginal: s.archivoOriginal || '', carpeta: String(s.carpeta || '').slice(0, 80), driveMod: num(s.driveMod, 0, 0, 1e15) });
     for (const e of (c.escenas || []).slice(0, 10)) {
       const esc = { id: String(e.id || nuevoId('e')), nombre: String(e.nombre || 'Escena').slice(0, 30), teclas: [] };
       for (let i = 0; i < 10; i++) {

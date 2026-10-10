@@ -8,7 +8,7 @@
   };
   const vista = document.getElementById('vista'), tabsEl = document.getElementById('tabs');
   const pillAudio = document.getElementById('pillAudio'), pillCon = document.getElementById('pillCon');
-  const TABS = [['mesa', 'Mesa'], ['escenas', 'Escenas'], ['sonidos', 'Sonidos'], ['herramientas', 'Herramientas']];
+  const TABS = [['mesa', 'Mesa'], ['escenas', 'Escenas'], ['sonidos', 'Sonidos'], ['drive', 'Drive'], ['herramientas', 'Herramientas']];
 
   // ---------- guardar ----------
   let tGuardar = 0, tMapa = 0;
@@ -183,6 +183,40 @@
     A.cambio(true); await A.guardarYa(); await A.infoStorage(); A.render();
   };
 
+  // ---------- Drive (solo lectura) ----------
+  A.driveLista = null; A.driveCategorias = []; A.driveCarpeta = ''; A.driveError = ''; A.driveMsg = ''; A.driveCargando = false; A.driveBajando = {}; A.driveBajandoTodo = '';
+  A.driveActualizar = async function () {
+    A.driveCargando = true; A.driveError = ''; A.driveMsg = ''; if (A.tab === 'drive') A.render();
+    try {
+      const p = await MDg.Drive.ping(); A.driveCarpeta = p.carpeta;
+      const j = await MDg.Drive.listar();
+      A.driveLista = j.sonidos; A.driveCategorias = j.categorias;
+    } catch (e) { A.driveError = e.message; A.driveLista = null; }
+    A.driveCargando = false; if (A.tab === 'drive') A.render();
+  };
+  // Baja un sonido de Drive y lo deja en la biblioteca de este celu (el id es el mismo de Drive: sirve en todos los celus)
+  A.driveBajar = async function (s) {
+    if (A.driveBajando[s.id] != null) return;
+    A.driveBajando[s.id] = 0; if (A.tab === 'drive') A.render();
+    try {
+      const blob = await MDg.Drive.bajar(s.id, (q) => { A.driveBajando[s.id] = q; });
+      const reg = { blob, nombre: s.nombre, tipo: blob.type || s.mime || 'audio/mpeg' };
+      await MDg.Almacen.guardarSonido(s.id, reg);
+      A.regs.set(s.id, reg); await A.motor.fijarArchivo(s.id, reg);
+      const dur = await duracionDe(blob), nombre = s.nombre.replace(/\.[a-z0-9]+$/i, '').replace(/[_]+/g, ' ').trim().slice(0, 60);
+      const ya = A.cfg.sonidos.find(x => x.id === s.id);
+      if (ya) { ya.duracion = dur; ya.driveMod = s.mod; ya.carpeta = s.carpeta; }
+      else A.cfg.sonidos.push({ id: s.id, nombre, volumen: 1, duracion: dur, archivoOriginal: s.nombre, carpeta: s.carpeta, driveMod: s.mod });
+      A.cambio(false); await A.guardarYa(); await A.infoStorage();
+    } catch (e) { A.driveMsg = 'No se pudo bajar "' + s.nombre + '": ' + e.message; }
+    delete A.driveBajando[s.id]; if (A.tab === 'drive') A.render();
+  };
+  A.driveBajarTodo = async function (lista) {
+    A.driveMsg = '';
+    for (let i = 0; i < lista.length; i++) { A.driveBajandoTodo = (i + 1) + ' / ' + lista.length; if (A.tab === 'drive') A.render(); await A.driveBajar(lista[i]); }
+    A.driveBajandoTodo = ''; if (!A.driveMsg) A.driveMsg = 'Listo: ' + lista.length + ' sonido(s) bajados a este celu.'; if (A.tab === 'drive') A.render();
+  };
+
   // ---------- packs ----------
   function descargar(blob, nombre) {
     const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = nombre; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000);
@@ -298,7 +332,7 @@
   A.render = function () {
     const sc = vista.scrollTop;
     vista.innerHTML = ''; A.mesaCeldas = []; A.mesaVol = A.mesaSonando = A.mesaDado = null;
-    ({ mesa: MDg.UI.vistaMesa, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
+    ({ mesa: MDg.UI.vistaMesa, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     tabsEl.innerHTML = '';
     TABS.forEach(([id, n]) => tabsEl.append(h('button', { type: 'button', class: id === A.tab ? 'on' : '', 'data-tab': id, onclick: () => { A.tab = id; A.render(); vista.scrollTop = 0; } }, n)));
     vista.scrollTop = sc; pintarPills(); A.actualizarEstado(false);

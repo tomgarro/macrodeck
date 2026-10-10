@@ -14,7 +14,7 @@ button.primario{background:var(--ambar);color:#1b1407;border-color:var(--ambar);
 button.peligro{border-color:var(--rojo);color:#ff9a92}
 button.peligro.seguro{background:var(--rojo);color:#fff}
 button:disabled{opacity:.45;cursor:default}
-input[type=text],input[type=number],select,textarea{background:var(--bg);border:1px solid var(--linea);border-radius:8px;padding:.5em .6em;width:100%;min-height:42px}
+input[type=text],input[type=password],input[type=number],select,textarea{background:var(--bg);border:1px solid var(--linea);border-radius:8px;padding:.5em .6em;width:100%;min-height:42px}
 input[type=range]{width:100%;accent-color:var(--ambar)}
 label{display:block;font-size:.85rem;color:var(--tx2);margin:.7em 0 .2em}
 #app{display:flex;flex-direction:column;height:100%;max-width:980px;margin:0 auto}
