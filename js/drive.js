@@ -57,9 +57,11 @@ window.MD = window.MD || {};
     },
     // Escenas compartidas (con numero de version para detectar si alguien guardo en el medio)
     escenasLeer: () => get({ accion: 'escenas' }),
+    // 1.3-dev21: el rol sale del nombre elegido al entrar a Drive. Frodo (el DM) arma escenas en borrador y las confirma; Tom solo recibe las confirmadas.
+    esDM: () => String(aj.por || '').toLowerCase() === 'frodo',
     escenasGuardar: (baseVersion, config) => post({ accion: 'escenas_guardar', baseVersion: baseVersion, config: config, por: aj.por || '' }),
     baseEscenas: leerBase,
-    fijarBaseEscenas(version, escenas) { try { localStorage.setItem(LSB, JSON.stringify({ version: version, escenas: escenas })); } catch (e) {} },
+    fijarBaseEscenas(version, escenas, looks) { try { localStorage.setItem(LSB, JSON.stringify({ version: version, escenas: escenas, looks: looks || [] })); } catch (e) {} },
     listar: () => get({ accion: 'listar' }),
     // Baja un sonido entero (el script lo entrega en trozos). 'progreso' recibe 0..1.
     async bajar(id, progreso) {

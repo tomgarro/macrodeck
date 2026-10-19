@@ -77,4 +77,66 @@ window.MD = window.MD || {};
     }
   }
   MD.BleTransport = BleTransport;
+
+  // ---------------------------------------------------------------------------
+  // Bluetooth NATIVO (dentro del APK envoltorio): misma forma que BleTransport, pero habla con el plugin Android
+  // (MD.Nativo.ble). El plugin se encarga de reconectar solo, aunque la pantalla este bloqueada; aca solo se refleja el estado.
+  // ---------------------------------------------------------------------------
+  class NativoBleTransport {
+    constructor() {
+      this.tipo = 'ble'; this.nativo = true; this.estado = 'desconectado'; this.detalle = '';
+      this.cola = []; this.escribiendo = false; this.quieroConectado = false; this.subs = [];
+      this.onFrame = () => {}; this.onEstado = () => {}; this.onConectado = () => {};
+    }
+    static disponible() { return !!(MD.Nativo && MD.Nativo.ble); }
+    get conectado() { return this.estado === 'conectado'; }
+    _estado(e, detalle) { this.estado = e; this.detalle = detalle || ''; this.onEstado(e, this.detalle); }
+
+    async _suscribir() {
+      if (this.subs.length) return;
+      const ble = MD.Nativo.ble;
+      this.subs.push(await ble.addListener('estado', (ev) => this._alEstado(ev || {})));
+      this.subs.push(await ble.addListener('trama', (ev) => { if (ev && ev.b64) this.onFrame(MD.Nativo.u8(ev.b64)); }));
+    }
+    _alEstado(ev) {
+      const antes = this.estado;
+      if (!this.quieroConectado && ev.estado !== 'desconectado') return;     // ya pedimos cortar: se ignoran avisos viejos
+      this._estado(ev.estado || 'desconectado', ev.detalle);
+      if (ev.estado === 'conectado' && antes !== 'conectado') { this.cola = []; this.onConectado(); }
+    }
+    async conectar() {
+      this.quieroConectado = true;
+      this._estado('buscando');
+      try {
+        await this._suscribir();
+        await MD.Nativo.ble.conectar({ servicio: MD.P.SERVICIO, rx: MD.P.RX, tx: MD.P.TX });
+      } catch (e) {
+        this.quieroConectado = false;
+        this._estado('desconectado', String((e && e.message) || e));
+        throw e;
+      }
+    }
+    desconectar() {
+      this.quieroConectado = false;
+      try { MD.Nativo.ble.desconectar(); } catch (e) {}
+      this.subs.forEach(s => { try { s && s.remove && s.remove(); } catch (e) {} });
+      this.subs = []; this.cola = [];
+      this._estado('desconectado');
+    }
+    send(trama) { if (!this.conectado) return; this.cola.push(trama); this._vaciar(); }
+    sendVarias(tramas) { tramas.forEach(t => this.send(t)); }
+    async _vaciar() {
+      if (this.escribiendo) return;
+      this.escribiendo = true;
+      while (this.cola.length && this.conectado) {
+        const t = this.cola.shift();
+        try { await MD.Nativo.ble.escribir({ b64: MD.Nativo.b64(t) }); } catch (e) { /* el plugin ya reintenta; se sigue con la proxima */ }
+        await new Promise(r => setTimeout(r, 6));
+      }
+      this.escribiendo = false;
+    }
+  }
+  MD.NativoBleTransport = NativoBleTransport;
+  // "Hay Bluetooth": el nativo del APK o el Web Bluetooth del navegador
+  MD.hayBle = () => NativoBleTransport.disponible() || BleTransport.disponible();
 })(window.MD);

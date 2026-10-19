@@ -37,15 +37,13 @@ window.MD = window.MD || {};
     puerta() { const x = buf(0.8); let ph = 0; for (let i = 0; i < x.length; i++) { const t = i / SR; ph += 2 * Math.PI * (190 - 70 * t + 18 * Math.sin(t * 38)) / SR; const saw = (ph / (2 * Math.PI)) % 1; x[i] = (saw * 2 - 1) * Math.min(1, t * 20) * Math.min(1, (0.8 - t) * 6) * 0.6; } return norm(lp(x, 0.2), 0.55); },
     campana() { const x = buf(3.2); const ps = [[392, 1], [784, 0.6], [1058, 0.4], [1572, 0.3], [2093, 0.15]]; for (let i = 0; i < x.length; i++) { const t = i / SR; let s = 0; ps.forEach(([f, a], k) => { s += a * Math.sin(2 * Math.PI * f * t) * Math.exp(-t / (1.2 - k * 0.15)); }); x[i] = s; } return norm(x, 0.55); },
     paso(f) { return () => { const x = buf(0.22); for (let i = 0; i < x.length; i++) { const t = i / SR; x[i] = (ruido() * 0.7 + Math.sin(2 * Math.PI * f * t)) * Math.exp(-t / 0.035); } return norm(lp(x, 0.25), 0.6); }; },
+    antorcha() { const x = buf(1.1); for (let i = 0; i < x.length; i++) { const t = i / SR; x[i] = ruido() * Math.min(1, t / 0.06) * Math.exp(-t / 0.5) * (0.35 + 0.65 * Math.min(1, t * 4)); } lp(x, 0.12); return norm(x, 0.6); },
     rugido() { const x = buf(1.6); let ph = 0; for (let i = 0; i < x.length; i++) { const t = i / SR; ph += 2 * Math.PI * (70 + 30 * Math.sin(t * 5) - 15 * t) / SR; const saw = ((ph / (2 * Math.PI)) % 1) * 2 - 1; x[i] = (saw + ruido() * 0.5) * env(t, 0.12, 0.9); } return norm(lp(x, 0.18), 0.75); },
-    dado() { const x = buf(0.6); for (let k = 0; k < 9; k++) { const p = Math.floor((k * k * 0.006 + 0.01) * SR); for (let j = 0; j < 500 && p + j < x.length; j++) x[p + j] += ruido() * Math.exp(-j / 70) * (0.9 - k * 0.07); } return norm(hp(x, 0.05), 0.6); },
-    critico() { const x = buf(1.2); [523, 659, 784, 1047].forEach((f, k) => { for (let j = 0; j < SR * 0.9; j++) { const i = Math.round(k * 0.1 * SR) + j; if (i >= x.length) break; const t = j / SR; x[i] += Math.sin(2 * Math.PI * f * t) * Math.exp(-t / 0.4) * 0.3; } }); return norm(x, 0.6); },
-    pifia() { const x = buf(1); let ph = 0; for (let i = 0; i < x.length; i++) { const t = i / SR; ph += 2 * Math.PI * (330 * Math.exp(-t * 1.6)) / SR; x[i] = Math.sin(ph) * env(t, 0.02, 0.5); } return norm(x, 0.6); },
   };
   const LISTA = [
     ['lluvia', 'Lluvia (loop)'], ['viento', 'Viento (loop)'], ['fuego', 'Fogata (loop)'], ['taberna', 'Musica de taberna (loop)'], ['tension', 'Tension (loop)'],
     ['espada', 'Choque de espadas'], ['golpe', 'Golpe'], ['hechizo', 'Hechizo'], ['puerta', 'Puerta que cruje'], ['campana', 'Campana'],
-    ['paso1', 'Paso 1'], ['paso2', 'Paso 2'], ['paso3', 'Paso 3'], ['rugido', 'Rugido'], ['dado', 'Dado rodando'], ['critico', 'Critico!'], ['pifia', 'Pifia'],
+    ['paso1', 'Paso 1'], ['paso2', 'Paso 2'], ['paso3', 'Paso 3'], ['rugido', 'Rugido'], ['antorcha', 'Prender antorcha (intro)'],
   ];
   function crear() {
     semilla = 12345;
@@ -61,31 +59,33 @@ window.MD = window.MD || {};
     const taberna = MD.Config.escenaNueva('Taberna');
     taberna.id = 'demo_e1';
     taberna.teclas = [
-      T({ nombre: 'Musica', categoria: 'ambiente', tipo: 'loop', sonidos: [id.taberna], grupo: 'amb', entrada: 1.5, salida: 2, icono: ic('nota'), volumen: 0.8 }),
-      T({ nombre: 'Fogata', categoria: 'ambiente', tipo: 'loop', sonidos: [id.fuego], entrada: 1, salida: 1.5, icono: ic('fuego'), volumen: 0.6 }),
-      T({ nombre: 'Lluvia fuera', categoria: 'ambiente', tipo: 'loop', sonidos: [id.lluvia], entrada: 2, salida: 2, icono: ic('lluvia'), volumen: 0.4 }),
-      T({ nombre: 'Puerta', categoria: 'efecto', tipo: 'una_vez', sonidos: [id.puerta], icono: ic('puerta') }),
-      T({ nombre: 'Campana', categoria: 'efecto', tipo: 'una_vez', sonidos: [id.campana], icono: ic('campana'), retoque: 'superponer' }),
-      T({ nombre: 'Pasos', categoria: 'efecto', tipo: 'azar', sonidos: [id.paso1, id.paso2, id.paso3], icono: ic('huella') }),
-      T({ nombre: 'Dado d20', categoria: 'accion', tipo: 'dado', dado: 20, sonidos: [id.dado], dadoCritico: id.critico, dadoPifia: id.pifia, icono: ic('dado20') }),
-      T({ nombre: 'Rugido', categoria: 'combate', tipo: 'una_vez', sonidos: [id.rugido], icono: ic('dragon') }),
-      T({ nombre: 'Fade out', categoria: 'accion', tipo: 'fadeout', salida: 3, icono: ic('fadeout') }),
-      T({ nombre: 'Silencio', categoria: 'accion', tipo: 'silenciar', icono: ic('silencio') }),
+      T({ nombre: 'Musica', tipo: 'loop', sonidos: [id.taberna], grupo: 'amb', entrada: 1.5, salida: 2, icono: ic('nota'), volumen: 0.8 }),
+      T({ nombre: 'Fogata', tipo: 'loop', sonidos: [id.fuego], entrada: 1, salida: 1.5, icono: ic('fuego'), volumen: 0.6, luces: [{ luz: 'dnd-2', look: 'lf_fogata', cuando: 'suena' }] }),
+      T({ nombre: 'Lluvia fuera', tipo: 'loop', sonidos: [id.lluvia], entrada: 2, salida: 2, icono: ic('lluvia'), volumen: 0.4 }),
+      T({ nombre: 'Puerta', tipo: 'una_vez', sonidos: [id.puerta], icono: ic('puerta') }),
+      T({ nombre: 'Campana', ducking: true, tipo: 'una_vez', sonidos: [id.campana], icono: ic('campana'), retoque: 'superponer' }),
+      T({ nombre: 'Pasos', tipo: 'azar', sonidos: [id.paso1, id.paso2, id.paso3], icono: ic('huella') }),
+      T({ nombre: 'Antorcha', tipo: 'intro_loop', sonidos: [id.antorcha, id.fuego], entrada: 0, salida: 1, icono: ic('fuego'), volumen: 0.7 }),
+      T({ nombre: 'Rugido', ducking: true, tipo: 'una_vez', sonidos: [id.rugido], icono: ic('dragon'), luces: [{ luz: 'dnd-1', look: 'lf_rugido', cuando: 'momento', seg: 1.5 }, { luz: 'dnd-2', look: 'lf_rugido', cuando: 'momento', seg: 1.5 }] }),
+      T({ nombre: 'Fade out', tipo: 'fadeout', salida: 3, icono: ic('fadeout') }),
+      T({ nombre: 'Silencio', tipo: 'silenciar', icono: ic('silencio') }),
     ];
+    taberna.luz = { 'dnd-1': 'lf_taberna', 'dnd-2': 'lf_vela' };          // 1.3-dev16: ambiente de luz de la escena
     const combate = MD.Config.escenaNueva('Combate');
     combate.id = 'demo_e2';
     combate.teclas = [
-      T({ nombre: 'Tension', categoria: 'combate', tipo: 'loop', sonidos: [id.tension], grupo: 'amb', entrada: 1.5, salida: 2, icono: ic('calavera') }),
-      T({ nombre: 'Viento', categoria: 'ambiente', tipo: 'loop', sonidos: [id.viento], entrada: 2, salida: 2, icono: ic('viento'), volumen: 0.6 }),
-      T({ nombre: 'Espadazo', categoria: 'combate', tipo: 'una_vez', sonidos: [id.espada], icono: ic('espada'), retoque: 'superponer' }),
-      T({ nombre: 'Golpe', categoria: 'combate', tipo: 'una_vez', sonidos: [id.golpe], icono: ic('martillo') }),
-      T({ nombre: 'Hechizo', categoria: 'combate', tipo: 'mantener', sonidos: [id.hechizo], salida: 0.5, icono: ic('magia') }),
-      T({ nombre: 'Rugido', categoria: 'combate', tipo: 'una_vez', sonidos: [id.rugido], icono: ic('dragon') }),
-      T({ nombre: 'Dado d20', categoria: 'accion', tipo: 'dado', dado: 20, sonidos: [id.dado], dadoCritico: id.critico, dadoPifia: id.pifia, icono: ic('dado20') }),
-      T({ nombre: 'Pasos', categoria: 'efecto', tipo: 'secuencia', sonidos: [id.paso1, id.paso2, id.paso3], icono: ic('huella') }),
-      T({ nombre: 'Fade out', categoria: 'accion', tipo: 'fadeout', salida: 3, icono: ic('fadeout') }),
-      T({ nombre: 'Silencio', categoria: 'accion', tipo: 'silenciar', icono: ic('silencio') }),
+      T({ nombre: 'Tension', tipo: 'loop', sonidos: [id.tension], grupo: 'amb', entrada: 1.5, salida: 2, icono: ic('calavera') }),
+      T({ nombre: 'Lluvia', tipo: 'loop', sonidos: [id.lluvia], entrada: 2, salida: 2, icono: ic('tormenta'), volumen: 0.6, luces: [{ luz: 'dnd-1', look: 'lf_tormenta', cuando: 'suena' }, { luz: 'dnd-2', look: 'lf_tormenta', cuando: 'suena' }] }),
+      T({ nombre: 'Espadazo', tipo: 'una_vez', sonidos: [id.espada], icono: ic('espada'), retoque: 'superponer' }),
+      T({ nombre: 'Golpe', tipo: 'una_vez', sonidos: [id.golpe], icono: ic('martillo') }),
+      T({ nombre: 'Hechizo', ducking: true, tipo: 'mantener', sonidos: [id.hechizo], salida: 0.5, icono: ic('magia'), luces: [{ luz: 'dnd-1', look: 'lf_hechizo', cuando: 'suena' }] }),
+      T({ nombre: 'Rugido', ducking: true, tipo: 'una_vez', sonidos: [id.rugido], icono: ic('dragon') }),
+      T({ nombre: 'Intensidad', tipo: 'intensidad', icono: MD.Config.ICONO_INTENSIDAD }),
+      T({ nombre: 'Pasos', tipo: 'secuencia', sonidos: [id.paso1, id.paso2, id.paso3], icono: ic('huella') }),
+      T({ nombre: 'Fade out', tipo: 'fadeout', salida: 3, icono: ic('fadeout') }),
+      T({ nombre: 'Silencio', tipo: 'silenciar', icono: ic('silencio') }),
     ];
+    combate.luz = { 'dnd-1': 'lf_combate', 'dnd-2': 'lf_fogata' };
     const config = MD.Config.normalizar({ version: 1, nombre: 'Pack de prueba', escenas: [taberna, combate], sonidos: meta, ajustes: { volMax: 0.9 } });
     return { config, sonidos };
   }

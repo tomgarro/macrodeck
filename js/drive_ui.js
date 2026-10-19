@@ -47,7 +47,9 @@ window.MD = window.MD || {};
     // escenas compartidas
     const teclasDe = (e) => e ? e.teclas.filter(Boolean).length : 0;
     el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Escenas compartidas'),
-      h('p', { class: 'suave' }, 'Junta las escenas de este celu con las de Drive. Si Tom y Frodo cambiaron escenas distintas, se suman solas; si tocaron la misma, te pregunta.'),
+      h('p', { class: 'suave' }, D.esDM()
+        ? 'Junta tus escenas y looks de luces con los de Drive. Las escenas nuevas nacen en borrador: Tom no las ve hasta que toques "Confirmar escena" (pestana Escenas) y sincronices.'
+        : 'Junta las escenas y los looks de luces de este celu con los de Drive. Solo llegan las escenas que Frodo ya confirmo; si tocaron la misma, te pregunta.'),
       h('div', { class: 'fila' }, h('button', { class: 'primario', type: 'button', disabled: !!A.escCargando, onclick: () => A.driveEscenas() }, A.escCargando ? 'Sincronizando…' : 'Sincronizar escenas')),
       A.escMsg ? h('p', { class: 'suave', style: 'margin-top:8px' }, A.escMsg) : null,
       (A.escConflictos || []).map(c => h('div', { class: 's', style: 'margin-top:8px' },

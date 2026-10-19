@@ -9,14 +9,17 @@ window.MD = window.MD || {};
 (function (MD) {
   function estable(x) {
     if (Array.isArray(x)) return '[' + x.map(estable).join(',') + ']';
-    if (x && typeof x === 'object') return '{' + Object.keys(x).sort().map(k => JSON.stringify(k) + ':' + estable(x[k])).join(',') + '}';
+    // v1.3: 'categoria' (eliminada) y 'ducking: false' (el valor por defecto) no cuentan: asi una app vieja y una nueva no se ven como "cambiadas".
+    if (x && typeof x === 'object') return '{' + Object.keys(x).filter(k => k !== 'categoria' && !(k === 'ducking' && !x[k])).sort().map(k => JSON.stringify(k) + ':' + estable(x[k])).join(',') + '}';
     return JSON.stringify(x === undefined ? null : x);
   }
-  const vacia = (e) => !(e.teclas || []).some(Boolean);
+  const vacia = (e) => Array.isArray(e.teclas) && !e.teclas.some(Boolean);   // (los looks no tienen teclas: nunca cuentan como vacios)
   const mapa = (lista) => new Map((lista || []).filter(e => e && e.id).map(e => [e.id, e]));
 
-  function fusionar(base, local, remote, elec) {
-    elec = elec || {};
+  // 'max' = cuantos elementos como mucho (escenas: 10). 'elec' puede ser un objeto {id: 'mia'|'drive'} o una funcion (id) => 'mia'|'drive'|undefined.
+  function fusionar(base, local, remote, elec, max) {
+    const eleg = typeof elec === 'function' ? elec : (id) => (elec || {})[id];
+    max = max || 10;
     const B = mapa(base), L = mapa(local), R = mapa(remote);
     const res = { traidas: 0, subidas: 0, borradas: 0, iguales: 0 }, conflictos = [], out = [];
     const ids = [];
@@ -29,8 +32,8 @@ window.MD = window.MD || {};
         if (fl === fr) { res.iguales++; out.push(l); continue; }
         if (b && fl === fb) { res.traidas++; out.push(r); continue; }
         if (b && fr === fb) { res.subidas++; out.push(l); continue; }
-        if (elec[id] === 'mia') { res.subidas++; out.push(l); continue; }
-        if (elec[id] === 'drive') { res.traidas++; out.push(r); continue; }
+        if (eleg(id) === 'mia') { res.subidas++; out.push(l); continue; }
+        if (eleg(id) === 'drive') { res.traidas++; out.push(r); continue; }
         conflictos.push(id); out.push(l); continue;
       }
       if (l && !r) {
@@ -43,7 +46,7 @@ window.MD = window.MD || {};
         res.traidas++; out.push(r); continue;
       }
     }
-    return { escenas: out.slice(0, 10), conflictos, resumen: res, igual: estable(out.slice(0, 10)) === estable(remote || []) };
+    return { escenas: out.slice(0, max), conflictos, resumen: res, igual: estable(out.slice(0, max)) === estable(remote || []) };
   }
   MD.DriveEsc = { fusionar, estable };
 })(window.MD);
