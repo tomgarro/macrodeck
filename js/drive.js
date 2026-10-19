@@ -61,11 +61,12 @@ window.MD = window.MD || {};
     esDM: () => String(aj.por || '').toLowerCase() === 'frodo',
     escenasGuardar: (baseVersion, config) => post({ accion: 'escenas_guardar', baseVersion: baseVersion, config: config, por: aj.por || '' }),
     baseEscenas: leerBase,
-    fijarBaseEscenas(version, escenas, looks) { try { localStorage.setItem(LSB, JSON.stringify({ version: version, escenas: escenas, looks: looks || [] })); } catch (e) {} },
+    fijarBaseEscenas(version, escenas, looks, listas) { try { localStorage.setItem(LSB, JSON.stringify({ version: version, escenas: escenas, looks: looks || [], listas: listas || [] })); } catch (e) {} },
     listar: () => get({ accion: 'listar' }),
     // Pestana Audios (dev23): el catalogo (catalogo_app.json) y los audios grandes, por tramos de 6 MB (Audios.gs)
     catalogoAudios: () => get({ accion: 'catalogo' }),
     bajarAudio: (id, parte) => get({ accion: 'audio', id: id, parte: parte }),
+    caratulas: (ids) => get({ accion: 'caratulas', ids: ids.join(',') }),     // dev24: varias tapas en una sola consulta
     // Baja un sonido entero (el script lo entrega en trozos). 'progreso' recibe 0..1.
     async bajar(id, progreso) {
       const trozos = []; let mime = 'audio/mpeg';

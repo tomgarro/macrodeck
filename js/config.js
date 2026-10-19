@@ -62,10 +62,25 @@ window.MD = window.MD || {};
   // 1.3-dev21: 'estado' = 'borrador' (en preparacion: solo lo ve quien la hace) o 'confirmada' (la ven todos). Las escenas viejas cuentan como confirmadas.
   function escenaNueva(nombre, estado) { const e = { id: nuevoId('e'), nombre: nombre || 'Escena', teclas: Array.from({ length: 10 }, () => null) }; if (estado === 'borrador') e.estado = 'borrador'; return e; }
   function configNueva() {
-    return { version: 1, nombre: 'Mi campana', escenas: [escenaNueva('Escena 1')], sonidos: [], looks: [],
+    return { version: 1, nombre: 'Mi campana', escenas: [escenaNueva('Escena 1')], sonidos: [], looks: [], listas: [],
       ajustes: { volMax: 0.9, escenaInicial: 0, sorpresa: false } };
   }
   const num = (v, d, mn, mx) => { v = Number(v); if (!isFinite(v)) v = d; return Math.min(mx, Math.max(mn, v)); };
+  // 1.3-dev25: lista de reproduccion = { id, nombre, items:[id de audio...], fundido (s), intro (s que se saltea del que entra), auto: null | {filtro:{bioma:[],..}, q} }
+  // Una lista "automatica" se arma sola con el filtro (items queda vacio).
+  function normListas(l) {
+    const out = [], FK = ['bioma', 'lugar', 'escena', 'tono', 'energia'];
+    for (const x of Array.isArray(l) ? l.slice(0, 100) : []) {
+      if (!x || typeof x !== 'object' || !x.id || out.some(o => o.id === String(x.id))) continue;
+      const li = { id: String(x.id).slice(0, 40), nombre: String(x.nombre || 'Lista').slice(0, 40), items: [], fundido: [0, 8, 15, 20].includes(Number(x.fundido)) ? Number(x.fundido) : 15, intro: [0, 15].includes(Number(x.intro)) ? Number(x.intro) : 15 };
+      if (x.auto && typeof x.auto === 'object') {
+        const f = {}; FK.forEach(k => { f[k] = Array.isArray(x.auto.filtro && x.auto.filtro[k]) ? x.auto.filtro[k].slice(0, 30).map(v => k === 'energia' ? Number(v) : String(v)) : []; });
+        li.auto = { filtro: f, q: String(x.auto.q || '').slice(0, 60) };
+      } else li.items = (Array.isArray(x.items) ? x.items : []).slice(0, 500).map(String);
+      out.push(li);
+    }
+    return out;
+  }
   // Limpia lo que venga (de un pack o de la memoria) para que nunca rompa nada
   function normalizar(c) {
     const base = configNueva();
@@ -73,6 +88,7 @@ window.MD = window.MD || {};
     const out = { version: 1, nombre: String(c.nombre || base.nombre).slice(0, 60), escenas: [], sonidos: [], ajustes: Object.assign({}, base.ajustes, c.ajustes || {}) };
     const LZ = MD.LucesDnd;                                   // 1.3-dev16: luces de D&D (looks propios, ambiente por escena, luces por tecla)
     out.looks = LZ ? LZ.normLooks(c.looks) : [];
+    out.listas = normListas(c.listas);                         // 1.3-dev25: listas de reproduccion de la pestana Audios
     out.ajustes.volMax = num(out.ajustes.volMax, 0.9, 0.1, 1);
     out.ajustes.escenaInicial = num(out.ajustes.escenaInicial, 0, 0, 9) | 0;
     for (const s of c.sonidos || []) out.sonidos.push({ id: String(s.id), nombre: String(s.nombre || 'Sonido').slice(0, 60), volumen: num(s.volumen, 1, 0, 2), duracion: num(s.duracion, 0, 0, 36000), archivoOriginal: s.archivoOriginal || '', carpeta: String(s.carpeta || '').slice(0, 80), driveMod: num(s.driveMod, 0, 0, 1e15) });
@@ -80,6 +96,7 @@ window.MD = window.MD || {};
       const esc = { id: String(e.id || nuevoId('e')), nombre: String(e.nombre || 'Escena').slice(0, 30), teclas: [] };
       if (e.estado === 'borrador') esc.estado = 'borrador';            // (sin campo = confirmada)
       if (LZ) { const lz = LZ.normLuzEscena(e.luz); if (Object.keys(lz).length) esc.luz = lz; }
+      if (e.lista && typeof e.lista === 'object' && typeof e.lista.id === 'string' && e.lista.id) esc.lista = { id: e.lista.id.slice(0, 40), arranca: e.lista.arranca !== false, azar: !!e.lista.azar };   // dev25: musica de fondo de la escena
       for (let i = 0; i < 10; i++) {
         const t = (e.teclas || [])[i];
         if (!t) { esc.teclas.push(null); continue; }
@@ -103,5 +120,5 @@ window.MD = window.MD || {};
     if (!out.escenas.length) out.escenas.push(escenaNueva('Escena 1'));
     return out;
   }
-  MD.Config = { TIPOS, RETOQUES, colorModo, esLoop, COLOR_HEX, admiteDucking, ICONO_INTENSIDAD, ARTE, pintarArte, canvasArte, nuevoId, teclaNueva, escenaNueva, configNueva, normalizar };
+  MD.Config = { TIPOS, RETOQUES, colorModo, esLoop, COLOR_HEX, admiteDucking, ICONO_INTENSIDAD, ARTE, pintarArte, canvasArte, nuevoId, teclaNueva, escenaNueva, configNueva, normalizar, normListas };
 })(window.MD);

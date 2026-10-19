@@ -193,7 +193,7 @@ window.MD = window.MD || {};
   function avisoLucesApagadas(A) {
     const LZ = MD.LucesDnd;
     if (LZ.aj.activo) return null;
-    return h('p', { class: 'suave', style: 'margin:4px 0 0' }, 'Las luces estan apagadas en este celu (se guardan igual). Se prenden en Herramientas > Luces de D&D.');
+    return h('p', { class: 'suave', style: 'margin:4px 0 0' }, 'Las luces estan apagadas en este celu (se guardan igual). Se prenden en la pestana Luces.');
   }
   // En el editor de la tecla: una fila por lampara (look + cuando)
   function lucesTecla(A, t) {
@@ -287,6 +287,13 @@ window.MD = window.MD || {};
     cuerpo.append(lib);
     return cuerpo;
   }
+  // 1.3-dev24: las luces de D&D tienen su propia pestana (antes estaban en Herramientas)
+  function vistaLuces(A, el) {
+    if (!MD.LucesDnd) { el.append(h('p', { class: 'suave' }, 'Las luces no estan disponibles en esta version.')); return; }
+    const LZ = MD.LucesDnd;
+    el.append(h('div', { class: 'au-cab' }, h('h2', null, 'Luces de D&D'), h('span', { class: 'au-cuenta suave' }, LZ.aj.activo ? ((A.cfg.looks || []).length + LZ.FABRICA.length) + ' looks' : 'apagadas')));
+    el.append(h('div', { class: 'tarjeta' }, tarjetaLuces(A)));
+  }
   // v1.3-dev18: barra "Guardar" de los editores. Muestra el estado del guardado y, con 'mapa', manda ya los cambios al Macrodeck.
   // Si la escena que se esta editando NO es la activa, avisa (la Mesa y el Macrodeck muestran la activa) y ofrece activarla.
   function barraGuardar(A, mapa, avisoEscena) {
@@ -363,6 +370,7 @@ window.MD = window.MD || {};
       h('div', { class: 'fila', style: 'margin-top:10px' }, h('button', { type: 'button', onclick: () => mover(-1) }, '←'), h('button', { type: 'button', onclick: () => mover(1) }, '→'), dup, borrar),
       barraGuardar(A, true, false)));
     if (MD.LucesDnd) el.append(lucesEscena(A, esc));
+    if (MD.Audios && MD.Audios.tarjetaEscena) el.append(MD.Audios.tarjetaEscena(A, esc));        // 1.3-dev25: musica de fondo (lista de Audios) de la escena
 
     const rej = h('div', { class: 'rejilla' });
     esc.teclas.forEach((t, i) => { const c = celda(t, i, { onclick: () => { A.edTecla = i; A.render(); } }); if (i === A.edTecla) c.classList.add('sel'); rej.append(c); });
@@ -507,12 +515,8 @@ window.MD = window.MD || {};
   // ===================== SONIDOS =====================
   function vistaSonidos(A, el) {
     const cfg = A.cfg;
-    const inp = h('input', { type: 'file', id: 'inSonidos', accept: 'audio/*,.mp3,.wav,.ogg,.m4a,.flac,.opus', multiple: true, hidden: true, onchange: async (e) => { const fs = [...e.target.files]; e.target.value = ''; await A.importarSonidos(fs); } });
-    el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Biblioteca de sonidos'),
-      h('p', { class: 'suave' }, 'Importa mp3, wav, ogg o m4a. Quedan guardados en este navegador (no se suben a ningun lado). Para pasarlos a otro celu, usa un pack en Herramientas.'),
-      h('div', { class: 'fila' }, h('button', { class: 'primario', type: 'button', onclick: () => inp.click() }, 'Importar sonidos'), inp),
-      A.estadoAlmacen ? h('p', { class: 'suave' }, A.estadoAlmacen) : null));
-    if (!cfg.sonidos.length) { el.append(h('p', { class: 'suave' }, 'Todavia no hay sonidos. Tambien podes cargar el pack de prueba desde Herramientas.')); return; }
+    // 1.3-dev24: se saco "Importar sonidos": los sonidos llegan directo desde Drive (pestana Drive). Aca solo se ven y se ajustan.
+    if (!cfg.sonidos.length) { el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Sonidos'), h('p', { class: 'suave' }, 'Todavia no hay sonidos en este celu. Se bajan desde la pestana Drive.'))); return; }
     // v1.3-dev10: la lista va AGRUPADA POR CATEGORIA (la subcarpeta de Drive) y con buscador. Las categorias arrancan cerradas.
     const norm = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     A._sonAbiertas = A._sonAbiertas || new Set();
@@ -606,7 +610,6 @@ window.MD = window.MD || {};
     const dmH = !!(MD.Drive && MD.Drive.esDM());                // 1.3-dev21: Frodo no ve lo que es del equipo (celu, ducking, contenido de prueba)
     if (MD.Nativo && MD.Celu && !dmH) lista.append(acordeon(A, 'celu', 'bateria', 'Celu en la OLED', MD.Celu.s.acceso ? 'con acceso' : 'falta acceso', () => tarjetaCelu(A)));
     if (MD.Nativo && !dmH) lista.append(acordeon(A, 'ducking', 'ducking', 'Ducking', (MD.DUCK_MODOS[A.duckModo] || MD.DUCK_MODOS.normal).nombre, () => tarjetaDucking(A)));
-    if (MD.LucesDnd) lista.append(acordeon(A, 'luces', 'luz', 'Luces de D&D', MD.LucesDnd.aj.activo ? ((A.cfg.looks || []).length + MD.LucesDnd.FABRICA.length) + ' looks' : 'apagadas', () => tarjetaLuces(A)));
     if (T) lista.append(acordeon(A, 'apariencia', 'apariencia', 'Apariencia', temaAct, () => tarjetaApariencia(A)));
     lista.append(acordeon(A, 'iconos', 'iconos', 'Iconos', MD.Iconos.lista.length + ' iconos', () => tarjetaIconos(A)));
     if (!dmH) lista.append(acordeon(A, 'prueba', 'prueba', 'Contenido de prueba', (demo.sonidos || demo.escenas) ? 'cargado' : '', () => h('div', null,
@@ -639,5 +642,5 @@ window.MD = window.MD || {};
     el.append(lista);
   }
 
-  MD.UI = { h, icoCanvas, vistaMesa, vistaEscenas, vistaSonidos, vistaHerramientas, NOM };
+  MD.UI = { h, icoCanvas, vistaMesa, vistaEscenas, vistaSonidos, vistaLuces, vistaHerramientas, NOM };
 })(window.MD);

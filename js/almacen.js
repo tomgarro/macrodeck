@@ -1,13 +1,13 @@
 // almacen.js - Guarda todo en el celu/compu (IndexedDB): la configuracion y los sonidos. Y los "packs" (.zip) para pasarse todo.
 window.MD = window.MD || {};
 (function (MD) {
-  const NOMBRE = 'macrodeck-dnd', VERSION = 2;     // 2 (dev23): se suma la tienda 'audios' (los .opus de la pestana Audios)
+  const NOMBRE = 'macrodeck-dnd', VERSION = 3;     // 2 (dev23): tienda 'audios' (los .opus). 3 (dev24): tienda 'caratulas' (las tapas reales de los audios)
   let dbP = null;
   function abrir() {
     if (dbP) return dbP;
     dbP = new Promise((ok, mal) => {
       const r = indexedDB.open(NOMBRE, VERSION);
-      r.onupgradeneeded = () => { const d = r.result; for (const t of ['config', 'sonidos', 'audios']) if (!d.objectStoreNames.contains(t)) d.createObjectStore(t); };
+      r.onupgradeneeded = () => { const d = r.result; for (const t of ['config', 'sonidos', 'audios', 'caratulas']) if (!d.objectStoreNames.contains(t)) d.createObjectStore(t); };
       r.onsuccess = () => ok(r.result);
       r.onerror = () => mal(r.error);
     });
@@ -36,6 +36,8 @@ window.MD = window.MD || {};
     leerAudio: (id) => tx('audios', 'readonly', s => s.get(id)),
     borrarAudio: (id) => tx('audios', 'readwrite', s => s.delete(id)),
     audiosIds: () => tx('audios', 'readonly', s => s.getAllKeys()),
+    guardarCaratula: (id, blob) => tx('caratulas', 'readwrite', s => s.put(blob, id)),   // dev24: tapa real (jpg) de un audio, por id de Drive
+    leerCaratulas: async () => { const d = await abrir(); return new Promise((ok, mal) => { const t = d.transaction('caratulas', 'readonly'), s = t.objectStore('caratulas'), out = new Map(), q = s.openCursor(); q.onsuccess = () => { const c = q.result; if (c) { out.set(c.key, c.value); c.continue(); } else ok(out); }; q.onerror = () => mal(q.error); }); },
     todosSonidosIds: () => tx('sonidos', 'readonly', s => s.getAllKeys()),
     borrarTodo: async () => { await tx('config', 'readwrite', s => s.clear()); await tx('sonidos', 'readwrite', s => s.clear()); },
     pedirPersistencia: async () => { try { return navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false; } catch (e) { return false; } },

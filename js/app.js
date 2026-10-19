@@ -8,7 +8,7 @@
   };
   const vista = document.getElementById('vista'), tabsEl = document.getElementById('tabs');
   const estadoCab = document.getElementById('estadoCab'), estadoTxt = document.getElementById('estadoTxt');
-  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['sonidos', 'Sonidos', 'sonidos'], ['audios', 'Audios', 'audios'], ['drive', 'Drive', 'drive'], ['herramientas', 'Herramientas', 'herramientas']];
+  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['sonidos', 'Sonidos', 'sonidos'], ['audios', 'Audios', 'audios'], ['luces', 'Luces', 'luz'], ['drive', 'Drive', 'drive'], ['herramientas', 'Herramientas', 'herramientas', 'Herram.']];
 
   // ---------- guardar ----------
   // v1.3-dev18: el guardado ya no es mudo. Cada cambio se guarda solo a los 0,4 s; ademas se guarda YA al ocultar la app, al cambiar de
@@ -372,7 +372,7 @@
       const dm = MDg.Drive.esDM();
       for (let intento = 0; intento < 3; intento++) {
         const r = await MDg.Drive.escenasLeer();
-        const remotoTodo = (r.config && r.config.escenas) || [], remotoLooks = (r.config && r.config.looks) || [], base = MDg.Drive.baseEscenas();
+        const remotoTodo = (r.config && r.config.escenas) || [], remotoLooks = (r.config && r.config.looks) || [], remotoListas = (r.config && r.config.listas) || [], base = MDg.Drive.baseEscenas();
         const ocultas = dm ? [] : remotoTodo.filter(e => e && e.estado === 'borrador');
         const remoto = dm ? remotoTodo : remotoTodo.filter(e => !(e && e.estado === 'borrador'));
         const f = MDg.DriveEsc.fusionar(base && base.escenas, A.cfg.escenas, remoto, A.escElec);
@@ -384,25 +384,30 @@
         A.escConflictos = [];
         // Los looks de luces viajan con las escenas. Si dos celus cambiaron el mismo look, gana el de Frodo (el DM).
         const fl = MDg.DriveEsc.fusionar(base && base.looks, A.cfg.looks || [], remotoLooks, () => (dm ? 'mia' : 'drive'), 200);
+        // 1.3-dev25: las listas de reproduccion de Audios viajan igual que los looks (si dos celus tocaron la misma lista, gana la de Frodo).
+        const fli = MDg.DriveEsc.fusionar(base && base.listas, A.cfg.listas || [], remotoListas, () => (dm ? 'mia' : 'drive'), 100);
+        const nuevasListas = MDg.Config.normalizar({ listas: fli.escenas }).listas;
         const nuevas = MDg.Config.normalizar({ escenas: f.escenas }).escenas;
         const nuevosLooks = MDg.Config.normalizar({ looks: fl.escenas }).looks;
         const cambioLocal = MDg.DriveEsc.estable(nuevas) !== MDg.DriveEsc.estable(A.cfg.escenas);
         const cambioLooks = MDg.DriveEsc.estable(nuevosLooks) !== MDg.DriveEsc.estable(A.cfg.looks || []);
-        if (cambioLocal || cambioLooks) {
+        const cambioListas = MDg.DriveEsc.estable(nuevasListas) !== MDg.DriveEsc.estable(A.cfg.listas || []);
+        if (cambioLocal || cambioLooks || cambioListas) {
           if (cambioLocal) { A.cfg.escenas = nuevas; A.activa = Math.min(A.activa, nuevas.length - 1); A.edEsc = Math.min(A.edEsc, nuevas.length - 1); A.edTecla = null; }
           if (cambioLooks) A.cfg.looks = nuevosLooks;
+          if (cambioListas) A.cfg.listas = nuevasListas;
           A.cambio(true); await A.guardarYa();
         }
         let version = r.version;
-        if (!f.igual || !fl.igual) {
+        if (!f.igual || !fl.igual || !fli.igual) {
           // lo que Tom no ve (los borradores de Frodo) se conserva tal cual en Drive, en su mismo lugar
           const salida = nuevas.slice();
           ocultas.forEach(o => salida.splice(Math.min(remotoTodo.indexOf(o), salida.length), 0, o));
-          const g = await MDg.Drive.escenasGuardar(r.version, { escenas: salida, looks: nuevosLooks });
+          const g = await MDg.Drive.escenasGuardar(r.version, { escenas: salida, looks: nuevosLooks, listas: nuevasListas });
           if (g.conflicto) continue;                                   // alguien guardo justo en el medio: se vuelve a juntar
           version = g.version;
         }
-        MDg.Drive.fijarBaseEscenas(version, nuevas, nuevosLooks); A.escElec = {};
+        MDg.Drive.fijarBaseEscenas(version, nuevas, nuevosLooks, nuevasListas); A.escElec = {};
         A.escEnPrep = ocultas.length;
         const faltan = new Set(); nuevas.forEach(e => e.teclas.forEach(t => t && t.sonidos.forEach(id => { if (!A.regs.has(id)) faltan.add(id); })));
         const x = f.resumen;
@@ -564,13 +569,13 @@
   // v1.3-dev13: cada pestana lleva su icono (MDI); la de Drive muestra un numerito si hay sonidos nuevos o cambiados.
   A.pintarTabs = function () {
     tabsEl.innerHTML = '';
-    TABS.forEach(([id, n, ic]) => tabsEl.append(h('button', { type: 'button', class: id === A.tab ? 'on' : '', 'data-tab': id, 'aria-label': n, onclick: () => { volcar(); A.tab = id; A.render(); vista.scrollTop = 0; } },
-      h('span', { class: 'tab-ic' }, MDg.IUI.svg(ic), id === 'drive' && A.drivePend ? h('b', { class: 'bd' }, String(A.drivePend)) : null), h('span', { class: 'tab-n' }, n))));
+    TABS.forEach(([id, n, ic, corto]) => tabsEl.append(h('button', { type: 'button', class: id === A.tab ? 'on' : '', 'data-tab': id, 'aria-label': n, onclick: () => { volcar(); A.tab = id; A.render(); vista.scrollTop = 0; } },
+      h('span', { class: 'tab-ic' }, MDg.IUI.svg(ic), id === 'drive' && A.drivePend ? h('b', { class: 'bd' }, String(A.drivePend)) : null), h('span', { class: 'tab-n' }, corto || n))));
   };
   A.render = function () {
     const sc = vista.scrollTop;
     vista.innerHTML = ''; A.mesaCeldas = []; A.mesaVol = A.mesaSonando = null;
-    ({ mesa: MDg.UI.vistaMesa, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
+    ({ mesa: MDg.UI.vistaMesa, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     A.pintarTabs();
     if (MDg.Maqueta) MDg.Maqueta.montar(A);                    // 1.3-dev22: version de escritorio
     vista.scrollTop = sc; pintarPills(); A.actualizarEstado(false);
@@ -580,6 +585,7 @@
   (async function () {
     await A.recargar();
     if (MDg.Audios) await MDg.Audios.iniciar(A);          // dev23: pestana Audios (catalogo guardado y audios bajados)
+    if (MDg.Audios && MDg.Audios.enganchar) MDg.Audios.enganchar(A);   // dev25: la musica de fondo de cada escena (envuelve A.activar)
     if (MDg.LucesDnd) MDg.LucesDnd.enganchar(A);         // 1.3-dev16: luces de D&D (envuelve motor.tecla y A.activar)
     A.render();
     if (MDg.Drive.configurado() && navigator.onLine) A.driveActualizar();     // mira en silencio si hay sonidos nuevos (aparece el numero en la pestana Drive)
