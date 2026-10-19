@@ -170,7 +170,7 @@ window.MD = window.MD || {};
         h('button', { type: 'button', onclick: () => A.motor.fadeoutTotal(2.5) }, 'Fade-out'),
         h('button', { class: 'peligro', type: 'button', onclick: () => A.motor.pararTodo() }, 'Cortar todo'))));
 
-    if (A.tr && A.tr.tipo === 'sim') {
+    if (A.tr && A.tr.tipo === 'sim' && !(MD.Maqueta && MD.Maqueta.activa())) {      // 1.3-dev22: en pantalla ancha el simulador vive en el panel de la derecha
       const caja = h('div', { class: 'tarjeta' }, h('h3', null, 'Macrodeck simulado'));
       caja.append(A.simRaiz); el.append(caja);
     }

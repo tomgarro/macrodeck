@@ -209,3 +209,46 @@ input[type=color]{width:100%;min-height:42px;border:0;border-radius:10px;backgro
 .barra-guardar .js-guardado.mal{color:var(--peligro-tx);font-weight:700}
 .barra-guardar .nota-guardar{flex-basis:100%;font-size:.8rem}
 .guardado-cab{font-size:.74rem;font-weight:700;color:var(--peligro-tx);background:var(--peligro-bg);border-radius:8px;padding:3px 8px;margin-right:8px;white-space:nowrap}
+
+/* ===== 1.3-dev22: version de ESCRITORIO (pantalla ancha): editor a la izquierda y Macrodeck simulado a la derecha, sobre la foto del equipo ===== */
+#maqueta{display:none}
+@media (min-width:1100px){
+  #app{max-width:1500px;display:grid;grid-template-columns:minmax(0,1fr) minmax(500px,620px);grid-template-rows:auto auto minmax(0,1fr) auto auto;
+    grid-template-areas:"cab cab" "est est" "vista maq" "mini maq" "tabs tabs";column-gap:28px}
+  header.cab{grid-area:cab} #estadoTxt{grid-area:est} main{grid-area:vista} #miniPlayer{grid-area:mini} nav.tabs{grid-area:tabs}
+  #maqueta{grid-area:maq;display:block;overflow-y:auto;padding:14px 16px 24px 0}
+  nav.tabs{justify-content:center} nav.tabs button{max-width:200px}
+}
+.maq-foto,.sim.maqueta .cuerpo{position:relative;width:100%;aspect-ratio:1047/816;background:url(macrodeck.webp) center/100% 100% no-repeat}
+.maq-foto{filter:saturate(.6) brightness(.6)}
+.maq-vacia{position:absolute;left:26%;top:50%;width:63%;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;filter:none}
+.maq-vacia p{margin:0;font-size:.85rem;color:#fff;text-shadow:0 1px 4px #000}
+.sim:not(.maqueta) .cuerpo{display:contents}
+.sim:not(.maqueta) .sim-knob,.sim:not(.maqueta) .sim-ver{display:none}
+.sim.maqueta{gap:12px}
+.sim.maqueta .sim-pantallas{display:contents}
+.sim.maqueta .sim-epaper{position:absolute;left:12.4%;top:14.3%;width:39.9%;height:22.1%;max-width:none;aspect-ratio:auto;border:0;border-radius:1.4%;box-shadow:inset 0 0 0 1px #0004}
+.sim.maqueta .sim-oled{position:absolute;left:13.6%;top:59.4%;width:6.3%;height:18.9%;border:0;border-radius:3px;background:#05080a;box-shadow:0 0 0 2px #0008}
+.sim.maqueta .sim-teclas{position:absolute;left:26.6%;top:52.7%;width:63.4%;height:32.4%;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(2,1fr);gap:1.2% .9%}
+.sim.maqueta .sim-tecla{aspect-ratio:auto;width:auto;height:auto;background:transparent;border:0;border-radius:7%;cursor:pointer;transition:box-shadow .15s,transform .05s}
+.sim.maqueta .sim-tecla:hover{box-shadow:inset 0 0 0 2px #ffffff22}
+.sim.maqueta .sim-tecla.abajo{transform:translateY(2px);background:#0006}
+.sim.maqueta .sim-tecla .sim-n,.sim.maqueta .sim-tecla .sim-led{display:none}
+/* luz calida de cada tecla (los mismos niveles que el LED real: 1 prendida, 2 respira, 3 a pleno, 4 parpadea) */
+.sim.maqueta .sim-tecla[data-led="1"]{box-shadow:0 0 18px 5px #ffa33aaa,inset 0 0 20px 5px #ffb047bb}
+.sim.maqueta .sim-tecla[data-led="2"]{animation:maqr 2s ease-in-out infinite}
+.sim.maqueta .sim-tecla[data-led="3"]{box-shadow:0 0 28px 10px #ffb347ee,inset 0 0 28px 9px #ffe2a3dd}
+.sim.maqueta .sim-tecla[data-led="4"]{animation:maqd .5s steps(1) infinite}
+@keyframes maqr{0%,100%{box-shadow:none}50%{box-shadow:0 0 18px 5px #ffa33aaa,inset 0 0 20px 5px #ffb047bb}}
+@keyframes maqd{0%{box-shadow:0 0 28px 10px #ffb347ee,inset 0 0 28px 9px #ffe2a3dd}50%,100%{box-shadow:none}}
+.sim.maqueta .sim-home{position:absolute;left:80%;top:3.2%;width:9.8%;height:4.4%;min-height:0;padding:0;font-size:0;background:transparent;border:0;border-radius:40% 40% 10% 10%;cursor:pointer}
+.sim.maqueta .sim-home:hover{box-shadow:inset 0 0 0 2px #ffffff44}
+.sim.maqueta .sim-home:active{background:#0007}
+.sim-knob{position:absolute;left:66.2%;top:14.1%;width:17.6%;height:22.5%;border-radius:50%;cursor:grab;touch-action:none}
+.sim-knob:hover{box-shadow:0 0 0 2px #ffffff22}
+.sim-knob:active{cursor:grabbing}
+.sim-knob-marca{position:absolute;left:50%;top:6%;width:3%;height:16%;margin-left:-1.5%;background:#f1c24a;border-radius:2px;transform-origin:50% 275%;transform:rotate(var(--ang,0deg));box-shadow:0 0 6px #f1c24a99;pointer-events:none}
+.sim-ver{position:absolute;right:5%;bottom:3.5%;font-size:.6rem;color:#8a8f94;letter-spacing:.04em}
+.sim.maqueta .sim-perilla{display:none}
+.sim.maqueta .sim-perilla,.sim.maqueta label:has(.sim-perilla){display:none}
+.sim.maqueta .sim-ayuda{font-size:.75rem}
