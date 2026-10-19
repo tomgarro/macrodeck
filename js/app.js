@@ -8,7 +8,7 @@
   };
   const vista = document.getElementById('vista'), tabsEl = document.getElementById('tabs');
   const estadoCab = document.getElementById('estadoCab'), estadoTxt = document.getElementById('estadoTxt');
-  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['sonidos', 'Sonidos', 'sonidos'], ['drive', 'Drive', 'drive'], ['herramientas', 'Herramientas', 'herramientas']];
+  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['sonidos', 'Sonidos', 'sonidos'], ['audios', 'Audios', 'audios'], ['drive', 'Drive', 'drive'], ['herramientas', 'Herramientas', 'herramientas']];
 
   // ---------- guardar ----------
   // v1.3-dev18: el guardado ya no es mudo. Cada cambio se guarda solo a los 0,4 s; ademas se guarda YA al ocultar la app, al cambiar de
@@ -570,7 +570,7 @@
   A.render = function () {
     const sc = vista.scrollTop;
     vista.innerHTML = ''; A.mesaCeldas = []; A.mesaVol = A.mesaSonando = null;
-    ({ mesa: MDg.UI.vistaMesa, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
+    ({ mesa: MDg.UI.vistaMesa, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     A.pintarTabs();
     if (MDg.Maqueta) MDg.Maqueta.montar(A);                    // 1.3-dev22: version de escritorio
     vista.scrollTop = sc; pintarPills(); A.actualizarEstado(false);
@@ -579,6 +579,7 @@
   // ---------- arranque ----------
   (async function () {
     await A.recargar();
+    if (MDg.Audios) await MDg.Audios.iniciar(A);          // dev23: pestana Audios (catalogo guardado y audios bajados)
     if (MDg.LucesDnd) MDg.LucesDnd.enganchar(A);         // 1.3-dev16: luces de D&D (envuelve motor.tecla y A.activar)
     A.render();
     if (MDg.Drive.configurado() && navigator.onLine) A.driveActualizar();     // mira en silencio si hay sonidos nuevos (aparece el numero en la pestana Drive)

@@ -63,6 +63,9 @@ window.MD = window.MD || {};
     baseEscenas: leerBase,
     fijarBaseEscenas(version, escenas, looks) { try { localStorage.setItem(LSB, JSON.stringify({ version: version, escenas: escenas, looks: looks || [] })); } catch (e) {} },
     listar: () => get({ accion: 'listar' }),
+    // Pestana Audios (dev23): el catalogo (catalogo_app.json) y los audios grandes, por tramos de 6 MB (Audios.gs)
+    catalogoAudios: () => get({ accion: 'catalogo' }),
+    bajarAudio: (id, parte) => get({ accion: 'audio', id: id, parte: parte }),
     // Baja un sonido entero (el script lo entrega en trozos). 'progreso' recibe 0..1.
     async bajar(id, progreso) {
       const trozos = []; let mime = 'audio/mpeg';

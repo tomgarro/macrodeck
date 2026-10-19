@@ -1,13 +1,13 @@
 // almacen.js - Guarda todo en el celu/compu (IndexedDB): la configuracion y los sonidos. Y los "packs" (.zip) para pasarse todo.
 window.MD = window.MD || {};
 (function (MD) {
-  const NOMBRE = 'macrodeck-dnd', VERSION = 1;
+  const NOMBRE = 'macrodeck-dnd', VERSION = 2;     // 2 (dev23): se suma la tienda 'audios' (los .opus de la pestana Audios)
   let dbP = null;
   function abrir() {
     if (dbP) return dbP;
     dbP = new Promise((ok, mal) => {
       const r = indexedDB.open(NOMBRE, VERSION);
-      r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('config'); d.createObjectStore('sonidos'); };
+      r.onupgradeneeded = () => { const d = r.result; for (const t of ['config', 'sonidos', 'audios']) if (!d.objectStoreNames.contains(t)) d.createObjectStore(t); };
       r.onsuccess = () => ok(r.result);
       r.onerror = () => mal(r.error);
     });
@@ -29,6 +29,13 @@ window.MD = window.MD || {};
     guardarSonido: (id, reg) => tx('sonidos', 'readwrite', s => s.put(reg, id)),   // reg = {blob, nombre, tipo}
     leerSonido: (id) => tx('sonidos', 'readonly', s => s.get(id)),
     borrarSonido: (id) => tx('sonidos', 'readwrite', s => s.delete(id)),
+    // Pestana Audios: el catalogo va en 'config' con su propia clave (no pisa la configuracion principal) y los audios en su tienda.
+    leerConfigClave: (k) => tx('config', 'readonly', s => s.get(k)),
+    guardarConfigClave: (k, v) => tx('config', 'readwrite', s => s.put(v, k)),
+    guardarAudio: (id, reg) => tx('audios', 'readwrite', s => s.put(reg, id)),      // reg = {blob, tam, md5, titulo}
+    leerAudio: (id) => tx('audios', 'readonly', s => s.get(id)),
+    borrarAudio: (id) => tx('audios', 'readwrite', s => s.delete(id)),
+    audiosIds: () => tx('audios', 'readonly', s => s.getAllKeys()),
     todosSonidosIds: () => tx('sonidos', 'readonly', s => s.getAllKeys()),
     borrarTodo: async () => { await tx('config', 'readwrite', s => s.clear()); await tx('sonidos', 'readwrite', s => s.clear()); },
     pedirPersistencia: async () => { try { return navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false; } catch (e) { return false; } },

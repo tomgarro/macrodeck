@@ -252,3 +252,41 @@ input[type=color]{width:100%;min-height:42px;border:0;border-radius:10px;backgro
 .sim.maqueta .sim-perilla{display:none}
 .sim.maqueta .sim-perilla,.sim.maqueta label:has(.sim-perilla){display:none}
 .sim.maqueta .sim-ayuda{font-size:.75rem}
+
+/* ---- Pestana Audios (1.3-dev23) ---- */
+.au-cab{display:flex;align-items:center;gap:10px}.au-cab h2{margin:0}.au-cuenta{margin-left:auto;font-size:.8rem}
+.au-act{min-height:36px;padding:.2em .7em;font-size:1.1rem}
+.au-buscar{width:100%;margin-top:8px;background:var(--panel);border:1px solid var(--linea);border-radius:var(--r);padding:.6em .9em;min-height:44px;color:var(--tx);font:inherit}
+.au-buscar:focus{outline:2px solid var(--amarillo);outline-offset:1px}
+.au-ayuda{font-size:.78rem;margin:6px 0 0}
+.au-facetas{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.au-fila{display:flex;align-items:center;gap:8px;min-width:0}
+.au-fila>b{flex:0 0 56px;font-size:.68rem;font-weight:500;color:var(--tx2);text-transform:uppercase;letter-spacing:.06em}
+.au-chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none;min-width:0}.au-chips::-webkit-scrollbar{display:none}
+.au-chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;min-height:34px;border:1px solid var(--linea);background:var(--panel);color:var(--tx);border-radius:999px;padding:.25em .8em;font-size:.82rem}
+.au-chip i{width:9px;height:9px;border-radius:50%;display:block}.au-chip small{opacity:.6}
+.au-chip[aria-pressed=true]{background:var(--acento);color:var(--sobre-acento);border-color:var(--acento)}
+.au-limpiar{background:none;color:var(--amarillo);min-height:34px;padding:.2em 0;margin-top:2px}
+.au-bajada{margin-top:8px}
+.au-bj-fila{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--panel);border-radius:var(--r);padding:8px 10px}
+.au-bj-txt{display:flex;flex-direction:column;min-width:0;flex:1 1 160px;font-size:.85rem}.au-bj-txt span{font-size:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.au-prog{height:4px;background:var(--linea);border-radius:2px;overflow:hidden;margin-top:6px}.au-prog i{display:block;height:100%;background:var(--amarillo)}
+.au-lista{display:flex;flex-direction:column;gap:8px;margin-top:10px;padding-bottom:12px}
+.au-vacio{text-align:center;color:var(--tx2);padding:28px 8px}
+.au-card{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--linea);border-radius:var(--r);padding:8px 10px 8px 8px}
+.au-card.suena{border-color:var(--amarillo)}.au-card.nobaj .au-car{opacity:.75}
+.au-car{display:block;border-radius:8px;overflow:hidden;flex:none}
+.au-info{min-width:0}.au-info h3{margin:0;font-size:.92rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.au-meta{font-size:.76rem;color:var(--tx2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.au-tags{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}.au-tag{font-size:.66rem;font-family:ui-monospace,Consolas,monospace;color:var(--tx2);border:1px solid var(--linea);border-radius:5px;padding:1px 5px}
+.au-acc{display:flex;flex-direction:column;gap:4px;align-items:center}
+.au-acc button{width:42px;height:42px;min-height:0;padding:0;border-radius:50%;display:grid;place-items:center;font-size:.72rem}
+.au-acc .au-play{background:var(--acento);color:var(--sobre-acento)}
+.au-dur{font-size:.66rem;font-family:ui-monospace,Consolas,monospace;color:var(--tx2)}
+.au-barra{background:var(--panel2);border-top:1px solid var(--linea);padding:8px 14px 6px;display:flex;flex-direction:column;gap:6px}
+.au-barra[hidden]{display:none!important}
+.au-l1{display:flex;align-items:center;gap:10px}.au-t{min-width:0;flex:1}.au-t b{display:block;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.au-sub{display:block;font-size:.74rem;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.au-ctl{display:flex;gap:6px}.au-ctl button,.au-l2 button{min-height:38px;min-width:38px;padding:0 10px;background:var(--panel);border:1px solid var(--linea);border-radius:10px;display:inline-grid;place-items:center}
+.au-seek{margin:0}.au-l2{display:flex;align-items:center;gap:8px;font-size:.74rem;color:var(--tx2)}.au-esp{flex:1}.au-tm{font-family:ui-monospace,Consolas,monospace}
+.au-e{font-family:ui-monospace,Consolas,monospace;color:var(--tx);min-width:26px;text-align:center}
