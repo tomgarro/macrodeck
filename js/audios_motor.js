@@ -222,6 +222,19 @@ window.MD = window.MD || {};
     if (r.el.paused) { r.el.play().catch(() => {}); if (v && v.el.src) v.el.play().catch(() => {}); } else { r.el.pause(); if (v) v.el.pause(); }
     emitir(); Au.pintar();
   };
+  // Borra del equipo (NO de Drive) los audios bajados: frena lo que suene, saca de la cola y libera el espacio.
+  Au.borrarDelEquipo = async (ids) => {
+    const set = new Set((ids || []).filter((id) => Au.bajado(id)));
+    if (!set.size) return 0;
+    const vieja = P.trans && P.ranuras[P.trans.vieja];
+    if ((P.id && set.has(P.id)) || (vieja && vieja.id && set.has(vieja.id))) Au.detener();
+    P.ranuras.forEach((r) => { if (r && r.id && set.has(r.id)) soltar(r); });
+    P.cola = P.cola.filter((id) => !set.has(id));
+    let n = 0;
+    for (const id of set) { try { await MD.Almacen.borrarAudio(id); S.bajados.delete(id); n++; } catch (e) {} }
+    Au.pintar();
+    return n;
+  };
   Au.detener = () => {
     P.apagando = false; cerrarPase();
     P.ranuras.forEach((r, i) => { if (r) { fijarGanancia(r, 1); soltar(r); } });

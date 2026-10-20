@@ -4,10 +4,10 @@
 window.MD = window.MD || {};
 (function (MD) {
   const BIOMAS = { 'Bosque': '#3f8f55', 'Desierto': '#c98a4b', 'Montaña y nieve': '#7fb2c9', 'Pantano': '#5f7a3a', 'Agua': '#2f86c8', 'Cielo y tormenta': '#5a6fa8', 'Subterráneo': '#7a62b8', 'Volcánico y fuego': '#d4342c', 'Llanura y campo': '#a9b04a', 'Plano arcano': '#a65fc4', 'Neutro': '#8e8e8e' };
-  const FILAS = [['tipo', 'Tipo'], ['bioma', 'Bioma'], ['lugar', 'Lugar'], ['escena', 'Escena'], ['tono', 'Tono'], ['energia', 'Energía']];
+  const FILAS = [['equipo', 'En este equipo'], ['tipo', 'Tipo'], ['bioma', 'Bioma'], ['lugar', 'Lugar'], ['escena', 'Escena'], ['tono', 'Tono'], ['energia', 'Energía']];
   const LS_CAT = 'audios_catalogo', LS_PREFS = 'audios_prefs', TROZO = 6 * 1024 * 1024, PARALELO = 3;
 
-  const nuevoFiltro = () => ({ tipo: [], bioma: [], lugar: [], escena: [], tono: [], energia: [] });
+  const nuevoFiltro = () => ({ equipo: [], tipo: [], bioma: [], lugar: [], escena: [], tono: [], energia: [] });
   const S = { cat: [], cargado: null, cargando: false, error: '', bajados: new Map(), filtro: nuevoFiltro(), q: '', dl: { activo: false, cancelar: false, hechos: 0, total: 0, actual: '', pct: 0, errores: [] }, cv: { activo: false } };
   const prefs = { fav: [], rec: [], azar: false, repetir: 'no', inteligente: false, fundido: 15, intro: 15, vol: 1 };
   const cov = new Map();                                       // id de la tapa en Drive -> direccion (blob:) de la imagen ya bajada
@@ -73,7 +73,7 @@ window.MD = window.MD || {};
   Au.actualizar = actualizar;
 
   // ---------------- filtros ----------------
-  const valor = (d, k) => d[k] == null || d[k] === '' ? null : d[k];
+  const valor = (d, k) => k === 'equipo' ? (Au.bajado(d.id) ? 'Bajados' : 'Sin bajar') : d[k] == null || d[k] === '' ? null : d[k];
   // 'f' = {filtro, q}; sin 'f' usa el filtro de la pantalla. 'omitir' = la fila que no cuenta (para los numeritos de cada opcion).
   function coinciden(omitir, f) {
     const filtro = f ? f.filtro : S.filtro, ws = norm(f ? f.q : S.q).split(/\s+/).filter(Boolean);

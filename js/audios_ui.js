@@ -64,6 +64,7 @@ window.MD = window.MD || {};
       ['Agregar a lista…', () => elegirLista([d.id])], [Au.esFav(d.id) ? 'Sacar de favoritos' : 'Marcar favorito ★', () => { Au.alternarFav(d.id); pintar(); }],
     ].concat(extras || []);
     if (!Au.bajado(d.id)) f.unshift(['Bajar a este equipo (' + Au.mb(d.tam) + ')', () => Au.bajarLista([d])]);
+    else f.push(['Borrar de este equipo (' + Au.mb(d.tam) + ')', () => Au.borrarDelEquipo([d.id]).then(() => aviso('Borrado de este equipo. Sigue en Drive.')), 'peligro']);
     hoja(d.titulo, f);
   }
 
@@ -313,6 +314,7 @@ window.MD = window.MD || {};
     const box = document.getElementById('auFacetas'); if (!box) return;
     const frag = document.createDocumentFragment();
     for (const [k, nombre] of FILAS) {
+      if (k === 'equipo' && !S.filtro.equipo.length && !S.cat.some((d) => !Au.bajado(d.id))) continue;   // todo bajado: la fila no hace falta
       const cuenta = new Map();
       Au.coinciden(k).forEach((d) => { const v = Au.valor(d, k); if (v != null) cuenta.set(v, (cuenta.get(v) || 0) + 1); });
       S.filtro[k].forEach((v) => { if (!cuenta.has(v)) cuenta.set(v, 0); });
@@ -336,7 +338,7 @@ window.MD = window.MD || {};
     const box = document.getElementById('auSelBarra'); if (!box) return;
     if (!U.sel) { box.replaceChildren(); return; }
     const n = U.sel.size, ids = [...U.sel], dest = U.destino ? Au.lista(U.destino) : null;
-    const filtro = Au.hayFiltro();
+    const filtro = Au.hayFiltro(), nb = ids.filter((id) => Au.bajado(id)).length;
     const fin = () => { U.sel = null; if (dest) { U.lista = dest.id; U.sub = 'listas'; U.destino = null; APP.render(); } else pintarCuerpo(); };
     const auto = h('input', { type: 'checkbox', id: 'auAutoLista' });
     box.replaceChildren(h('div', { class: 'au-selbarra' },
@@ -348,7 +350,8 @@ window.MD = window.MD || {};
       dest ? h('button', { type: 'button', class: 'primario au-gran-b', disabled: !n, onclick: () => { agregarALista(dest, ids); fin(); } }, 'Agregar ' + n + ' a «' + dest.nombre + '»')
         : h('button', { type: 'button', class: 'primario au-gran-b', disabled: !n && !filtro, onclick: () => { if (!n && !auto.checked) { aviso('Elegí al menos un audio.'); return; } pedirTexto('Nombre de la lista', filtro ? Au.textoFiltro(Au.copiaFiltro()).slice(0, 40) : '', (nom) => { const l = Au.nuevaLista(nom, ids, auto.checked ? Au.copiaFiltro() : null); fin(); U.sub = 'listas'; U.lista = l.id; APP.render(); }, 'Crear lista'); } }, 'Crear lista' + (n ? ' con ' + n + (n === 1 ? ' audio' : ' audios') : '')),
       !dest ? h('div', { class: 'au-fila3' }, h('button', { type: 'button', disabled: !n, onclick: () => elegirLista(ids, fin) }, 'Agregar a lista…'), h('button', { type: 'button', disabled: !n, onclick: () => { ids.forEach((id) => Au.alCola(id, false)); fin(); } }, 'A la cola'),
-        h('button', { type: 'button', disabled: !n, onclick: () => { ids.forEach((id) => { if (!Au.esFav(id)) Au.alternarFav(id); }); fin(); } }, '★ Favoritos')) : null));
+        h('button', { type: 'button', disabled: !n, onclick: () => { ids.forEach((id) => { if (!Au.esFav(id)) Au.alternarFav(id); }); fin(); } }, '★ Favoritos')) : null,
+      !dest ? h('button', { type: 'button', class: 'peligro', disabled: !nb, onclick: (e) => { const b = e.currentTarget; if (!b.classList.contains('seguro')) { b.classList.add('seguro'); b.textContent = '¿Seguro? Tocá otra vez para borrar ' + nb; return; } Au.borrarDelEquipo(ids).then((x) => { aviso(x + (x === 1 ? ' audio borrado' : ' audios borrados') + ' de este equipo. Siguen en Drive.'); fin(); }); } }, 'Borrar del equipo (' + nb + ')') : null));
   }
   // resumen de bajada (cuanto falta, lugar en el equipo)
   async function pintarBajada() {
@@ -370,6 +373,10 @@ window.MD = window.MD || {};
       f.append(h('div', { class: 'au-bj-txt' }, h('b', null, S.bajados.size + ' de ' + S.cat.length + ' bajados'), h('span', { class: 'suave', id: 'auCupo' }, '')));
       if (Au.hayFiltro() && vis.length && vis.length < todo.length) f.append(h('button', { type: 'button', onclick: () => Au.bajarLista(vis) }, 'Bajar lo que veo (' + vis.length + ' · ' + Au.mb(suma(vis)) + ')'));
       if (todo.length) f.append(h('button', { type: 'button', onclick: () => Au.bajarLista(todo) }, 'Bajar todo (' + todo.length + ' · ' + Au.mb(suma(todo)) + ')'));
+      const idsB = [...S.bajados.keys()], visB = Au.coinciden(null).filter((d) => Au.bajado(d.id)).map((d) => d.id);
+      const borrarBtn = (txt, l) => h('button', { type: 'button', class: 'peligro', onclick: (e) => { const b = e.currentTarget; if (!b.classList.contains('seguro')) { b.classList.add('seguro'); b.textContent = '¿Seguro? Tocá otra vez'; return; } Au.borrarDelEquipo(l).then((x) => aviso(x + (x === 1 ? ' audio borrado' : ' audios borrados') + ' de este equipo. Siguen en Drive.')); } }, txt);
+      if (Au.hayFiltro() && visB.length && visB.length < idsB.length) f.append(borrarBtn('Borrar del equipo lo que veo (' + visB.length + ')', visB));
+      if (idsB.length) f.append(borrarBtn('Borrar todo lo bajado (' + idsB.length + ')', idsB));
       box.append(f);
       try { const e = await navigator.storage.estimate(); const c = document.getElementById('auCupo'); if (c && e.quota) c.textContent = 'Usado ' + Au.mb(e.usage) + ' de ' + Au.mb(e.quota) + ' en este equipo'; } catch (x) {}
     }
