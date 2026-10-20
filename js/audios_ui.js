@@ -257,7 +257,7 @@ window.MD = window.MD || {};
     buscar.addEventListener('keydown', (e) => e.stopPropagation());
     el.append(buscar, h('p', { class: 'suave au-ayuda' }, 'Podés marcar varias opciones por fila (Bosque o Pantano). Entre filas se combinan.'),
       h('div', { id: 'auFacetas', class: 'au-facetas' }), h('button', { type: 'button', id: 'auLimpiar', class: 'au-limpiar', hidden: true, onclick: () => { S.filtro = Au.nuevoFiltro(); S.q = ''; buscar.value = ''; pintarCuerpo(); } }, 'Limpiar filtros'),
-      h('div', { class: 'au-herr', id: 'auHerr' }), h('div', { id: 'auBajada', class: 'au-bajada' }), h('div', { id: 'auLista', class: 'au-lista', 'aria-live': 'polite' }), h('div', { id: 'auSelBarra' }));
+      h('div', { class: 'au-herr', id: 'auHerr' }), h('div', { id: 'auSelBarra' }), h('div', { id: 'auBajada', class: 'au-bajada' }), h('div', { id: 'auLista', class: 'au-lista', 'aria-live': 'polite' }));
     pintarCuerpo();
   }
   function marcar(k, v) { const a = S.filtro[k], i = a.indexOf(v); if (i >= 0) a.splice(i, 1); else a.push(v); pintarCuerpo(); }
@@ -331,7 +331,7 @@ window.MD = window.MD || {};
     }
     box.replaceChildren(frag);
   }
-  // barra de abajo cuando se esta eligiendo varios
+  // barra de arriba (fija al scrollear) cuando se esta eligiendo varios
   function pintarSelBarra(r) {
     const box = document.getElementById('auSelBarra'); if (!box) return;
     if (!U.sel) { box.replaceChildren(); return; }

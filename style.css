@@ -307,7 +307,8 @@ nav.tabs .tab-ic{width:44px}nav.tabs .tab-n{max-width:100%;overflow:hidden;text-
 .au-card.sel{border-color:var(--amarillo)}
 .au-check{width:26px;height:26px;border-radius:50%;border:2px solid var(--linea);display:grid;place-items:center}.au-check.on{background:var(--amarillo);border-color:var(--amarillo);color:#1b1407}
 .au-acc{min-width:64px}.au-mini{display:flex;gap:0}.au-acc .au-mini button{width:32px;height:32px;background:none;border:0;border-radius:50%;color:var(--tx2)}.au-acc .au-mini button.fav{color:var(--amarillo)}
-.au-selbarra{position:sticky;bottom:0;margin:10px -2px 0;background:var(--panel2);border:1px solid var(--linea);border-radius:var(--r);padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 -6px 18px #0008}
+#auSelBarra{position:sticky;top:0;z-index:6}#auSelBarra:empty{display:none}
+.au-selbarra{margin:10px -2px 0;background:var(--panel2);border:1px solid var(--linea);border-radius:var(--r);padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 6px 18px #0008}
 .au-fila2{display:flex;align-items:center;gap:8px;min-width:0}.au-fila2 .crece{min-width:0}
 .au-fila3{display:flex;gap:6px}.au-fila3 button{flex:1;min-height:44px}
 .au-gran-b{min-height:48px;border-radius:24px;font-weight:700;width:100%}
