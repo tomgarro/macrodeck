@@ -95,6 +95,7 @@ window.MD = window.MD || {};
     base = base || Au.dePorId(P.id);
     let c = S.cat.filter((x) => Au.bajado(x.id) && (!base || x.id !== base.id));
     if (!c.length) return null;
+    if (base && base.tipo) { const mt = c.filter((x) => x.tipo === base.tipo); if (mt.length) c = mt; }       // la musica sigue con musica y el ambiente con ambiente
     if (base) {
       const bio = c.filter((x) => x.bioma === base.bioma);
       if (bio.length) {

@@ -4,10 +4,10 @@
 window.MD = window.MD || {};
 (function (MD) {
   const BIOMAS = { 'Bosque': '#3f8f55', 'Desierto': '#c98a4b', 'Montaña y nieve': '#7fb2c9', 'Pantano': '#5f7a3a', 'Agua': '#2f86c8', 'Cielo y tormenta': '#5a6fa8', 'Subterráneo': '#7a62b8', 'Volcánico y fuego': '#d4342c', 'Llanura y campo': '#a9b04a', 'Plano arcano': '#a65fc4', 'Neutro': '#8e8e8e' };
-  const FILAS = [['bioma', 'Bioma'], ['lugar', 'Lugar'], ['escena', 'Escena'], ['tono', 'Tono'], ['energia', 'Energía']];
+  const FILAS = [['tipo', 'Tipo'], ['bioma', 'Bioma'], ['lugar', 'Lugar'], ['escena', 'Escena'], ['tono', 'Tono'], ['energia', 'Energía']];
   const LS_CAT = 'audios_catalogo', LS_PREFS = 'audios_prefs', TROZO = 6 * 1024 * 1024, PARALELO = 3;
 
-  const nuevoFiltro = () => ({ bioma: [], lugar: [], escena: [], tono: [], energia: [] });
+  const nuevoFiltro = () => ({ tipo: [], bioma: [], lugar: [], escena: [], tono: [], energia: [] });
   const S = { cat: [], cargado: null, cargando: false, error: '', bajados: new Map(), filtro: nuevoFiltro(), q: '', dl: { activo: false, cancelar: false, hechos: 0, total: 0, actual: '', pct: 0, errores: [] }, cv: { activo: false } };
   const prefs = { fav: [], rec: [], azar: false, repetir: 'no', inteligente: false, fundido: 15, intro: 15, vol: 1 };
   const cov = new Map();                                       // id de la tapa en Drive -> direccion (blob:) de la imagen ya bajada
@@ -46,7 +46,7 @@ window.MD = window.MD || {};
   // ---------------- catalogo ----------------
   function preparar(lista) {
     return (lista || []).filter((d) => d && d.id && d.drive_id).map((d) => Object.assign({ etiquetas: [], energia: null }, d, {
-      _buscar: norm([d.titulo, d.bioma, d.lugar, d.escena, d.tono, (d.etiquetas || []).join(' '), d.energia ? 'e' + d.energia : '', d.bpm ? 'bpm' + Math.round(d.bpm) : ''].join(' ')),
+      _buscar: norm([d.titulo, d.tipo, d.bioma, d.lugar, d.escena, d.tono, (d.etiquetas || []).join(' '), d.energia ? 'e' + d.energia : '', d.bpm ? 'bpm' + Math.round(d.bpm) : ''].join(' ')),
     }));
   }
   Au.dePorId = (id) => S.cat.find((x) => x.id === id);

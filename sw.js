@@ -1,5 +1,5 @@
 // sw.js - Guarda la app en el celu para que abra sin internet (despues de la primera vez).
-const V = 'macrodeck-dnd-v31';
+const V = 'macrodeck-dnd-v32';
 const ARCHIVOS = ['./', 'index.html', 'style.css', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'macrodeck.webp', 'vendor/jszip.min.js',
   'js/version.js', 'js/audios.js', 'js/audios_motor.js', 'js/audios_ui.js', 'js/protocolo.js', 'js/iconos_datos.js', 'js/tema.js', 'js/iconos.js', 'js/almacen.js', 'js/config.js', 'js/luces_dnd.js', 'js/iconos_ui.js', 'js/audio.js', 'js/diag.js', 'js/vivo.js', 'js/nativo_sim.js', 'js/nativo.js', 'js/transporte.js', 'js/celu.js', 'js/simulador.js', 'js/maqueta.js', 'js/demo.js', 'js/drive_config.js', 'js/drive.js', 'js/drive_escenas.js', 'js/ui.js', 'js/drive_ui.js', 'js/selector.js', 'js/app.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting())); });

@@ -303,7 +303,7 @@ nav.tabs .tab-ic{width:44px}nav.tabs .tab-n{max-width:100%;overflow:hidden;text-
 .au-car img{display:block;width:100%;height:100%;object-fit:cover}.au-car{background:var(--panel2)}
 .au-mos{display:grid;grid-template-columns:1fr 1fr;border-radius:12px;overflow:hidden;background:var(--panel2);flex:none}.au-mos.vacio{border:2px dashed var(--linea)}
 .au-mos .au-car{border-radius:0;width:100%!important;height:100%!important}.au-mos .au-car.vacio{background:var(--panel)}
-.au-tag.rec{border-color:var(--amarillo);color:var(--amarillo)}
+.au-tag.amb{border-color:var(--cian,#4cc9c0);color:var(--cian,#4cc9c0)}.au-tag.rec{border-color:var(--amarillo);color:var(--amarillo)}
 .au-card.sel{border-color:var(--amarillo)}
 .au-check{width:26px;height:26px;border-radius:50%;border:2px solid var(--linea);display:grid;place-items:center}.au-check.on{background:var(--amarillo);border-color:var(--amarillo);color:#1b1407}
 .au-acc{min-width:64px}.au-mini{display:flex;gap:0}.au-acc .au-mini button{width:32px;height:32px;background:none;border:0;border-radius:50%;color:var(--tx2)}.au-acc .au-mini button.fav{color:var(--amarillo)}

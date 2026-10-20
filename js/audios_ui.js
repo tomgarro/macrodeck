@@ -286,7 +286,7 @@ window.MD = window.MD || {};
   function tarjeta(d, rVis) {
     const bajado = Au.bajado(d.id), suena = Au.P.id === d.id, e = Au.estado(), sel = U.sel && U.sel.has(d.id);
     const meta = [d.bioma, d.lugar].filter(Boolean).join(' · ');
-    const tags = h('div', { class: 'au-tags' }, d.escena ? h('span', { class: 'au-tag' }, d.escena) : null, d.tono ? h('span', { class: 'au-tag' }, d.tono) : null, d.bpm ? h('span', { class: 'au-tag' }, '♩ ' + Math.round(d.bpm)) : null, Au.esReciente(d.id) ? h('span', { class: 'au-tag rec' }, 'escuchado hace poco') : null);
+    const tags = h('div', { class: 'au-tags' }, d.tipo === 'Ambiente' ? h('span', { class: 'au-tag amb' }, 'Ambiente') : null, d.escena ? h('span', { class: 'au-tag' }, d.escena) : null, d.tono ? h('span', { class: 'au-tag' }, d.tono) : null, d.bpm ? h('span', { class: 'au-tag' }, '♩ ' + Math.round(d.bpm)) : null, Au.esReciente(d.id) ? h('span', { class: 'au-tag rec' }, 'escuchado hace poco') : null);
     const acc = h('div', { class: 'au-acc' });
     if (U.sel) acc.append(h('span', { class: 'au-check' + (sel ? ' on' : '') }, sel ? ic('ok', 18) : null));
     else {

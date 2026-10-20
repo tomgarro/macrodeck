@@ -69,7 +69,7 @@ window.MD = window.MD || {};
   // 1.3-dev25: lista de reproduccion = { id, nombre, items:[id de audio...], fundido (s), intro (s que se saltea del que entra), auto: null | {filtro:{bioma:[],..}, q} }
   // Una lista "automatica" se arma sola con el filtro (items queda vacio).
   function normListas(l) {
-    const out = [], FK = ['bioma', 'lugar', 'escena', 'tono', 'energia'];
+    const out = [], FK = ['tipo', 'bioma', 'lugar', 'escena', 'tono', 'energia'];
     for (const x of Array.isArray(l) ? l.slice(0, 100) : []) {
       if (!x || typeof x !== 'object' || !x.id || out.some(o => o.id === String(x.id))) continue;
       const li = { id: String(x.id).slice(0, 40), nombre: String(x.nombre || 'Lista').slice(0, 40), items: [], fundido: [0, 8, 15, 20].includes(Number(x.fundido)) ? Number(x.fundido) : 15, intro: [0, 15].includes(Number(x.intro)) ? Number(x.intro) : 15 };
