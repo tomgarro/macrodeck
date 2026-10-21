@@ -10,16 +10,22 @@ window.MD = window.MD || {};
     { id: 'secuencia', nombre: 'Secuencia',      ayuda: 'Cada toque suena el siguiente de la lista.' },
     { id: 'silenciar', nombre: 'Silenciar todo', ayuda: 'Corta TODO el sonido de la app (otra vez lo devuelve). No afecta a la musica de otras apps.' },
     { id: 'fadeout',   nombre: 'Fade-out total', ayuda: 'Apaga con un fundido todos los loops y sonidos largos.' },
-    { id: 'intensidad', nombre: 'Intensidad',    ayuda: 'Regula el ULTIMO loop que prendiste (el sonido y las luces de ese loop a la vez). Cada toque sube un nivel de 1 a 5; del 5 vuelve al 1. Sin un loop sonando no hace nada.' },
+    { id: 'ambiente',  nombre: 'Ambiente (de Audios)', ayuda: 'Prende un audio de tipo Ambiente de la pestana Audios (una taberna, la lluvia, un bosque) como un loop con fundido de entrada y de salida. Otro toque lo apaga. Suena en el carril de Ambientes, con su propio volumen.' },
+    { id: 'luz_toggle', nombre: 'Cambio de luz (toggle)', ayuda: 'Cada toque pasa al siguiente estado de luz (por ejemplo Dia / Noche) SIN cambiar de escena ni cortar los sonidos. Podes poner de 2 a 4 estados.' },
+    // 1.3-dev31: la tecla Intensidad queda en PENDIENTES (Tom, 21/10): no se ofrece al crear teclas nuevas, pero todo su codigo sigue (si una tecla ya la usa, anda igual).
+    // Para volver a ofrecerla: FUNC_INTENSIDAD = true.
+    { id: 'intensidad', nombre: 'Intensidad',    oculto: true, ayuda: 'Regula el ULTIMO loop que prendiste (el sonido y las luces de ese loop a la vez). Cada toque sube un nivel de 1 a 5; del 5 vuelve al 1. Sin un loop sonando no hace nada.' },
   ];
+  const FUNC_INTENSIDAD = false;
+  const tiposVisibles = (actual) => TIPOS.filter(t => !t.oculto || FUNC_INTENSIDAD || t.id === actual);
   // v1.3: la categoria (Ambiente/Combate/...) se elimino. El color del marco en el mapa del Macrodeck lo decide el COMPORTAMIENTO:
   //   Loop e Intro + Loop amarillo | Constante (mantener) rojo | Unico, Al azar y Secuencia blanco | Silenciar y Fade-out gris.
   // El DUCKING (baja la musica del celu mientras suena) se marca con marco doble + parlante con flecha.
-  const MODO_COLOR = { loop: 'amarillo', intro_loop: 'amarillo', mantener: 'rojo', silenciar: 'gris', fadeout: 'gris', intensidad: 'gris' };
+  const MODO_COLOR = { loop: 'amarillo', intro_loop: 'amarillo', ambiente: 'amarillo', luz_toggle: 'amarillo', mantener: 'rojo', silenciar: 'gris', fadeout: 'gris', intensidad: 'gris' };
   const colorModo = (tipo) => MODO_COLOR[tipo] || 'blanco';
   const COLOR_HEX = { amarillo: '#e0b21f', rojo: '#d4342c', blanco: '#e6e6e6', gris: '#808080' };
-  const esLoop = (tipo) => tipo === 'loop' || tipo === 'intro_loop';       // las teclas que se prenden y se apagan con otro toque
-  const admiteDucking = (tipo) => !['silenciar', 'fadeout', 'intensidad'].includes(tipo);
+  const esLoop = (tipo) => tipo === 'loop' || tipo === 'intro_loop' || tipo === 'ambiente';       // las teclas que se prenden y se apagan con otro toque
+  const admiteDucking = (tipo) => !['silenciar', 'fadeout', 'intensidad', 'ambiente', 'luz_toggle'].includes(tipo);
   // 1.3-dev20: icono por defecto de la tecla Intensidad (cinco barras que suben, 24 x 24). El firmware todavia no tiene un glifo propio para este tipo.
   const ICONO_INTENSIDAD = '0000000000000000380000380000380000380003b80003b80003b80003b8003bb8003bb8003bb8003bb803bbb803bbb803bbb803bbb83bbbb83bbbb83bbbb83bbbb8000000000000';
   // Dibujitos de 1 color (arte en texto, igual que en el firmware: programa_dnd.cpp). '#' = punto prendido.
@@ -33,6 +39,8 @@ window.MD = window.MD || {};
     silenciar: ["...#......", "..##.#...#", "####..#.#.", "####...#..", "####..#.#.", "..##.#...#", "...#......"],
     fadeout:   ["#..........", "###........", "####.......", "######.....", "########...", "#########..", "###########"],
     intensidad: ["........#", "........#", "......#.#", "....#.#.#", "..#.#.#.#", "#.#.#.#.#", "#.#.#.#.#"],
+    ambiente:  ["..#.#.#..", ".#.#.#.#.", "#########", ".#.#.#.#.", "..#.#.#..", "....#....", "....#...."],
+    luz_toggle: ["...#...#...", ".#..#.#..#.", "..#.###.#..", "#...#####..#", "..#.###.#..", ".#..#.#..#.", "...#...#..."],
     ducking:   ["...#...#..", "..##...#..", "####...#..", "####.#####", "####..###.", "..##...#..", "...#......"],
   };
   // Pinta un dibujito en un canvas 2D (ctx) con 'escala' puntos por punto
@@ -47,6 +55,8 @@ window.MD = window.MD || {};
     pintarArte(cv.getContext('2d'), 0, 0, filas, color, 1);
     return cv;
   }
+  // 1.3-dev31: Frodo prepara MUCHAS escenas; el Macrodeck solo muestra hasta 10 (las que tienen "Mostrar en el Macrodeck" tildado).
+  const MAX_ESCENAS = 60, MAX_EN_MACRODECK = 10;
   const RETOQUES = [
     { id: 'superponer', nombre: 'Superponer (suenan los dos)' },
     { id: 'reiniciar',  nombre: 'Reiniciar (corta el anterior)' },
@@ -62,8 +72,8 @@ window.MD = window.MD || {};
   // 1.3-dev21: 'estado' = 'borrador' (en preparacion: solo lo ve quien la hace) o 'confirmada' (la ven todos). Las escenas viejas cuentan como confirmadas.
   function escenaNueva(nombre, estado) { const e = { id: nuevoId('e'), nombre: nombre || 'Escena', teclas: Array.from({ length: 10 }, () => null) }; if (estado === 'borrador') e.estado = 'borrador'; return e; }
   function configNueva() {
-    return { version: 1, nombre: 'Mi campana', escenas: [escenaNueva('Escena 1')], sonidos: [], looks: [], listas: [],
-      ajustes: { volMax: 0.9, escenaInicial: 0, sorpresa: false } };
+    return { version: 1, nombre: 'Mi campana', escenas: [escenaNueva('Escena 1')], sonidos: [], looks: [], listas: [], favoritos: [],
+      ajustes: { volMax: 0.9, escenaInicial: 0, sorpresa: false, luzBase: { modo: 'foto', look: '' } } };
   }
   const num = (v, d, mn, mx) => { v = Number(v); if (!isFinite(v)) v = d; return Math.min(mx, Math.max(mn, v)); };
   // 1.3-dev25: lista de reproduccion = { id, nombre, items:[id de audio...], fundido (s), intro (s que se saltea del que entra), auto: null | {filtro:{bioma:[],..}, q} }
@@ -81,20 +91,42 @@ window.MD = window.MD || {};
     }
     return out;
   }
+  // 1.3-dev31: luz de reposo = a que quedan las lamparas cuando la escena no define su luz (y cuando termina un efecto): 'foto' = como estaban antes
+  // (lo que hacia siempre el servidor: volvian a la luz de antes, p. ej. calida), 'look' = un look elegido, 'apagar' = apagadas.
+  function normLuzBase(o) {
+    const modo = o && ['foto', 'look', 'apagar'].includes(o.modo) ? o.modo : 'foto';
+    const look = o && typeof o.look === 'string' ? o.look.slice(0, 40) : '';
+    return { modo: modo === 'look' && !look ? 'foto' : modo, look: modo === 'look' ? look : '' };
+  }
+  // Estados de una tecla "Cambio de luz": de 2 a 4. Cada uno = { nombre, luz: { 'dnd-1': idLook, 'dnd-2': idLook } }; sin lampara = "la luz de la escena".
+  function normEstadosToggle(lista) {
+    const LZ = MD.LucesDnd, out = [];
+    for (const e of (Array.isArray(lista) ? lista : []).slice(0, 4)) {
+      if (!e || typeof e !== 'object') continue;
+      out.push({ nombre: String(e.nombre || 'Estado ' + (out.length + 1)).slice(0, 10), luz: LZ ? LZ.normLuzEscena(e.luz) : {} });
+    }
+    const def = [{ nombre: 'Dia', luz: {} }, { nombre: 'Noche', luz: { 'dnd-1': 'lf_noche', 'dnd-2': 'lf_noche' } }];
+    while (out.length < 2) out.push(def[out.length]);
+    return out;
+  }
   // Limpia lo que venga (de un pack o de la memoria) para que nunca rompa nada
   function normalizar(c) {
     const base = configNueva();
     if (!c || typeof c !== 'object') return base;
     const out = { version: 1, nombre: String(c.nombre || base.nombre).slice(0, 60), escenas: [], sonidos: [], ajustes: Object.assign({}, base.ajustes, c.ajustes || {}) };
+    out.ajustes.luzBase = normLuzBase(out.ajustes.luzBase);
+    out.favoritos = [...new Set((Array.isArray(c.favoritos) ? c.favoritos : []).filter(x => typeof x === 'string' && x).map(x => x.slice(0, 80)))].slice(0, 2000);   // 1.3-dev31: los favoritos de Audios viajan con la campana
     const LZ = MD.LucesDnd;                                   // 1.3-dev16: luces de D&D (looks propios, ambiente por escena, luces por tecla)
     out.looks = LZ ? LZ.normLooks(c.looks) : [];
     out.listas = normListas(c.listas);                         // 1.3-dev25: listas de reproduccion de la pestana Audios
     out.ajustes.volMax = num(out.ajustes.volMax, 0.9, 0.1, 1);
-    out.ajustes.escenaInicial = num(out.ajustes.escenaInicial, 0, 0, 9) | 0;
+    out.ajustes.escenaInicial = num(out.ajustes.escenaInicial, 0, 0, MAX_ESCENAS - 1) | 0;
     for (const s of c.sonidos || []) out.sonidos.push({ id: String(s.id), nombre: String(s.nombre || 'Sonido').slice(0, 60), volumen: num(s.volumen, 1, 0, 2), duracion: num(s.duracion, 0, 0, 36000), archivoOriginal: s.archivoOriginal || '', carpeta: String(s.carpeta || '').slice(0, 80), driveMod: num(s.driveMod, 0, 0, 1e15) });
-    for (const e of (c.escenas || []).slice(0, 10)) {
+    for (const e of (c.escenas || []).slice(0, MAX_ESCENAS)) {
       const esc = { id: String(e.id || nuevoId('e')), nombre: String(e.nombre || 'Escena').slice(0, 30), teclas: [] };
       if (e.estado === 'borrador') esc.estado = 'borrador';            // (sin campo = confirmada)
+      if (e.macrodeck === false) esc.macrodeck = false;                // 1.3-dev31: (sin campo = se muestra en el selector del Macrodeck)
+      if (e.ambiente && typeof e.ambiente === 'object' && typeof e.ambiente.id === 'string' && e.ambiente.id) esc.ambiente = { id: e.ambiente.id.slice(0, 80), arranca: e.ambiente.arranca !== false };   // 1.3-dev31: ambiente de fondo de la escena (audio de tipo Ambiente)
       if (LZ) { const lz = LZ.normLuzEscena(e.luz); if (Object.keys(lz).length) esc.luz = lz; }
       if (e.lista && typeof e.lista === 'object' && typeof e.lista.id === 'string' && e.lista.id) esc.lista = { id: e.lista.id.slice(0, 40), arranca: e.lista.arranca !== false, azar: !!e.lista.azar };   // dev25: musica de fondo de la escena
       for (let i = 0; i < 10; i++) {
@@ -112,6 +144,10 @@ window.MD = window.MD || {};
         x.grupo = String(x.grupo || '').slice(0, 20);
         x.icono = (typeof x.icono === 'string' && /^[0-9a-f]{144}$/i.test(x.icono)) ? x.icono.toLowerCase() : '';
         if (x.tipo === 'intensidad' && !x.icono) x.icono = ICONO_INTENSIDAD;
+        if (x.tipo === 'ambiente') {                           // 1.3-dev31: un audio de la biblioteca (Audios) que suena como loop en el carril de Ambientes
+          x.audio = typeof x.audio === 'string' ? x.audio.slice(0, 80) : ''; x.audioTitulo = String(x.audioTitulo || '').slice(0, 60); x.sumar = !!x.sumar; x.sonidos = [];
+        } else { delete x.audio; delete x.audioTitulo; delete x.sumar; }
+        if (x.tipo === 'luz_toggle') { x.estados = normEstadosToggle(x.estados); x.fundido = num(x.fundido, 4, 0, 60); x.sonidos = []; delete x.luces; } else { delete x.estados; delete x.fundido; }
         if (LZ) { const lt = LZ.normLucesTecla(x.luces); if (lt.length) x.luces = lt; else delete x.luces; }
         esc.teclas.push(x);
       }
@@ -120,5 +156,5 @@ window.MD = window.MD || {};
     if (!out.escenas.length) out.escenas.push(escenaNueva('Escena 1'));
     return out;
   }
-  MD.Config = { TIPOS, RETOQUES, colorModo, esLoop, COLOR_HEX, admiteDucking, ICONO_INTENSIDAD, ARTE, pintarArte, canvasArte, nuevoId, teclaNueva, escenaNueva, configNueva, normalizar, normListas };
+  MD.Config = { TIPOS, tiposVisibles, FUNC_INTENSIDAD, MAX_ESCENAS, MAX_EN_MACRODECK, normLuzBase, normEstadosToggle, RETOQUES, colorModo, esLoop, COLOR_HEX, admiteDucking, ICONO_INTENSIDAD, ARTE, pintarArte, canvasArte, nuevoId, teclaNueva, escenaNueva, configNueva, normalizar, normListas };
 })(window.MD);

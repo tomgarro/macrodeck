@@ -51,7 +51,7 @@ window.MD = window.MD || {};
         this.duckTimer = setTimeout(() => { this.duckTimer = null; if (this.duckN === 0 && this.duckActivo) { this.duckActivo = false; try { this.onDuck(false); } catch (e) {} } }, this._duck().cola);
       }
     }
-    _estadoNuevo() { return { voces: new Set(), loop: false, abajo: false, sec: 0, bolsa: [], ultimo: -1, flashHasta: 0, azarHasta: 0, nivel: 0, seq: 0 }; }
+    _estadoNuevo() { return { voces: new Set(), loop: false, abajo: false, sec: 0, bolsa: [], ultimo: -1, flashHasta: 0, azarHasta: 0, nivel: 0, seq: 0, tg: 0 }; }
 
     async iniciar() {
       if (!this.ctx) {
@@ -215,6 +215,9 @@ window.MD = window.MD || {};
         case 'silenciar': this.alternarSilencio(); e.flashHasta = performance.now() + 400; break;
         case 'fadeout': this.fadeoutTotal(Math.max(0.5, t.salida || 2)); e.flashHasta = performance.now() + 500; break;
         case 'intensidad': e.flashHasta = performance.now() + 300; this.ciclarIntensidad(); break;
+        // 1.3-dev31: 'ambiente' = un audio de tipo Ambiente de la pestana Audios, como loop con fundidos (lo maneja ambientes.js). 'luz_toggle' = cambio de luz (luces_dnd.js).
+        case 'ambiente': if (MD.Ambientes) await MD.Ambientes.tecla(this, i, t, e); break;
+        case 'luz_toggle': e.flashHasta = performance.now() + 250; if (MD.LucesDnd && MD.LucesDnd.alToggle) MD.LucesDnd.alToggle(i, t, e); break;
         case 'intro_loop':
         case 'loop': await this._loop(i, t, e); break;
         case 'mantener': if (!e.abajo) break; /* soltada durante la espera del ducking: no arrancar */ if (!(await this._permitido(t, e))) break; await this._una(i, t, e, t.sonidos[0], { loop: true, entrada: t.entrada }); break;
@@ -336,8 +339,9 @@ window.MD = window.MD || {};
     fadeoutTotal(seg) {
       this.estadoTecla.forEach(e => { e.loop = false; });
       for (const v of [...this.voces]) this._apagar(v, seg);
+      if (MD.Ambientes) MD.Ambientes.apagarDeTeclas(seg);                      // 1.3-dev31: los ambientes prendidos desde una tecla tambien se apagan con fundido
     }
-    pararTodo() { this.estadoTecla.forEach(e => { e.loop = false; }); for (const v of [...this.voces]) this._apagar(v, 0.03); }
+    pararTodo() { this.estadoTecla.forEach(e => { e.loop = false; }); for (const v of [...this.voces]) this._apagar(v, 0.03); if (MD.Ambientes) MD.Ambientes.apagarDeTeclas(0.05); }
 
     // ---- lo que se muestra: LEDs de las teclas y la lista de "sonando" ----
     ledsEstado() {
@@ -347,6 +351,7 @@ window.MD = window.MD || {};
         const e = this.estadoTecla[i];
         if (e.flashHasta > ahora) return 3;
         if (t.tipo === 'silenciar') return this.silenciado ? 1 : 0;
+        if (t.tipo === 'luz_toggle') return e.tg > 0 ? 2 : 0;                  // prendida = esta en un estado que no es el primero
         if (MD.Config.esLoop(t.tipo)) return e.loop ? 2 : 0;
         if (e.voces.size) return (t.tipo === 'azar' && e.azarHasta > ahora) ? 4 : 1;
         return 0;

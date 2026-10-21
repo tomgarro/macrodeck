@@ -9,7 +9,7 @@ window.MD = window.MD || {};
 
   const nuevoFiltro = () => ({ equipo: [], tipo: [], bioma: [], lugar: [], escena: [], tono: [], energia: [] });
   const S = { cat: [], cargado: null, cargando: false, error: '', bajados: new Map(), filtro: nuevoFiltro(), q: '', dl: { activo: false, cancelar: false, hechos: 0, total: 0, actual: '', pct: 0, errores: [] }, cv: { activo: false } };
-  const prefs = { fav: [], rec: [], azar: false, repetir: 'no', inteligente: false, fundido: 15, intro: 15, vol: 1 };
+  const prefs = { fav: [], rec: [], azar: false, repetir: 'no', inteligente: false, fundido: 15, intro: 15, vol: 1, amb: { azar: false, repetir: 'uno', inteligente: false, fundido: 10, intro: 0, vol: 1 } };
   const cov = new Map();                                       // id de la tapa en Drive -> direccion (blob:) de la imagen ya bajada
   const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -35,11 +35,22 @@ window.MD = window.MD || {};
         prefs.fundido = [0, 8, 15, 20].includes(Number(p.fundido)) ? Number(p.fundido) : 15;
         prefs.intro = [0, 15].includes(Number(p.intro)) ? Number(p.intro) : 15;
         prefs.vol = isFinite(p.vol) ? Math.min(1, Math.max(0, Number(p.vol))) : 1;
+        const a = p.amb && typeof p.amb === 'object' ? p.amb : {};
+        prefs.amb.azar = !!a.azar; prefs.amb.inteligente = !!a.inteligente;
+        prefs.amb.repetir = ['no', 'lista', 'uno'].includes(a.repetir) ? a.repetir : 'uno';
+        prefs.amb.fundido = [0, 5, 8, 10, 15, 20].includes(Number(a.fundido)) ? Number(a.fundido) : 10;
+        prefs.amb.intro = 0;
+        prefs.amb.vol = isFinite(a.vol) ? Math.min(1, Math.max(0, Number(a.vol))) : 1;
       }
     } catch (e) {}
   }
-  Au.esFav = (id) => prefs.fav.indexOf(id) >= 0;
-  Au.alternarFav = (id) => { const i = prefs.fav.indexOf(id); if (i >= 0) prefs.fav.splice(i, 1); else prefs.fav.push(id); Au.guardarPrefs(); };
+  // Preferencias de cada carril: la musica usa las de siempre (prefs), los ambientes las suyas (prefs.amb).
+  Au.prefsDe = (carril) => carril === 'ambiente' ? prefs.amb : prefs;
+  // 1.3-dev31: los favoritos viven en la configuracion (cfg.favoritos) para viajar a Drive con "Sincronizar todo"; prefs.fav queda solo como respaldo/migracion.
+  Au.favs = () => (APP && APP.cfg && Array.isArray(APP.cfg.favoritos)) ? APP.cfg.favoritos : prefs.fav;
+  Au.esFav = (id) => Au.favs().indexOf(id) >= 0;
+  Au.alternarFav = (id) => { const f = Au.favs(), i = f.indexOf(id); if (i >= 0) f.splice(i, 1); else f.push(id); if (f !== prefs.fav && APP) APP.cambio(false); else Au.guardarPrefs(); };
+  function migrarFavs() { if (!prefs.fav.length || !APP || !APP.cfg) return; const f = Au.favs(); if (f === prefs.fav) return; prefs.fav.forEach((id) => { if (f.indexOf(id) < 0) f.push(id); }); prefs.fav = []; APP.cambio(false); Au.guardarPrefs(); }
   Au.esReciente = (id) => prefs.rec.indexOf(id) >= 0 && prefs.rec.indexOf(id) < 25;      // "escuchado hace poco" = entre los ultimos 25
   Au.registrarReciente = (id) => { const i = prefs.rec.indexOf(id); if (i >= 0) prefs.rec.splice(i, 1); prefs.rec.unshift(id); prefs.rec.length = Math.min(prefs.rec.length, 60); Au.guardarPrefs(); };
 
@@ -264,7 +275,7 @@ window.MD = window.MD || {};
   MD.Audios = {
     // la entrega app.js: al abrir la pestana (vista) y al arrancar (iniciar)
     vista: (app, el) => { APP = app; Au.ui.vista(app, el); },
-    iniciar: async (app) => { APP = app; await leerCache(); Au.ui.armarBarra(); Au.motor.iniciar(); rescatarTapas(); },
+    iniciar: async (app) => { APP = app; await leerCache(); migrarFavs(); if (MD.Disco) MD.Disco.alCambiar = async () => { try { S.bajados = new Map((await MD.Almacen.audiosIds()).map((k) => [k, true])); } catch (e) {} Au.pintar(); }; Au.ui.armarBarra(); Au.motor.iniciar(); rescatarTapas(); },
     enganchar: (app) => { APP = app; Au.motor.enganchar(app); },
     tarjetaEscena: (app, esc) => Au.ui.tarjetaEscena(app, esc),
     _S: S, _P: () => Au.P, _bajarLista: bajarLista, _reproducir: (d) => Au.motor.reproducirUno(d), Au: Au,

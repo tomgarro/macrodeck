@@ -44,7 +44,9 @@ window.MD = window.MD || {};
       fila('intro_loop', 'amarillo', 'Amarillo con triangulo - Intro + Loop', 'suena la intro y entra solo en el loop; otro toque lo apaga.'),
       fila('mantener', 'rojo', 'Rojo - Constante', 'suena mientras mantenes la tecla.'),
       fila('silenciar', 'gris', 'Gris punteado - Acciones', 'Silenciar todo y Fade-out.'),
-      fila('intensidad', 'gris', 'Gris con barras - Intensidad', 'regula el ultimo loop que prendiste (sonido y luces): cada toque sube un nivel.'),
+      MD.Config.FUNC_INTENSIDAD ? fila('intensidad', 'gris', 'Gris con barras - Intensidad', 'regula el ultimo loop que prendiste (sonido y luces): cada toque sube un nivel.') : null,
+      fila('ambiente', 'amarillo', 'Amarillo con ondas - Ambiente', 'prende un ambiente de Audios (taberna, lluvia...) con fundido; otro toque lo apaga.'),
+      fila('luz_toggle', 'amarillo', 'Amarillo con sol/luna - Cambio de luz', 'cada toque pasa al siguiente estado de luz (dia, noche...) sin cambiar de escena.'),
       fila('ducking', 'amarillo', 'Marco doble + parlante con flecha - Ducking', 'mientras suena, baja la musica del celu (solo en la app Android).'));
   }
   function avisosTecla(A, t) {
@@ -53,6 +55,7 @@ window.MD = window.MD || {};
     if ((t.nombre || '').split(/\s+/).some(p => p.length > 7)) out.push('El nombre tiene una palabra de mas de 7 letras: en la pantalla e-Paper se va a cortar.');
     if (!t.nombre) out.push('La tecla no tiene nombre: en el Macrodeck se vera solo el icono.');
     if (['una_vez', 'loop', 'intro_loop', 'mantener', 'azar', 'secuencia'].includes(t.tipo) && t.sonidos.length < 1) out.push('Esta tecla no tiene sonido todavia.');
+    if (t.tipo === 'ambiente' && !t.audio) out.push('Esta tecla no tiene ambiente elegido todavia.');
     if (t.tipo === 'intro_loop' && t.sonidos.length === 1) out.push('"Intro + Loop" con un solo sonido es igual que "Loop": agrega la intro ANTES del loop (el ultimo sonido es el que se repite).');
     if (t.tipo === 'azar' && t.sonidos.length === 1) out.push('"Al azar" con un solo sonido es igual que "Una vez".');
     t.sonidos.forEach(id => { if (!A.cfg.sonidos.some(s => s.id === id)) out.push('Falta un sonido que esta tecla usaba (se borro de la biblioteca).'); });
@@ -118,6 +121,64 @@ window.MD = window.MD || {};
       h('p', { class: 'suave', style: 'margin-bottom:0' }, 'Que volumen mueve la perilla en el programa D&D (sonidos o celu) se elige en el Macrodeck: Ajustes > Knob > D&D knob. En el programa, HOME + B1 lo cambia al vuelo.'));
   }
 
+  // 1.3-dev31: Frodo puede tener hasta 60 escenas. Con pocas se ven como botones; con muchas, un selector con buscador (y anterior / siguiente).
+  // 'cual' = el indice de la escena elegida, 'alElegir(i)' = que hacer al elegir.
+  function barraEscenas(A, cual, alElegir, id) {
+    const esc = A.cfg.escenas, dm = !!(MD.Drive && MD.Drive.esDM());
+    const nombre = (e) => (e.estado === 'borrador' ? '✎ ' : '') + e.nombre;
+    if (esc.length <= 12) {
+      const bar = h('div', { class: 'escenas' });
+      esc.forEach((e, i) => bar.append(h('button', { type: 'button', class: i === cual ? 'on' : '', title: e.estado === 'borrador' ? 'Borrador (solo lo ves vos)' : '', onclick: () => alElegir(i) }, nombre(e))));
+      return bar;
+    }
+    const vis = A.escenasMacrodeck ? A.escenasMacrodeck() : [];
+    const q = (A._escQ && A._escQ[id]) || '';
+    const buscar = h('input', { type: 'search', class: 'esc-buscar', placeholder: 'Buscar escena (' + esc.length + ')…', value: q, 'aria-label': 'Buscar escena', autocomplete: 'off',
+      oninput: (e) => { (A._escQ = A._escQ || {})[id] = e.target.value; pintar(); } });
+    buscar.addEventListener('keydown', (e) => e.stopPropagation());
+    const sel = h('select', { class: 'esc-sel', 'aria-label': 'Escena', onchange: (e) => alElegir(Number(e.target.value)) });
+    const norm = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    function pintar() {
+      const t = norm((A._escQ && A._escQ[id]) || '').trim().split(/\s+/).filter(Boolean);
+      const ok = (i) => i === cual || t.every(w => norm(esc[i].nombre).includes(w));
+      sel.textContent = '';
+      const g1 = h('optgroup', { label: 'En el Macrodeck (' + vis.length + ')' }), g2 = h('optgroup', { label: 'Solo en la app' });
+      esc.forEach((e, i) => { if (!ok(i)) return; (vis.includes(i) ? g1 : g2).append(h('option', { value: i, selected: i === cual }, (vis.includes(i) ? NOM[vis.indexOf(i)] + ' · ' : '') + nombre(e))); });
+      if (g1.children.length) sel.append(g1); if (g2.children.length) sel.append(g2);
+    }
+    pintar();
+    const ir = (d) => alElegir(Math.max(0, Math.min(esc.length - 1, cual + d)));
+    return h('div', { class: 'escenas-muchas' }, buscar, h('div', { class: 'fila' }, h('button', { type: 'button', 'aria-label': 'Escena anterior', onclick: () => ir(-1) }, '◀'), h('div', { class: 'crece' }, sel), h('button', { type: 'button', 'aria-label': 'Escena siguiente', onclick: () => ir(1) }, '▶')));
+  }
+
+  // 1.3-dev31: ventana para elegir QUE escenas aparecen en el selector de la OLED del Macrodeck (maximo 10) y en que orden.
+  function dialogoMacrodeck(A) {
+    const cfg = A.cfg, MAX = MD.Config.MAX_EN_MACRODECK;
+    const cont = h('div', { class: 'esc-md' });
+    const d = h('dialog', { class: 'esc-md-dlg' }, h('h3', null, 'Escenas en el Macrodeck'),
+      h('p', { class: 'suave', style: 'margin-top:0' }, 'El selector del Macrodeck (HOME) tiene lugar para ' + MAX + ' escenas, de A1 a E2. Tildá las que querés ahí; el orden es el de esta lista. Las demás quedan solo en la app.'), cont,
+      h('div', { class: 'fila', style: 'margin-top:12px;justify-content:flex-end' }, h('button', { type: 'button', class: 'primario', onclick: () => d.close() }, 'Listo')));
+    function pintar() {
+      cont.textContent = '';
+      const vis = A.escenasMacrodeck(), marcadas = cfg.escenas.filter(e => e.macrodeck !== false).length;
+      cont.append(h('p', { class: 'esc-md-cuenta' + (marcadas > MAX ? ' mal' : '') }, 'En el Macrodeck: ' + Math.min(marcadas, MAX) + ' de ' + MAX + (marcadas > MAX ? ' · hay ' + (marcadas - MAX) + ' tildada(s) de mas que NO entran (las ultimas de la lista)' : '')));
+      cfg.escenas.forEach((e, i) => {
+        const lugar = vis.indexOf(i), tilde = e.macrodeck !== false;
+        cont.append(h('div', { class: 'esc-md-fila' + (lugar >= 0 ? ' en' : '') },
+          h('input', { type: 'checkbox', checked: tilde, 'aria-label': 'Mostrar ' + e.nombre + ' en el Macrodeck', onchange: (ev) => { if (ev.target.checked) delete e.macrodeck; else e.macrodeck = false; A.cambio(true); pintar(); } }),
+          h('span', { class: 'esc-md-lugar' }, lugar >= 0 ? NOM[lugar] : (tilde ? '—' : '')),
+          h('span', { class: 'crece esc-md-nom' }, (e.estado === 'borrador' ? '✎ ' : '') + e.nombre + (tilde && lugar < 0 ? ' (no entra)' : '')),
+          h('button', { type: 'button', 'aria-label': 'Subir', disabled: i === 0, onclick: () => { [cfg.escenas[i - 1], cfg.escenas[i]] = [cfg.escenas[i], cfg.escenas[i - 1]]; if (A.activa === i) A.activa = i - 1; else if (A.activa === i - 1) A.activa = i; if (A.edEsc === i) A.edEsc = i - 1; else if (A.edEsc === i - 1) A.edEsc = i; A.cambio(true); pintar(); } }, '↑'),
+          h('button', { type: 'button', 'aria-label': 'Bajar', disabled: i === cfg.escenas.length - 1, onclick: () => { [cfg.escenas[i + 1], cfg.escenas[i]] = [cfg.escenas[i], cfg.escenas[i + 1]]; if (A.activa === i) A.activa = i + 1; else if (A.activa === i + 1) A.activa = i; if (A.edEsc === i) A.edEsc = i + 1; else if (A.edEsc === i + 1) A.edEsc = i; A.cambio(true); pintar(); } }, '↓')));
+      });
+    }
+    pintar();
+    d.addEventListener('close', () => { d.remove(); A.render(); });
+    document.body.append(d); d.showModal();
+    return d;
+  }
+  MD.dialogoEscenasMacrodeck = dialogoMacrodeck;
+
   // ===================== MESA =====================
   function vistaMesa(A, el) {
     const con = h('div', { class: 'tarjeta' });
@@ -141,9 +202,7 @@ window.MD = window.MD || {};
     }
     el.append(con);
 
-    const bar = h('div', { class: 'escenas' });
-    A.cfg.escenas.forEach((e, i) => bar.append(h('button', { type: 'button', class: i === A.activa ? 'on' : '', onclick: () => A.activar(i) }, e.nombre)));
-    el.append(bar);
+    el.append(barraEscenas(A, A.activa, (i) => A.activar(i), 'mesa'));
 
     const rej = h('div', { class: 'rejilla' });
     const esc = A.cfg.escenas[A.activa];
@@ -224,6 +283,41 @@ window.MD = window.MD || {};
     const av = avisoLucesApagadas(A); if (av) caja.append(av);
     return caja;
   }
+  // Tecla "Ambiente (de Audios)": elige un audio de tipo Ambiente del catalogo
+  function ambienteTecla(A, t) {
+    const Au = MD.Au, ambs = Au ? Au.S.cat.filter(x => x.tipo === 'Ambiente').sort((a, b) => a.titulo.localeCompare(b.titulo, 'es')) : [];
+    const sel = h('select', { id: 'selAmbiente', 'aria-label': 'Ambiente', onchange: (e) => { t.audio = e.target.value; const d = Au && Au.dePorId(t.audio); t.audioTitulo = d ? d.titulo : ''; if (d && (!t.nombre || t.nombre === 'Nueva')) t.nombre = d.titulo.split(/\s+/)[0].slice(0, 7); A.cambio(true); A.render(); } },
+      h('option', { value: '' }, ambs.length ? '(elegí un ambiente)' : '(todavía no hay ambientes: sincronizá el catálogo en Audios)'),
+      ambs.map(x => h('option', { value: x.id, selected: x.id === t.audio }, x.titulo + (Au.bajado(x.id) ? '' : ' (sin bajar)'))),
+      t.audio && !ambs.some(x => x.id === t.audio) ? h('option', { value: t.audio, selected: true }, (t.audioTitulo || 'ambiente') + ' (todavía no llegó a este celu)') : null);
+    const d = Au && t.audio && Au.dePorId(t.audio);
+    return h('div', null, h('label', null, 'Audio de tipo Ambiente (de la pestana Audios)'), sel,
+      d ? h('div', { class: 'fila', style: 'margin-top:6px' }, h('button', { type: 'button', onclick: () => Au.carril('ambiente').ambienteTecla(d, t.entrada > 0 ? t.entrada : 3) }, 'Probar'), h('button', { type: 'button', onclick: () => Au.carril('ambiente').apagarSuave(t.salida > 0 ? t.salida : 3) }, 'Parar')) : null,
+      h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: !!t.sumar, onchange: (e) => { t.sumar = e.target.checked; A.cambio(true); } }), ' Sumar: que suene ENCIMA de los otros ambientes (si no, reemplaza al que suena)'),
+      h('p', { class: 'suave' }, 'Un toque lo prende con fundido de entrada; otro toque lo apaga con fundido de salida. Su volumen se regula en Audios (carril Ambientes).'));
+  }
+  // Tecla "Cambio de luz (toggle)": hasta 4 estados que se van alternando
+  function toggleTecla(A, t) {
+    const LZ = MD.LucesDnd;
+    t.estados = MD.Config.normEstadosToggle(t.estados);
+    const caja = h('div', { class: 'tarjeta', style: 'background:var(--panel2);margin-top:10px' }, h('div', { class: 'fila' }, MD.IUI.svg('luz', 'ic-luz'), h('strong', null, 'Estados de la luz (cada toque pasa al siguiente)')));
+    t.estados.forEach((es, k) => {
+      const fila = h('div', { class: 'luz-fila' }, h('div', { class: 'fila' }, h('b', null, 'Estado ' + (k + 1)),
+        h('input', { type: 'text', maxlength: 10, value: es.nombre, 'aria-label': 'Nombre del estado', style: 'max-width:9em', oninput: (e) => { es.nombre = e.target.value.slice(0, 10); A.cambio(false); } }),
+        t.estados.length > 2 ? h('button', { class: 'peligro', type: 'button', onclick: () => { t.estados.splice(k, 1); A.cambio(true); A.render(); } }, '✕') : null));
+      LZ.LAMPARAS.forEach((lp) => {
+        const id = es.luz[lp.id] || '';
+        fila.append(h('label', { style: 'margin-top:4px' }, LZ.nombreLampara(lp.id)), h('div', { class: 'fila' }, muestraLook(LZ.look(id)), h('div', { class: 'crece' }, selLook(A, id, (v) => { if (v) es.luz[lp.id] = v; else delete es.luz[lp.id]; A.cambio(false); A.render(); }, '(no la toca)')),
+          id ? h('button', { type: 'button', onclick: () => { const l = LZ.look(id); if (l) LZ.probarLook(l, lp.id); } }, 'Probar') : null));
+      });
+      caja.append(fila);
+    });
+    if (t.estados.length < 4) caja.append(h('button', { type: 'button', onclick: () => { t.estados.push({ nombre: 'Estado ' + (t.estados.length + 1), luz: {} }); A.cambio(true); A.render(); } }, '+ Agregar estado'));
+    caja.append(h('label', null, 'Fundido entre estados (segundos, 0 = cambio directo)'), h('input', { type: 'number', min: 0, max: 60, step: 1, value: t.fundido == null ? 4 : t.fundido, oninput: (e) => { t.fundido = Math.max(0, Math.min(60, Number(e.target.value) || 0)); A.cambio(false); } }),
+      h('p', { class: 'suave' }, 'No cambia la escena ni toca los sonidos: solo las luces. Al cambiar de escena vuelve al primer estado. El fundido lento necesita Luces 0.7.6 en el servidor (con la versión anterior cambia directo).'));
+    const av = avisoLucesApagadas(A); if (av) caja.append(av);
+    return caja;
+  }
   // En el editor de la escena: el ambiente de cada lampara
   function lucesEscena(A, esc) {
     const LZ = MD.LucesDnd;
@@ -293,6 +387,32 @@ window.MD = window.MD || {};
     const LZ = MD.LucesDnd;
     el.append(h('div', { class: 'au-cab' }, h('h2', null, 'Luces de D&D'), h('span', { class: 'au-cuenta suave' }, LZ.aj.activo ? ((A.cfg.looks || []).length + LZ.FABRICA.length) + ' looks' : 'apagadas')));
     el.append(h('div', { class: 'tarjeta' }, tarjetaLuces(A)));
+    el.append(tarjetaReposo(A));
+  }
+  // 1.3-dev31: DISCO EXTERNO para los audios (Chrome/Edge en la compu)
+  function tarjetaDisco(A) {
+    const D = MD.Disco, msg = h('p', { class: 'suave', id: 'discoMsg' }, '');
+    const ok = (t) => { msg.textContent = t; };
+    const estado = D.activo() ? (D.listo() ? 'Usando el disco «' + D.nombre() + '» (carpeta Macrodeck-audios). Los audios nuevos se guardan ahí y no ocupan lugar en la compu.' : '⚠ El disco «' + D.nombre() + '» no está conectado. ' + (D.error() || '')) : 'Los audios se guardan en la memoria del navegador. Si la compu no tiene lugar, elegí un disco externo USB.';
+    return h('div', null, h('p', { class: 'suave', style: 'margin-top:0' }, estado),
+      h('div', { class: 'fila' },
+        h('button', { type: 'button', class: 'primario', id: 'btnElegirDisco', onclick: async () => { try { const n = await D.elegir(); ok('Listo: uso «' + n + '».'); A.render(); } catch (e) { if (e && e.name !== 'AbortError') ok(e.message || String(e)); } } }, D.activo() ? 'Cambiar de disco…' : 'Elegir disco o carpeta…'),
+        D.activo() && !D.listo() ? h('button', { type: 'button', onclick: async () => { ok((await D.reconectar()) ? 'Disco reconectado.' : 'No se pudo reconectar.'); A.render(); } }, 'Reconectar disco') : null),
+      D.activo() && D.listo() ? h('div', { class: 'fila', style: 'margin-top:8px' },
+        h('button', { type: 'button', onclick: async (e) => { e.target.disabled = true; try { const n = await D.moverTodo((i, t) => ok('Moviendo… ' + i + ' de ' + t)); ok('Listo: pasé ' + n + ' audio(s) al disco y liberé ese lugar.'); if (MD.Au) D.alCambiar && D.alCambiar(); } catch (x) { ok(x.message || String(x)); } e.target.disabled = false; } }, 'Mover lo ya bajado al disco'),
+        h('button', { type: 'button', class: 'peligro', onclick: async () => { await D.quitar(); A.render(); } }, 'Dejar de usar el disco')) : null,
+      msg,
+      h('p', { class: 'suave' }, 'Chrome te pide permiso la primera vez y cada vez que lo abrís de nuevo (tocá «Reconectar disco»). Si el disco no está enchufado, la app avisa y no baja nada a la compu.'));
+  }
+  // 1.3-dev31: LUZ DE REPOSO = a que quedan (y a que vuelven al terminar un efecto) las lamparas cuando la escena no define su luz
+  function tarjetaReposo(A) {
+    const LZ = MD.LucesDnd, C = MD.Config, b = (A.cfg.ajustes.luzBase = C.normLuzBase(A.cfg.ajustes.luzBase));
+    const aplicar = () => { A.cambio(false); try { LZ.alCambiarReposo(); } catch (e) {} A.render(); };
+    const modos = [['foto', 'Como estaban antes (lo de siempre: vuelven a la luz que tenían)'], ['look', 'A un look que elijo'], ['apagar', 'Apagadas']];
+    return h('div', { class: 'tarjeta', id: 'tarjetaReposo' }, h('div', { class: 'fila' }, MD.IUI.svg('luz', 'ic-luz'), h('h3', { style: 'margin:0' }, 'Luz de reposo')),
+      h('p', { class: 'suave' }, 'Si una escena no tiene luz propia, ¿a qué quedan las lámparas (y a qué vuelven cuando termina un efecto o apagás un sonido con luz)? Se sincroniza con Drive.'),
+      modos.map(([id, txt]) => h('label', { class: 'chk' }, h('input', { type: 'radio', name: 'luzReposo', checked: b.modo === id, onchange: () => { b.modo = id; if (id === 'look' && !b.look) b.look = 'lf_taberna'; aplicar(); } }), ' ' + txt)),
+      b.modo === 'look' ? h('div', { class: 'fila', style: 'margin-top:6px' }, muestraLook(LZ.look(b.look)), h('div', { class: 'crece' }, selLook(A, b.look, (v) => { b.look = v || 'lf_taberna'; aplicar(); }, '(elegí un look)'))) : null);
   }
   // v1.3-dev18: barra "Guardar" de los editores. Muestra el estado del guardado y, con 'mapa', manda ya los cambios al Macrodeck.
   // Si la escena que se esta editando NO es la activa, avisa (la Mesa y el Macrodeck muestran la activa) y ofrece activarla.
@@ -344,11 +464,13 @@ window.MD = window.MD || {};
     const cfg = A.cfg;
     A.edEsc = Math.min(A.edEsc, cfg.escenas.length - 1);
     const esc = cfg.escenas[A.edEsc];
-    const bar = h('div', { class: 'escenas' });
     const dm = !!(MD.Drive && MD.Drive.esDM());                    // 1.3-dev21: Frodo (DM) arma en borrador y confirma
-    cfg.escenas.forEach((e, i) => bar.append(h('button', { type: 'button', class: i === A.edEsc ? 'on' : '', title: e.estado === 'borrador' ? 'Borrador (solo lo ves vos)' : '', onclick: () => { A.edEsc = i; A.edTecla = null; A.render(); } }, (e.estado === 'borrador' ? '✎ ' : '') + e.nombre)));
-    if (cfg.escenas.length < 10) bar.append(h('button', { type: 'button', id: 'btnNuevaEscena', onclick: () => { cfg.escenas.push(MD.Config.escenaNueva('Escena ' + (cfg.escenas.length + 1), dm ? 'borrador' : '')); A.edEsc = cfg.escenas.length - 1; A.edTecla = null; A.cambio(true); A.render(); } }, '+ Escena'));
-    el.append(bar);
+    el.append(barraEscenas(A, A.edEsc, (i) => { A.edEsc = i; A.edTecla = null; A.render(); }, 'ed'));
+    const nuevaEsc = cfg.escenas.length < MD.Config.MAX_ESCENAS ? h('button', { type: 'button', id: 'btnNuevaEscena', onclick: () => { cfg.escenas.push(MD.Config.escenaNueva('Escena ' + (cfg.escenas.length + 1), dm ? 'borrador' : '')); A.edEsc = cfg.escenas.length - 1; A.edTecla = null; A.cambio(true); A.render(); } }, '+ Escena') : null;
+    const enMac = A.escenasMacrodeck();
+    el.append(h('div', { class: 'fila esc-acciones' }, nuevaEsc,
+      h('button', { type: 'button', id: 'btnEscMacrodeck', onclick: () => dialogoMacrodeck(A) }, 'Escenas en el Macrodeck (' + enMac.length + '/' + MD.Config.MAX_EN_MACRODECK + ')'),
+      h('span', { class: 'suave' }, cfg.escenas.length + ' escena(s)')));
 
     const nombre = h('input', { type: 'text', value: esc.nombre, maxlength: 30, oninput: (e) => { esc.nombre = e.target.value; A.cambio(true); } });
     const mover = (d) => { const j = A.edEsc + d; if (j < 0 || j >= cfg.escenas.length) return; [cfg.escenas[A.edEsc], cfg.escenas[j]] = [cfg.escenas[j], cfg.escenas[A.edEsc]]; if (A.activa === A.edEsc) A.activa = j; else if (A.activa === j) A.activa = A.edEsc; A.edEsc = j; A.cambio(true); A.render(); };
@@ -358,7 +480,7 @@ window.MD = window.MD || {};
       if (!seguro) { seguro = true; e.target.textContent = 'Seguro? toca otra vez'; e.target.classList.add('seguro'); return; }
       cfg.escenas.splice(A.edEsc, 1); A.edEsc = Math.max(0, A.edEsc - 1); A.edTecla = null; if (A.activa >= cfg.escenas.length) A.activa = 0; A.activarSinSonido(); A.cambio(true); A.render();
     } }, 'Borrar escena');
-    const dup = h('button', { type: 'button', onclick: () => { if (cfg.escenas.length >= 10) return; const c = JSON.parse(JSON.stringify(esc)); c.id = MD.Config.nuevoId('e'); c.nombre = (esc.nombre + ' (copia)').slice(0, 30); if (dm) c.estado = 'borrador'; cfg.escenas.splice(A.edEsc + 1, 0, c); A.edEsc++; A.cambio(true); A.render(); } }, 'Duplicar');
+    const dup = h('button', { type: 'button', onclick: () => { if (cfg.escenas.length >= MD.Config.MAX_ESCENAS) return; const c = JSON.parse(JSON.stringify(esc)); c.id = MD.Config.nuevoId('e'); c.nombre = (esc.nombre + ' (copia)').slice(0, 30); if (dm) c.estado = 'borrador'; cfg.escenas.splice(A.edEsc + 1, 0, c); A.edEsc++; A.cambio(true); A.render(); } }, 'Duplicar');
     // 1.3-dev21: estado de la escena. Borrador = en preparacion (Tom no la ve). Confirmada = ya la ve y la usa Tom al sincronizar con Drive.
     const borrador = esc.estado === 'borrador';
     const estadoFila = dm ? h('div', { class: 'fila', style: 'margin-bottom:10px;align-items:center' },
@@ -367,6 +489,9 @@ window.MD = window.MD || {};
     el.append(h('div', { class: 'tarjeta' },
       estadoFila,
       h('label', { style: 'margin-top:0' }, 'Nombre de la escena (en el selector del Macrodeck se ven ~7 letras)'), nombre,
+      (() => { const lug = A.lugarMacrodeck(A.edEsc), tilde = esc.macrodeck !== false;
+        return h('label', { class: 'chk', style: 'margin-top:10px' }, h('input', { type: 'checkbox', id: 'chkMacrodeck', checked: tilde, onchange: (e) => { if (e.target.checked) delete esc.macrodeck; else esc.macrodeck = false; A.cambio(true); A.render(); } }),
+          ' Mostrar en el Macrodeck ', h('span', { class: 'suave' }, lug >= 0 ? '(lugar ' + NOM[lug] + ' del selector)' : (tilde ? '(no entra: ya hay ' + MD.Config.MAX_EN_MACRODECK + ' en el selector)' : '(solo en la app)'))); })(),
       h('div', { class: 'fila', style: 'margin-top:10px' }, h('button', { type: 'button', onclick: () => mover(-1) }, '←'), h('button', { type: 'button', onclick: () => mover(1) }, '→'), dup, borrar),
       barraGuardar(A, true, false)));
     if (MD.LucesDnd) el.append(lucesEscena(A, esc));
@@ -391,6 +516,8 @@ window.MD = window.MD || {};
       caja.append(fila); return caja;
     }
     const cam = (campo, render) => (e) => { const v = (e.target.type === 'number' || e.target.type === 'range') ? Number(e.target.value) : e.target.value; t[campo] = v; if (campo === 'tipo' && !MD.Config.admiteDucking(v)) t.ducking = false;
+      if (campo === 'tipo' && v === 'ambiente') { if (!(t.entrada > 0)) t.entrada = 3; if (!(t.salida > 0.4)) t.salida = 3; t.grupo = ''; }
+      if (campo === 'tipo' && v === 'luz_toggle') { t.estados = MD.Config.normEstadosToggle(t.estados); if (t.fundido == null) t.fundido = 4; if (!t.nombre || t.nombre === 'Nueva') t.nombre = 'Dia/Noche'; }
       if (campo === 'tipo' && v === 'intensidad') { if (!t.icono) t.icono = MD.Config.ICONO_INTENSIDAD; if (!t.nombre) t.nombre = 'Intensidad'; }
       A.cambio(true); if (render) A.render(); };
     const av = h('ul', { class: 'avisos' });
@@ -399,10 +526,12 @@ window.MD = window.MD || {};
     caja.append(h('label', { style: 'margin-top:0' }, 'Nombre (hasta 18 letras, sin palabras de mas de 7)'),
       h('input', { type: 'text', id: 'inNombre', maxlength: 18, value: t.nombre, oninput: (e) => { t.nombre = e.target.value; A.cambio(true); actAv(); } }));
     caja.append(h('label', null, 'Comportamiento (decide el color del marco en el Macrodeck)'),
-      h('select', { id: 'selTipo', onchange: cam('tipo', true) }, MD.Config.TIPOS.map(c => h('option', { value: c.id, selected: c.id === t.tipo }, c.nombre))));
+      h('select', { id: 'selTipo', onchange: cam('tipo', true) }, MD.Config.tiposVisibles(t.tipo).map(c => h('option', { value: c.id, selected: c.id === t.tipo }, c.nombre))));
     caja.append(h('p', { class: 'suave' }, tipoDe(t.tipo).ayuda));
 
-    if (!['silenciar', 'fadeout', 'intensidad'].includes(t.tipo)) {
+    if (t.tipo === 'ambiente') caja.append(ambienteTecla(A, t));
+    if (t.tipo === 'luz_toggle') caja.append(toggleTecla(A, t));
+    if (!['silenciar', 'fadeout', 'intensidad', 'ambiente', 'luz_toggle'].includes(t.tipo)) {
       const introLoop = t.tipo === 'intro_loop';
       const multi = ['azar', 'secuencia', 'intro_loop'].includes(t.tipo);
       caja.append(h('label', null, introLoop ? 'Sonidos (en orden: primero la intro, al final el loop)' : (multi ? 'Sonidos (en orden)' : 'Sonido')));
@@ -435,7 +564,11 @@ window.MD = window.MD || {};
           cfg.sonidos.length ? (multi ? (introLoop ? '+ Agregar intro / loop…' : '+ Agregar sonidos…') : (t.sonidos.length ? 'Cambiar sonido…' : (t.tipo === 'una_vez' ? 'Elegir sonido(s)…' : 'Elegir sonido…'))) : 'Primero importa sonidos (pestana Sonidos o Drive)'));
       }
     }
-    if (!['silenciar', 'intensidad'].includes(t.tipo)) {
+    if (t.tipo === 'ambiente') {
+      caja.append(h('div', { class: 'cols' }, h('div', null, h('label', null, 'Entrada (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.entrada, oninput: cam('entrada') })),
+        h('div', null, h('label', null, 'Salida (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.salida, oninput: cam('salida') }))));
+    }
+    if (!['silenciar', 'intensidad', 'ambiente', 'luz_toggle'].includes(t.tipo)) {
       const etVol = h('label', null, 'Volumen de la tecla (' + Math.round(t.volumen * 100) + '%)');
       caja.append(h('div', { class: 'cols' },
         h('div', null, etVol, h('input', { type: 'range', min: 0, max: 1.5, step: 0.05, value: t.volumen, oninput: (e) => { t.volumen = +e.target.value; A.cambio(false); etVol.textContent = 'Volumen de la tecla (' + Math.round(t.volumen * 100) + '%)'; } })),
@@ -453,10 +586,10 @@ window.MD = window.MD || {};
     }
     if (['una_vez', 'azar', 'secuencia', 'mantener'].includes(t.tipo))
       caja.append(h('label', null, 'Si la tocas mientras ya suena'), h('select', { onchange: cam('retoque') }, MD.Config.RETOQUES.map(r => h('option', { value: r.id, selected: r.id === t.retoque }, r.nombre))));
-    if (MD.Config.esLoop(t.tipo))
+    if (MD.Config.esLoop(t.tipo) && t.tipo !== 'ambiente')
       caja.append(h('label', null, 'Grupo exclusivo (los loops con el mismo grupo se reemplazan entre si con fundido cruzado; ej: "amb")'), h('input', { type: 'text', maxlength: 20, value: t.grupo, oninput: cam('grupo') }));
 
-    if (MD.LucesDnd && !['silenciar', 'intensidad'].includes(t.tipo)) caja.append(lucesTecla(A, t));
+    if (MD.LucesDnd && !['silenciar', 'intensidad', 'luz_toggle'].includes(t.tipo)) caja.append(lucesTecla(A, t));
 
     // v1.3-dev11: selector de iconos con CATEGORIAS, BUSCADOR y SUGERENCIAS segun el nombre de la tecla (428 iconos, ver iconos_datos.js)
     const icoBox = h('div', { class: 'tarjeta', style: 'background:var(--panel2);margin-top:14px' });
@@ -571,7 +704,7 @@ window.MD = window.MD || {};
     const cargar = (desde) => {
       const L = lis(); P.desde = ((desde % L.length) + L.length) % L.length;
       let esc = cfg.escenas.find(e => e.id === 'prueba_iconos');
-      if (!esc) { if (cfg.escenas.length >= 10) { A.estadoPack = 'Ya hay 10 escenas: borra una para poder crear la de prueba de iconos.'; A.render(); return; } esc = MD.Config.escenaNueva('Prueba iconos'); esc.id = 'prueba_iconos'; cfg.escenas.push(esc); }
+      if (!esc) { if (cfg.escenas.length >= MD.Config.MAX_ESCENAS) { A.estadoPack = 'Ya hay ' + MD.Config.MAX_ESCENAS + ' escenas: borra una para poder crear la de prueba de iconos.'; A.render(); return; } esc = MD.Config.escenaNueva('Prueba iconos'); esc.id = 'prueba_iconos'; cfg.escenas.push(esc); }
       esc.nombre = 'Prueba iconos';
       esc.teclas = [];
       for (let k = 0; k < 10; k++) { const ic = L[(P.desde + k) % L.length]; esc.teclas.push(MD.Config.teclaNueva({ nombre: ic.nombre.split(' ').map(w => w.slice(0, 7)).join(' ').slice(0, 18), tipo: 'una_vez', sonidos: [], icono: ic.hex })); }
@@ -634,6 +767,7 @@ window.MD = window.MD || {};
           h('button', { type: 'button', onclick: async (e) => { try { await navigator.clipboard.writeText(MD.Diag.texto()); e.target.textContent = 'Copiado'; } catch (x) { e.target.textContent = 'No se pudo copiar'; } } }, 'Copiar'),
           h('button', { class: 'peligro', type: 'button', onclick: () => { MD.Diag.borrar(); refrescar(); } }, 'Borrar')));
     }));
+    if (MD.Disco && MD.Disco.disponible()) lista.append(acordeon(A, 'disco', 'almacen', 'Disco externo (audios)', MD.Disco.activo() ? (MD.Disco.listo() ? MD.Disco.nombre() : 'desconectado') : 'no usado', () => tarjetaDisco(A)));
     lista.append(acordeon(A, 'almacen', 'almacen', 'Almacenamiento', 'v' + MD.VERSION, () => h('div', null,
       h('p', { class: 'suave', style: 'margin-top:0' }, A.infoAlmacen || ''),
       h('div', { class: 'fila' }, h('button', { type: 'button', onclick: () => A.pedirPersistencia() }, 'Proteger datos'),
@@ -642,5 +776,5 @@ window.MD = window.MD || {};
     el.append(lista);
   }
 
-  MD.UI = { h, icoCanvas, vistaMesa, vistaEscenas, vistaSonidos, vistaLuces, vistaHerramientas, NOM };
+  MD.UI = { h, icoCanvas, barraEscenas, vistaMesa, vistaEscenas, vistaSonidos, vistaLuces, vistaHerramientas, NOM };
 })(window.MD);

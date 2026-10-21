@@ -86,9 +86,14 @@ window.MD = window.MD || {};
   }
   function pintarBarra() {
     armarBarra();
-    const e = Au.estado(), d = e.d;
+    let e = Au.estado(), d = e.d;
+    if (!d) { const otro = Au.foco === 'musica' ? 'ambiente' : 'musica'; if (Au.estadoDe(otro).d) { Au.foco = otro; e = Au.estado(); d = e.d; } }
     barra.hidden = !d;
     if (!d) return;
+    const o2 = Au.foco === 'musica' ? 'ambiente' : 'musica', e2 = Au.estadoDe(o2);
+    let chip = barra.querySelector('.au-chip2');
+    if (!chip) { chip = h('button', { type: 'button', class: 'au-chip2', onclick: () => Au.enFoco(chip.dataset.c) }); barra.querySelector('.au-t').append(chip); }
+    chip.hidden = !e2.d; chip.dataset.c = o2; chip.textContent = e2.d ? (o2 === 'ambiente' ? '🌲 ' : '♪ ') + e2.d.titulo : '';
     if (barra.dataset.id !== d.id) { barra.dataset.id = d.id; barra.querySelector('.au-cv').replaceChildren(Au.portada(d, 44)); }
     barra.querySelector('.au-tit').textContent = d.titulo;
     const sig = Au.proximo();
@@ -114,13 +119,27 @@ window.MD = window.MD || {};
   function cerrarOv() { if (U.ov) { U.ov.el.remove(); U.ov = null; } document.body.classList.remove('au-ov-abierto'); }
   const cab = (titulo, derecha, alCerrar) => h('div', { class: 'au-ov-cab' }, btn('abajo', 'Cerrar', alCerrar || cerrarOv, 'au-ib', 26), h('div', { class: 'au-ov-tit' }, titulo), derecha || h('span', { style: 'width:44px' }));
 
+  // --- dos carriles: Musica y Ambientes suenan a la vez, cada uno con su volumen ---
+  function carrilesUI() {
+    const fila = (n) => {
+      const e = Au.estadoDe(n), pr = Au.pc(n), on = Au.foco === n;
+      const v = h('input', { type: 'range', class: 'au-vol', min: 0, max: 100, value: Math.round(pr.vol * 100), 'aria-label': 'Volumen de ' + Au.NOMBRES_CARRIL[n], oninput: (x) => { Au.carril(n).setVol(x.target.value / 100); t.textContent = x.target.value + ' %'; } });
+      const t = h('span', { class: 'suave' }, Math.round(pr.vol * 100) + ' %');
+      return h('div', { class: 'au-carril' + (on ? ' on' : '') + (e.d ? '' : ' vacio') },
+        h('button', { type: 'button', class: 'au-carril-n', onclick: () => Au.enFoco(n) }, h('b', null, Au.NOMBRES_CARRIL[n]), h('small', { class: 'suave au-corta' }, e.d ? (e.sonando ? '▶ ' : '❚❚ ') + e.d.titulo : 'nada suena')),
+        v, t,
+        e.d ? h('button', { type: 'button', class: 'au-chico', onclick: () => Au.carril(n).apagarSuave(6) }, 'Apagar') : null);
+    };
+    return h('div', { class: 'au-carriles' }, fila('musica'), fila('ambiente'));
+  }
+
   // --- reproductor completo ---
   function ovPlayer(el) {
     let ref = {};
     function render() {
       const e = Au.estado(), d = e.d;
-      if (!d) { cerrarOv(); return; }
-      const c = Au.P.ctx, sig = Au.proximo();
+      if (!d) { const otro = Au.foco === 'musica' ? 'ambiente' : 'musica'; if (Au.estadoDe(otro).d) { Au.enFoco(otro); return; } cerrarOv(); return; }
+      const c = Au.P.ctx, sig = Au.proximo(), prefs = Au.pc();
       const seek = h('input', { type: 'range', class: 'au-seek', min: 0, max: 1000, value: e.dur ? Math.round(e.t / e.dur * 1000) : 0, 'aria-label': 'Posición' });
       seek.addEventListener('input', () => { const r = Au.actual(); if (r && isFinite(r.el.duration)) r.el.currentTime = seek.value / 1000 * r.el.duration; });
       ref = { seek, t1: h('span', null, Au.dur(e.t)), t2: h('span', null, '-' + Au.dur(Math.max(0, e.dur - e.t))) };
@@ -129,6 +148,7 @@ window.MD = window.MD || {};
       el.replaceChildren(
         cab(c && c.listaId ? 'Sonando desde la lista · ' + c.nombre : 'Sonando desde ' + (c ? c.nombre : 'la biblioteca'), btn('puntos', 'Más', () => menuAudio(d), 'au-ib', 24)),
         h('div', { class: 'au-ov-cuerpo' },
+          carrilesUI(),
           h('div', { class: 'au-gran' }, Au.portada(d, 300)),
           h('div', { class: 'au-pl-tit' }, h('div', { class: 'crece' }, h('h2', null, d.titulo), h('div', { class: 'suave' }, [d.bioma, d.lugar, d.tono].filter(Boolean).join(' · ') + (d.bpm ? ' · ' + Math.round(d.bpm) + ' BPM' : ''))),
             h('button', { type: 'button', class: 'au-ib' + (Au.esFav(d.id) ? ' fav' : ''), 'aria-label': 'Favorito', onclick: () => { Au.alternarFav(d.id); render(); } }, ic(Au.esFav(d.id) ? 'estrella' : 'estrellaO', 28))),
@@ -151,7 +171,7 @@ window.MD = window.MD || {};
   // --- cola ---
   function ovCola(el) {
     function render() {
-      const e = Au.estado(), d = e.d, P = Au.P, c = P.ctx;
+      const e = Au.estado(), d = e.d, P = Au.P, c = P.ctx, prefs = Au.pc();
       const filaCola = (id, i) => { const x = Au.dePorId(id); return x ? h('div', { class: 'au-fila-l' }, h('span', { class: 'au-grip', 'data-i': i, 'aria-label': 'Mover' }, ic('agarre', 20)), Au.portada(x, 42), h('div', { class: 'au-info' }, h('h3', null, x.titulo), h('div', { class: 'au-meta' }, [x.bioma, x.lugar].filter(Boolean).join(' · '))), btn('cerrar', 'Quitar de la cola', () => Au.quitarDeCola(i), 'au-ib', 20)) : null; };
       const resto = c ? c.ids.slice(c.pos + 1, c.pos + 8) : [];
       const lista = h('div', { class: 'au-lista-ord' }, P.cola.map(filaCola));
@@ -173,7 +193,7 @@ window.MD = window.MD || {};
   function ovMesa(el) {
     let ref = {};
     function render() {
-      const e = Au.estado(), d = e.d, c = Au.P.ctx, sig = Au.proximo();
+      const e = Au.estado(), d = e.d, c = Au.P.ctx, sig = Au.proximo(), prefs = Au.pc();
       const vol = h('input', { type: 'range', class: 'au-vol', min: 0, max: 100, value: Math.round(prefs.vol * 100), 'aria-label': 'Volumen', oninput: (x) => { Au.setVol(x.target.value / 100); ref.v.textContent = x.target.value + ' %'; } });
       ref.v = h('span', null, Math.round(prefs.vol * 100) + ' %');
       ref.barra = h('i', { style: 'width:' + (e.dur ? e.t / e.dur * 100 : 0) + '%' });
@@ -188,7 +208,7 @@ window.MD = window.MD || {};
           h('div', { class: 'au-mesa-grid' },
             grande('rojo', 'Combate', 'salta a E4–E5', () => Au.saltarEnergia(4, 5, 3)), grande('azul', 'Calma', 'baja a E1–E2', () => Au.saltarEnergia(1, 2, 4)),
             grande('', 'Parecido', 'mismo bioma y lugar', () => Au.parecidoAhora()), grande('', 'Apagar suave', 'fundido de salida', () => Au.apagarSuave(8))),
-          h('div', { class: 'au-caja' }, h('div', { class: 'au-fila2' }, h('span', { class: 'crece' }, 'Volumen'), ref.v), vol),
+          h('div', { class: 'au-caja' }, carrilesUI(), h('div', { class: 'au-fila2' }, h('span', { class: 'crece' }, 'Volumen del carril en foco'), ref.v), vol),
           ls.length ? h('div', { class: 'au-sec' }, 'Cambiar de lista') : null,
           h('div', { class: 'au-mesa-listas' }, ls.map((l) => h('button', { type: 'button', class: 'au-mesa-l' + (c && c.listaId === l.id ? ' on' : ''), onclick: () => { Au.reproducirLista(l); } }, Au.mosaico(Au.idsDeLista(l).slice(0, 4), 96), h('span', null, l.nombre))))));
     }
@@ -285,13 +305,13 @@ window.MD = window.MD || {};
       U.sel ? null : h('button', { type: 'button', class: 'au-pill-b', onclick: () => { const d = Au.parecido(null); if (!d) { aviso('Primero bajá algunos audios.'); return; } Au.seguirConParecido(true); Au.reproducirUno(d, [d.id]); } }, 'Aleatorio inteligente'));
   }
   function tarjeta(d, rVis) {
-    const bajado = Au.bajado(d.id), suena = Au.P.id === d.id, e = Au.estado(), sel = U.sel && U.sel.has(d.id);
+    const bajado = Au.bajado(d.id), suena = Au.suenaAhora(d.id), e = Au.estadoDe(Au.carrilDe(d)), sel = U.sel && U.sel.has(d.id);
     const meta = [d.bioma, d.lugar].filter(Boolean).join(' · ');
     const tags = h('div', { class: 'au-tags' }, d.tipo === 'Ambiente' ? h('span', { class: 'au-tag amb' }, 'Ambiente') : null, d.escena ? h('span', { class: 'au-tag' }, d.escena) : null, d.tono ? h('span', { class: 'au-tag' }, d.tono) : null, d.bpm ? h('span', { class: 'au-tag' }, '♩ ' + Math.round(d.bpm)) : null, Au.esReciente(d.id) ? h('span', { class: 'au-tag rec' }, 'escuchado hace poco') : null);
     const acc = h('div', { class: 'au-acc' });
     if (U.sel) acc.append(h('span', { class: 'au-check' + (sel ? ' on' : '') }, sel ? ic('ok', 18) : null));
     else {
-      if (bajado) acc.append(h('button', { type: 'button', class: 'au-play', 'aria-label': (suena ? 'Pausa ' : 'Escuchar ') + d.titulo, onclick: () => { if (suena) Au.pausaSeguir(); else Au.reproducirUno(d, (rVis || visibles()).map((x) => x.id)); } }, ic(suena && e.sonando ? 'pausa' : 'play', 20)));
+      if (bajado) acc.append(h('button', { type: 'button', class: 'au-play', 'aria-label': (suena ? 'Pausa ' : 'Escuchar ') + d.titulo, onclick: () => { if (suena) Au.carril(Au.carrilDe(d)).pausaSeguir(); else Au.reproducirUno(d, (rVis || visibles()).map((x) => x.id)); } }, ic(suena && e.sonando ? 'pausa' : 'play', 20)));
       else {
         const bj = h('button', { type: 'button', class: 'au-bajar', 'aria-label': 'Bajar ' + d.titulo, title: 'Bajar a este equipo (' + Au.mb(d.tam) + ')', onclick: () => Au.bajarLista([d]) }, ic('bajar', 20));
         if (S.dl.activo && S.dl.actual === d.titulo) { bj.disabled = true; bj.textContent = Math.round(S.dl.pct * 100) + '%'; }
@@ -390,7 +410,7 @@ window.MD = window.MD || {};
   }
   function pintarSimple() {
     const c = document.getElementById('auCajaSimple'); if (!c) return;
-    const cual = U.sub, ids = (cual === 'favoritos' ? prefs.fav.slice().reverse() : prefs.rec).filter((id) => Au.dePorId(id));
+    const cual = U.sub, ids = (cual === 'favoritos' ? Au.favs().slice().reverse() : prefs.rec).filter((id) => Au.dePorId(id));
     const ds = ids.map(Au.dePorId);
     document.getElementById('auCuenta').textContent = ds.length + (cual === 'favoritos' ? ' favoritos' : ' escuchados');
     c.replaceChildren(
@@ -420,8 +440,8 @@ window.MD = window.MD || {};
     document.getElementById('auCuenta').textContent = '';
     const ids = Au.idsDeLista(l), ds = ids.map(Au.dePorId), tot = ds.reduce((t, d) => t + (d.duracion_s || 0), 0);
     const usos = (APP.cfg.escenas || []).filter((e) => e.lista && e.lista.id === l.id).map((e) => e.nombre);
-    const sonando = Au.P.ctx && Au.P.ctx.listaId === l.id;
-    const fila = (d, i) => h('div', { class: 'au-fila-l' + (sonando && Au.P.id === d.id ? ' suena' : ''), 'data-id': d.id },
+    const PL = Au.carril(Au.carrilDeLista(l)).P, sonando = PL.ctx && PL.ctx.listaId === l.id;
+    const fila = (d, i) => h('div', { class: 'au-fila-l' + (sonando && PL.id === d.id ? ' suena' : ''), 'data-id': d.id },
       l.auto ? h('span', { class: 'au-n' }, String(i + 1)) : h('span', { class: 'au-grip', 'aria-label': 'Arrastrar para mover' }, ic('agarre', 20)), Au.portada(d, 44),
       h('div', { class: 'au-info' }, h('h3', null, d.titulo), h('div', { class: 'au-meta' }, [d.bioma, d.lugar, d.energia ? 'E' + d.energia : ''].filter(Boolean).join(' · ') + ' · ' + Au.dur(d.duracion_s) + (Au.bajado(d.id) ? '' : ' · sin bajar'))),
       btn('puntos', 'Más opciones', () => menuAudio(d, l.auto ? [] : [['Quitar de esta lista', () => { l.items = l.items.filter((x) => x !== d.id); Au.cambio(); APP.render(); }, 'peligro']]), 'au-ib', 20));
@@ -442,7 +462,21 @@ window.MD = window.MD || {};
   }
 
   // ---------------- musica de fondo en el editor de escenas ----------------
-  function tarjetaEscena(app, esc) {
+  function tarjetaEscena(app, esc) { return h('div', null, tarjetaMusica(app, esc), tarjetaAmbiente(app, esc)); }
+  // Ambiente de fondo de la escena (un audio de tipo Ambiente: lluvia, taberna...). Suena en el carril de Ambientes.
+  function tarjetaAmbiente(app, esc) {
+    const cur = esc.ambiente, d = cur && Au.dePorId(cur.id);
+    const ambs = S.cat.filter((x) => x.tipo === 'Ambiente').sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'));
+    const sel = h('select', { 'aria-label': 'Ambiente de la escena', onchange: (e) => { const v = e.target.value; if (v) esc.ambiente = { id: v, arranca: cur ? cur.arranca !== false : true }; else delete esc.ambiente; app.cambio(true); app.render(); } },
+      h('option', { value: '' }, '(ninguno: no toca los ambientes)'), ambs.map((x) => h('option', { value: x.id, selected: !!cur && cur.id === x.id }, x.titulo + (Au.bajado(x.id) ? '' : ' (sin bajar)'))),
+      cur && !d ? h('option', { value: cur.id, selected: true }, '(ambiente que todavía no llegó a este celu)') : null);
+    return h('div', { class: 'tarjeta' }, h('div', { class: 'fila' }, MD.IUI.svg('audios', 'ic-luz'), h('h3', { style: 'margin:0' }, 'Ambiente de fondo de la escena')),
+      h('label', null, 'Audio de tipo Ambiente'), sel,
+      cur ? [h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: cur.arranca !== false, onchange: (e) => { cur.arranca = e.target.checked; app.cambio(true); } }), ' Arranca solo al entrar a la escena'),
+        d ? h('div', { class: 'fila', style: 'margin-top:8px' }, h('button', { type: 'button', onclick: () => Au.carril('ambiente').ambienteTecla(d, 3) }, 'Probar')) : null,
+        h('p', { class: 'suave', style: 'margin:8px 0 0' }, 'Entra con fundido y reemplaza al ambiente anterior. Se regula con el volumen de Ambientes en Audios.')] : h('p', { class: 'suave', style: 'margin:8px 0 0' }, 'Elegí un ambiente y suena solo al entrar a la escena, a la vez que la música.'));
+  }
+  function tarjetaMusica(app, esc) {
     const ls = Au.listas(), cur = esc.lista, l = cur && Au.lista(cur.id);
     const sel = h('select', { 'aria-label': 'Lista de la escena', onchange: (e) => { const v = e.target.value; if (v) esc.lista = { id: v, arranca: cur ? cur.arranca !== false : true, azar: cur ? !!cur.azar : false }; else delete esc.lista; app.cambio(true); app.render(); } },
       h('option', { value: '' }, '(ninguna: no toca la música)'), ls.map((x) => h('option', { value: x.id, selected: !!cur && cur.id === x.id }, x.nombre + (x.auto ? ' (automática)' : ''))),

@@ -16,7 +16,7 @@ window.MD = window.MD || {};
   }
   const u8 = a => Uint8Array.from(a);
 
-  const GLIFO = { una_vez: 0, loop: 1, azar: 2, mantener: 3, secuencia: 4, silenciar: 5, fadeout: 6, intro_loop: 7 };
+  const GLIFO = { una_vez: 0, loop: 1, azar: 2, mantener: 3, secuencia: 4, silenciar: 5, fadeout: 6, intro_loop: 7, ambiente: 1, luz_toggle: 1 };
 
   const enc = {
     hola: () => u8([0x57, 1]),

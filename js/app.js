@@ -58,7 +58,19 @@
 
   // ---------- Macrodeck: enviar ----------
   const conectado = () => A.tr && A.tr.conectado;
-  A.enviarEscenas = function () { if (conectado()) A.tr.sendVarias(P.tramasEscenas(A.cfg.escenas.map(e => e.nombre), A.activa)); };
+  // 1.3-dev31: la app puede tener hasta 60 escenas, pero el selector del Macrodeck (HOME) muestra 10 como mucho: las que tienen "Mostrar en el Macrodeck"
+  // tildado, en el orden de la lista. Estas dos funciones traducen entre el numero de escena de la app y el lugar en el selector del Macrodeck.
+  A.escenasMacrodeck = function () {
+    const out = [];
+    A.cfg.escenas.forEach((e, i) => { if (e.macrodeck !== false && out.length < MDg.Config.MAX_EN_MACRODECK) out.push(i); });
+    return out;
+  };
+  A.lugarMacrodeck = (i) => A.escenasMacrodeck().indexOf(i);                      // -1 = esa escena no esta en el selector del Macrodeck
+  A.enviarEscenas = function () {
+    if (!conectado()) return;
+    const vis = A.escenasMacrodeck();
+    A.tr.sendVarias(P.tramasEscenas(vis.map(i => A.cfg.escenas[i].nombre), vis.indexOf(A.activa)));      // actual = -1 -> 255: ninguna marcada
+  };
   A.enviarMapa = function () {
     if (!conectado()) return;
     const esc = A.cfg.escenas[A.activa]; if (!esc) return;
@@ -78,7 +90,7 @@
     A.activa = i;
     A.motor.fijarTeclas(A.cfg.escenas[i].teclas);
     A.motor.precargar(A.cfg.escenas[i].teclas).catch(() => {});
-    if (conectado()) { A.tr.send(P.enc.escenaActual(i)); A.enviarMapa(); A.ultFilas = ['', '', '', '']; }
+    if (conectado()) { A.tr.send(P.enc.escenaActual(A.lugarMacrodeck(i))); A.enviarMapa(); A.ultFilas = ['', '', '', '']; }
     A.actualizarEstado(true);
     if (A.tab === 'mesa') A.render();
   };
@@ -178,10 +190,10 @@
         if (!A.motor.ctx || A.motor.ctx.state !== 'running') { A.motor.iniciar().then(() => { if (A.motor.ctx.state !== 'running') document.getElementById('audioGate').hidden = false; pintarPills(); }); }
         A.motor.tecla(d.i, d.abajo); break;
       case 'perilla': A.motor.fijarVolumen(d.v / 255); if (A.mesaVol && document.activeElement !== A.mesaVol) A.mesaVol.value = d.v; break;
-      case 'escena': A.activar(d.i); break;
+      case 'escena': { const real = A.escenasMacrodeck()[d.i]; if (real != null) A.activar(real); break; }       // d.i = lugar en el selector del Macrodeck
       case 'hola': if (conectado()) A.tr.send(P.enc.hola()); break;
       case 'reenviar': A.enviarTodo(); break;
-      case 'volCelu': if (MDg.Celu) MDg.Celu.volumen(d.v); break;     // v1.3-dev14: la perilla del Macrodeck (modo CEL) pide ese volumen de Android
+      case 'volCelu': break;                                          // 1.3-dev31: el volumen del celu (CEL) se saco: se regula desde la app     // v1.3-dev14: la perilla del Macrodeck (modo CEL) pide ese volumen de Android
     }
   };
   // v1.3 ducking: el motor avisa cuando empieza/termina; en el APK, MD.Nativo.duck(on) le pide a Android bajar la musica de otras apps.
@@ -205,7 +217,7 @@
     const sonando = m.sonando();
     const esc = A.cfg.escenas[A.activa];
     const avN = m.avisoNivel && performance.now() < m.avisoNivel.hasta ? m.avisoNivel : null;     // 1.3-dev20: aviso de la tecla Intensidad (2,5 s)
-    const filas = [esc ? esc.nombre : '', sonando[0] || '', sonando[1] || (sonando.length > 2 ? '+' + (sonando.length - 1) : ''), avN ? (avN.n ? 'INT ' + avN.n + '/5' : 'SIN LOOP') : (m.silenciado ? 'SILENCIO' : (sonando.length ? sonando.length + ' sonando' : ''))];
+    const filas = [esc ? esc.nombre : '', sonando[0] || '', sonando[1] || (sonando.length > 2 ? '+' + (sonando.length - 1) : ''), avN ? (avN.oled || (avN.n ? 'INT ' + avN.n + '/5' : 'SIN LOOP')) : (m.silenciado ? 'SILENCIO' : (sonando.length ? sonando.length + ' sonando' : ''))];
     filas.forEach((t, k) => { const x = P.ascii(t).slice(0, 10); if (conectado() && (forzar || x !== A.ultFilas[k])) A.tr.send(P.enc.oled(k, x)); A.ultFilas[k] = x; });
     if (A.tab === 'mesa' && A.mesaCeldas.length) {
       A.mesaCeldas.forEach((c, i) => { if (c.dataset.led !== String(leds[i])) c.dataset.led = String(leds[i]); });
@@ -372,10 +384,10 @@
       const dm = MDg.Drive.esDM();
       for (let intento = 0; intento < 3; intento++) {
         const r = await MDg.Drive.escenasLeer();
-        const remotoTodo = (r.config && r.config.escenas) || [], remotoLooks = (r.config && r.config.looks) || [], remotoListas = (r.config && r.config.listas) || [], base = MDg.Drive.baseEscenas();
+        const remotoTodo = (r.config && r.config.escenas) || [], remotoLooks = (r.config && r.config.looks) || [], remotoListas = (r.config && r.config.listas) || [], remotoFavs = (r.config && r.config.favoritos) || [], remotoAj = (r.config && r.config.ajustes) || {}, base = MDg.Drive.baseEscenas();
         const ocultas = dm ? [] : remotoTodo.filter(e => e && e.estado === 'borrador');
         const remoto = dm ? remotoTodo : remotoTodo.filter(e => !(e && e.estado === 'borrador'));
-        const f = MDg.DriveEsc.fusionar(base && base.escenas, A.cfg.escenas, remoto, A.escElec);
+        const f = MDg.DriveEsc.fusionar(base && base.escenas, A.cfg.escenas, remoto, A.escElec, MDg.Config.MAX_ESCENAS);
         if (f.conflictos.length) {
           A.escConflictos = f.conflictos.map(id => ({ id, mia: A.cfg.escenas.find(e => e.id === id), drive: remoto.find(e => e.id === id) }));
           A.escMsg = 'La escena ' + f.conflictos.map(id => '"' + ((A.cfg.escenas.find(e => e.id === id) || {}).nombre || id) + '"').join(', ') + ' se cambio en los dos lados. Elegi con cual quedarte.';
@@ -387,27 +399,39 @@
         // 1.3-dev25: las listas de reproduccion de Audios viajan igual que los looks (si dos celus tocaron la misma lista, gana la de Frodo).
         const fli = MDg.DriveEsc.fusionar(base && base.listas, A.cfg.listas || [], remotoListas, () => (dm ? 'mia' : 'drive'), 100);
         const nuevasListas = MDg.Config.normalizar({ listas: fli.escenas }).listas;
+        // 1.3-dev31: favoritos (se juntan) y luz de reposo (si dos celus la cambiaron, gana Frodo)
+        const nuevosFavs = MDg.DriveEsc.fusionarSet(base && base.favoritos, A.cfg.favoritos || [], remotoFavs).slice(0, 2000);
+        const luzRemota = remotoAj.luzBase ? MDg.Config.normLuzBase(remotoAj.luzBase) : null, luzLocal = MDg.Config.normLuzBase(A.cfg.ajustes.luzBase);
+        const luzBaseAnt = base && base.luzBase ? MDg.Config.normLuzBase(base.luzBase) : null;
+        const luzMia = MDg.DriveEsc.estable(luzLocal) !== MDg.DriveEsc.estable(luzBaseAnt || luzLocal);      // la toque yo desde la ultima sync
+        const luzRemotaCambio = !!luzRemota && (!luzBaseAnt || MDg.DriveEsc.estable(luzRemota) !== MDg.DriveEsc.estable(luzBaseAnt));
+        const nuevaLuz = !luzRemota ? luzLocal : (luzMia && (!luzRemotaCambio || dm) ? luzLocal : luzRemota);
+        const cambioFavs = MDg.DriveEsc.estable(nuevosFavs.slice().sort()) !== MDg.DriveEsc.estable((A.cfg.favoritos || []).slice().sort());
+        const cambioLuz = MDg.DriveEsc.estable(nuevaLuz) !== MDg.DriveEsc.estable(luzLocal);
         const nuevas = MDg.Config.normalizar({ escenas: f.escenas }).escenas;
         const nuevosLooks = MDg.Config.normalizar({ looks: fl.escenas }).looks;
         const cambioLocal = MDg.DriveEsc.estable(nuevas) !== MDg.DriveEsc.estable(A.cfg.escenas);
         const cambioLooks = MDg.DriveEsc.estable(nuevosLooks) !== MDg.DriveEsc.estable(A.cfg.looks || []);
         const cambioListas = MDg.DriveEsc.estable(nuevasListas) !== MDg.DriveEsc.estable(A.cfg.listas || []);
-        if (cambioLocal || cambioLooks || cambioListas) {
+        if (cambioLocal || cambioLooks || cambioListas || cambioFavs || cambioLuz) {
           if (cambioLocal) { A.cfg.escenas = nuevas; A.activa = Math.min(A.activa, nuevas.length - 1); A.edEsc = Math.min(A.edEsc, nuevas.length - 1); A.edTecla = null; }
           if (cambioLooks) A.cfg.looks = nuevosLooks;
           if (cambioListas) A.cfg.listas = nuevasListas;
+          if (cambioFavs) A.cfg.favoritos = nuevosFavs;
+          if (cambioLuz) { A.cfg.ajustes.luzBase = nuevaLuz; if (MDg.LucesDnd && MDg.LucesDnd.alCambiarReposo) MDg.LucesDnd.alCambiarReposo(); }
           A.cambio(true); await A.guardarYa();
         }
         let version = r.version;
-        if (!f.igual || !fl.igual || !fli.igual) {
+        const favsIguales = MDg.DriveEsc.estable(nuevosFavs.slice().sort()) === MDg.DriveEsc.estable((remotoFavs || []).slice().sort()), luzIgual = !!luzRemota && MDg.DriveEsc.estable(nuevaLuz) === MDg.DriveEsc.estable(luzRemota);
+        if (!f.igual || !fl.igual || !fli.igual || !favsIguales || !luzIgual) {
           // lo que Tom no ve (los borradores de Frodo) se conserva tal cual en Drive, en su mismo lugar
           const salida = nuevas.slice();
           ocultas.forEach(o => salida.splice(Math.min(remotoTodo.indexOf(o), salida.length), 0, o));
-          const g = await MDg.Drive.escenasGuardar(r.version, { escenas: salida, looks: nuevosLooks, listas: nuevasListas });
+          const g = await MDg.Drive.escenasGuardar(r.version, { escenas: salida, looks: nuevosLooks, listas: nuevasListas, favoritos: nuevosFavs, ajustes: { luzBase: nuevaLuz } });
           if (g.conflicto) continue;                                   // alguien guardo justo en el medio: se vuelve a juntar
           version = g.version;
         }
-        MDg.Drive.fijarBaseEscenas(version, nuevas, nuevosLooks, nuevasListas); A.escElec = {};
+        MDg.Drive.fijarBaseEscenas(version, nuevas, nuevosLooks, nuevasListas, { favoritos: nuevosFavs, luzBase: nuevaLuz }); A.escElec = {}; A.ultimaSync = Date.now();
         A.escEnPrep = ocultas.length;
         const faltan = new Set(); nuevas.forEach(e => e.teclas.forEach(t => t && t.sonidos.forEach(id => { if (!A.regs.has(id)) faltan.add(id); })));
         const x = f.resumen;
@@ -456,7 +480,7 @@
     await A.audioPrimero();
     const d = MDg.Demo.crear();
     const vacia = A.cfg.escenas.length === 1 && A.cfg.escenas[0].teclas.every(t => !t);   // la escena inicial sin usar se reemplaza
-    if (10 - (vacia ? 0 : A.cfg.escenas.length) < 2) { A.estadoPack = 'No hay lugar para 2 escenas de prueba (el maximo es 10). Borra alguna escena primero.'; A.render(); return; }
+    if (MDg.Config.MAX_ESCENAS - (vacia ? 0 : A.cfg.escenas.length) < 2) { A.estadoPack = 'No hay lugar para 2 escenas de prueba (el maximo es ' + MDg.Config.MAX_ESCENAS + '). Borra alguna escena primero.'; A.render(); return; }
     if (vacia) A.cfg.escenas = [];
     for (const s of d.sonidos) {
       if (A.regs.has(s.id)) continue;
@@ -577,6 +601,7 @@
     vista.innerHTML = ''; A.mesaCeldas = []; A.mesaVol = A.mesaSonando = null;
     ({ mesa: MDg.UI.vistaMesa, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     A.pintarTabs();
+    if (MDg.Sync) MDg.Sync.montar();                          // 1.3-dev31: boton grande "Sincronizar todo" arriba, en todas las pestanas
     if (MDg.Maqueta) MDg.Maqueta.montar(A);                    // 1.3-dev22: version de escritorio
     vista.scrollTop = sc; pintarPills(); A.actualizarEstado(false);
   };
@@ -584,6 +609,7 @@
   // ---------- arranque ----------
   (async function () {
     await A.recargar();
+    if (MDg.Disco) await MDg.Disco.iniciar();               // 1.3-dev31: disco externo elegido para los audios (antes de leer lo bajado)
     if (MDg.Audios) await MDg.Audios.iniciar(A);          // dev23: pestana Audios (catalogo guardado y audios bajados)
     if (MDg.Audios && MDg.Audios.enganchar) MDg.Audios.enganchar(A);   // dev25: la musica de fondo de cada escena (envuelve A.activar)
     if (MDg.LucesDnd) MDg.LucesDnd.enganchar(A);         // 1.3-dev16: luces de D&D (envuelve motor.tecla y A.activar)

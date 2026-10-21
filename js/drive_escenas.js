@@ -48,5 +48,15 @@ window.MD = window.MD || {};
     }
     return { escenas: out.slice(0, max), conflictos, resumen: res, igual: estable(out.slice(0, max)) === estable(remote || []) };
   }
-  MD.DriveEsc = { fusionar, estable };
+  // 1.3-dev31: juntar dos listas de textos (favoritos) con la base de la ultima sync: lo que alguien QUITO se quita, lo que alguien AGREGO se suma.
+  function fusionarSet(base, local, remoto) {
+    const b = new Set(base || []), l = new Set(local || []), r = new Set(remoto || []), out = [], vistos = new Set();
+    [...(local || []), ...(remoto || [])].forEach((x) => {
+      if (vistos.has(x)) return; vistos.add(x);
+      if (b.has(x) && (!l.has(x) || !r.has(x))) return;                 // estaba en la base y alguno lo saco
+      out.push(x);
+    });
+    return out;
+  }
+  MD.DriveEsc = { fusionar, estable, fusionarSet };
 })(window.MD);

@@ -180,6 +180,43 @@ window.MD = window.MD || {};
     for (const l of LAMPARAS) {
       const look = L.look(luz[l.id]);
       if (look) ordenes.push(ordenLook(l.id, look, { capa: 'ambiente' }));
+      else { const o = L.ordenReposo(l.id); if (o) ordenes.push(o); }          // 1.3-dev31: la escena no define esta lampara -> luz de reposo elegida
+    }
+    L.enviar(ordenes);
+  };
+  // 1.3-dev31: LUZ DE REPOSO. Cuando la escena no define la luz de una lampara, a que queda (y a que vuelve cuando termina un efecto):
+  //   'foto'   = como estaban antes de D&D (lo que hacia siempre el servidor: vuelve a la luz de antes, p. ej. blanco calido) -> no se manda nada,
+  //   'look'   = un look elegido como ambiente,   'apagar' = apagadas.
+  L.luzBase = function () { const a = L.A && L.A.cfg && L.A.cfg.ajustes; return (a && a.luzBase) || { modo: 'foto', look: '' }; };
+  L.ordenReposo = function (luz) {
+    const b = L.luzBase();
+    if (b.modo === 'look' && L.look(b.look)) return ordenLook(luz, L.look(b.look), { capa: 'ambiente' });
+    if (b.modo === 'apagar') return ordenLook(luz, L.look('lf_apagar'), { capa: 'ambiente' });
+    return null;
+  };
+  // Si se cambia la luz de reposo con la escena ya puesta, se aplica ahora a las lamparas que la escena no define.
+  L.alCambiarReposo = function () {
+    if (!L.aj.activo || !L.A) return;
+    const esc = L.A.cfg.escenas[L.A.activa], luz = (esc && esc.luz) || {}, ordenes = [];
+    for (const l of LAMPARAS) { if (L.look(luz[l.id])) continue; const o = L.ordenReposo(l.id); if (o) ordenes.push(Object.assign(o, { conservar: true })); }
+    if (ordenes.length) L.enviar(ordenes);
+  };
+  // ---- CAMBIO DE LUZ (1.3-dev31): la tecla "toggle" pasa al siguiente estado de luz sin cambiar de escena ni cortar sonidos ni efectos ----
+  // Cada estado = { nombre, luz: { 'dnd-1': idLook, 'dnd-2': idLook } }. Una lampara sin look en ese estado queda "como la escena" (su ambiente, o la luz de reposo).
+  // Se manda como ambiente con conservar: los loops y momentos que estaban encima siguen. 'fundido' = segundos de transicion (lo hace el servidor de luces 0.7.6+;
+  // con uno mas viejo el cambio es de golpe).
+  L.alToggle = function (i, t, e) {
+    const est = (t && t.estados) || [];
+    if (est.length < 2) return;
+    e.tg = ((e.tg || 0) + 1) % est.length;
+    const st = est[e.tg], M = L.A && L.A.motor;
+    if (M) M.avisoNivel = { texto: 'Luz: ' + st.nombre, n: 0, oled: ('LUZ ' + st.nombre).slice(0, 10), hasta: performance.now() + 2500 };
+    if (!L.aj.activo) return;
+    const esc = L.A && L.A.cfg.escenas[L.A.activa], ordenes = [];
+    for (const lp of LAMPARAS) {
+      const look = L.look((st.luz || {})[lp.id]) || L.look(((esc && esc.luz) || {})[lp.id]);
+      if (look) ordenes.push(ordenLook(lp.id, look, { capa: 'ambiente', conservar: true, fundido: t.fundido || 0 }));
+      else { const o = L.ordenReposo(lp.id); if (o) ordenes.push(Object.assign(o, { conservar: true, fundido: t.fundido || 0 })); else ordenes.push({ luz: lp.id, parar: 'ambiente' }); }
     }
     L.enviar(ordenes);
   };

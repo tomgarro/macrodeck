@@ -61,7 +61,7 @@ window.MD = window.MD || {};
     esDM: () => String(aj.por || '').toLowerCase() === 'frodo',
     escenasGuardar: (baseVersion, config) => post({ accion: 'escenas_guardar', baseVersion: baseVersion, config: config, por: aj.por || '' }),
     baseEscenas: leerBase,
-    fijarBaseEscenas(version, escenas, looks, listas) { try { localStorage.setItem(LSB, JSON.stringify({ version: version, escenas: escenas, looks: looks || [], listas: listas || [] })); } catch (e) {} },
+    fijarBaseEscenas(version, escenas, looks, listas, extra) { try { localStorage.setItem(LSB, JSON.stringify(Object.assign({ version: version, escenas: escenas, looks: looks || [], listas: listas || [] }, extra || {}))); } catch (e) {} },
     listar: () => get({ accion: 'listar' }),
     // Pestana Audios (dev23): el catalogo (catalogo_app.json) y los audios grandes, por tramos de 6 MB (Audios.gs)
     catalogoAudios: () => get({ accion: 'catalogo' }),
