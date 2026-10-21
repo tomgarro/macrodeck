@@ -195,7 +195,6 @@ window.MD = window.MD || {};
         t(pct < 0 ? '--%' : (pct >= 100 ? 'MAX' : pct + '%'), 46, y);
       };
       fila(104, 'SFX', this.sfxEnv, this.volDestino === 0);
-      fila(116, 'CEL', this._celPct, this.volDestino === 1);
     }
 
     _epaper() {

@@ -8,7 +8,9 @@
   };
   const vista = document.getElementById('vista'), tabsEl = document.getElementById('tabs');
   const estadoCab = document.getElementById('estadoCab'), estadoTxt = document.getElementById('estadoTxt');
-  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['sonidos', 'Sonidos', 'sonidos'], ['audios', 'Audios', 'audios'], ['luces', 'Luces', 'luz'], ['drive', 'Drive', 'drive'], ['herramientas', 'Herramientas', 'herramientas', 'Herram.']];
+  // v1.3-dev33: 5 pestanas. "Mas" junta Sonidos, Drive y Herramientas (siguen siendo las mismas pantallas, solo que un toque mas adentro).
+  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['audios', 'Audios', 'audios'], ['luces', 'Luces', 'luz'], ['mas', 'Más', 'mas']];
+  const EN_MAS = ['sonidos', 'drive', 'herramientas'];
 
   // ---------- guardar ----------
   // v1.3-dev18: el guardado ya no es mudo. Cada cambio se guarda solo a los 0,4 s; ademas se guarda YA al ocultar la app, al cambiar de
@@ -593,13 +595,15 @@
   // v1.3-dev13: cada pestana lleva su icono (MDI); la de Drive muestra un numerito si hay sonidos nuevos o cambiados.
   A.pintarTabs = function () {
     tabsEl.innerHTML = '';
-    TABS.forEach(([id, n, ic, corto]) => tabsEl.append(h('button', { type: 'button', class: id === A.tab ? 'on' : '', 'data-tab': id, 'aria-label': n, onclick: () => { volcar(); A.tab = id; A.render(); vista.scrollTop = 0; } },
-      h('span', { class: 'tab-ic' }, MDg.IUI.svg(ic), id === 'drive' && A.drivePend ? h('b', { class: 'bd' }, String(A.drivePend)) : null), h('span', { class: 'tab-n' }, corto || n))));
+    const activa = EN_MAS.includes(A.tab) ? 'mas' : A.tab;
+    TABS.forEach(([id, n, ic, corto]) => tabsEl.append(h('button', { type: 'button', class: id === activa ? 'on' : '', 'data-tab': id, 'aria-label': n, 'aria-current': id === activa ? 'page' : null, onclick: () => { volcar(); A.tab = id; A.render(); vista.scrollTop = 0; } },
+      h('span', { class: 'tab-ic' }, MDg.IUI.svg(ic), id === 'mas' && A.drivePend ? h('b', { class: 'bd' }, String(A.drivePend)) : null), h('span', { class: 'tab-n' }, corto || n))));
   };
   A.render = function () {
     const sc = vista.scrollTop;
     vista.innerHTML = ''; A.mesaCeldas = []; A.mesaVol = A.mesaSonando = null;
-    ({ mesa: MDg.UI.vistaMesa, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
+    if (EN_MAS.includes(A.tab)) vista.append(h('button', { type: 'button', class: 'atras', onclick: () => { volcar(); A.tab = 'mas'; A.render(); vista.scrollTop = 0; } }, MDg.IUI.svg('atras'), 'Más'));
+    ({ mesa: MDg.UI.vistaMesa, mas: MDg.UI.vistaMas, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     A.pintarTabs();
     if (MDg.Sync) MDg.Sync.montar();                          // 1.3-dev31: boton grande "Sincronizar todo" arriba, en todas las pestanas
     if (MDg.Maqueta) MDg.Maqueta.montar(A);                    // 1.3-dev22: version de escritorio

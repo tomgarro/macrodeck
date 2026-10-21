@@ -27,10 +27,22 @@ window.MD = window.MD || {};
   diag: "M14 12h-4v-2h4m0 6h-4v-2h4m6-6h-2.81a6 6 0 0 0-1.82-1.96L17 4.41L15.59 3l-2.17 2.17a6 6 0 0 0-2.83 0L8.41 3L7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20z",
   almacen: "M12 3C7.58 3 4 4.79 4 7s3.58 4 8 4s8-1.79 8-4s-3.58-4-8-4M4 9v3c0 2.21 3.58 4 8 4s8-1.79 8-4V9c0 2.21-3.58 4-8 4s-8-1.79-8-4m0 5v3c0 2.21 3.58 4 8 4s8-1.79 8-4v-3c0 2.21-3.58 4-8 4s-8-1.79-8-4"
 };
-  function svg(nombre, clase) {
-    const ns = "http://www.w3.org/2000/svg", s = document.createElementNS(ns, "svg");
-    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "ic" + (clase ? " " + clase : "")); s.setAttribute("aria-hidden", "true");
-    const p = document.createElementNS(ns, "path"); p.setAttribute("d", P[nombre] || P.mesa); s.appendChild(p); return s;
+  // v1.3-dev33: los iconos de la interfaz son los MISMOS bitmaps de 24 x 24 que usa el Macrodeck (catalogo de iconos), dibujados punto por punto.
+  // Los que no tienen equivalente en el catalogo quedan con el trazo MDI de arriba.
+  const PX = { mesa: 'dado20', escenas: 'mapa', audios: 'notas', sonidos: 'volumen_alto', drive: 'disco', herramientas: 'herramientas', mas: 'herramientas',
+    audio: 'volumen_alto', audioOff: 'silencio', bt: 'bluetooth', btOff: 'bluetooth', bateria: 'bateria', bateriaCarga: 'bateria', bateriaBaja: 'bateria',
+    luz: 'bombilla', flecha: 'flecha_abajo', campana: 'campana', buscar: 'lupa', sync: 'actualizar', ok: 'confirmar', ajustes: 'ajustes', atras: 'flecha_izquierda', adelante: 'flecha_derecha' };
+  const cachePx = {};
+  function trazoPx(id) {   // bits del catalogo -> trazado de rectangulos (una tira horizontal por fila)
+    if (cachePx[id] !== undefined) return cachePx[id];
+    const b = MD.Iconos && MD.Iconos.deBiblioteca ? MD.Iconos.deBiblioteca(id) : null; let d = '';
+    if (b) for (let y = 0; y < 24; y++) { let x = 0; while (x < 24) { if (b[y * 3 + (x >> 3)] & (0x80 >> (x & 7))) { const x0 = x; while (x < 24 && (b[y * 3 + (x >> 3)] & (0x80 >> (x & 7)))) x++; d += 'M' + x0 + ' ' + y + 'h' + (x - x0) + 'v1h-' + (x - x0) + 'z'; } else x++; } }
+    return (cachePx[id] = d || null);
   }
-  MD.IUI = { P, svg };
+  function svg(nombre, clase) {
+    const ns = "http://www.w3.org/2000/svg", s = document.createElementNS(ns, "svg"), px = PX[nombre] ? trazoPx(PX[nombre]) : null;
+    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "ic" + (px ? " px" : "") + (clase ? " " + clase : "")); s.setAttribute("aria-hidden", "true");
+    const p = document.createElementNS(ns, "path"); p.setAttribute("d", px || P[nombre] || P.mesa); s.appendChild(p); return s;
+  }
+  MD.IUI = { P, PX, svg };
 })(window.MD);

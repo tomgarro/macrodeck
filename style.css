@@ -30,7 +30,7 @@ header.cab h1{font-size:.98rem;margin:0;flex:1;min-width:0;white-space:nowrap;ov
 /* estado en la cabecera: iconos con un puntito de color (v1.3-dev13) */
 .estado{display:flex;align-items:center;gap:14px;background:none;padding:6px 4px 6px 8px;min-height:0;border-radius:10px}
 .ind{position:relative;display:inline-flex;align-items:center;gap:4px;color:var(--tx2)}
-.ind svg.ic{width:20px;height:20px;fill:currentColor;display:block}
+.ind svg.ic{width:24px;height:24px;fill:currentColor;display:block}
 .ind .pt{position:absolute;top:-3px;right:-4px;width:9px;height:9px;border-radius:50%;background:var(--gris);box-shadow:0 0 0 2px var(--bg)}
 .ind.ok .pt{background:var(--ok)}.ind.warn .pt{background:var(--amarillo)}.ind.mal .pt{background:var(--rojo)}
 .ind.ok,.ind.warn{color:var(--tx)}
@@ -40,7 +40,7 @@ main{flex:1;overflow-y:auto;padding:10px 16px 24px}
 nav.tabs{display:flex;background:var(--panel);padding-bottom:env(safe-area-inset-bottom,0)}
 nav.tabs button{min-width:0;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:0;background:none;min-height:56px;padding:6px 2px;color:var(--tx2);font-size:.7rem}
 nav.tabs .tab-ic{position:relative;display:flex;align-items:center;justify-content:center;width:52px;height:28px;border-radius:14px;transition:background .15s}
-nav.tabs svg.ic{width:22px;height:22px;fill:currentColor}
+nav.tabs svg.ic{width:24px;height:24px;fill:currentColor}
 nav.tabs button.on{color:var(--tx);font-weight:600}
 nav.tabs button.on .tab-ic{background:var(--panel2)}
 nav.tabs .bd{position:absolute;top:-2px;right:6px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--acento);color:var(--sobre-acento);font-size:.62rem;line-height:16px;text-align:center}
@@ -402,3 +402,27 @@ dialog.esc-md-dlg::backdrop{background:rgba(0,0,0,.6)}
 .ind.ok .pt{width:13px;height:13px;top:-5px;right:-6px;display:flex;align-items:center;justify-content:center;background:var(--ok)}
 .ind.ok .pt::after{content:"";width:3px;height:6px;border:solid #06210f;border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
 .estado-txt .chico{padding:3px 10px;min-height:0;font-size:.78rem;margin-left:6px}
+
+/* ===== 1.3-dev33: UI mas liviana (las teclas de la Mesa NO cambian) ===== */
+svg.ic.px{shape-rendering:crispEdges}
+nav.tabs{border-top:1px solid var(--linea)}
+nav.tabs .tab-ic{width:56px;height:30px;border-radius:15px}
+nav.tabs button.on .tab-ic{background:var(--panel2)}
+.atras{display:inline-flex;align-items:center;gap:4px;background:none;color:var(--tx2);min-height:40px;padding:.3em .7em .3em .2em;margin:0 0 4px -6px;border-radius:999px}
+.atras svg.ic{width:24px;height:24px;fill:currentColor}
+.tit-vista{margin:6px 0 12px;font-size:1.3rem}
+.lista-mas{display:flex;flex-direction:column;gap:2px}
+.fila-mas{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:none;border-radius:var(--r);padding:12px 8px;min-height:64px}
+@media (hover:hover){.fila-mas:hover{background:var(--panel)}}
+.fila-mas .fm-ic{flex:none;width:44px;height:44px;border-radius:12px;background:var(--panel);display:flex;align-items:center;justify-content:center}
+.fila-mas .fm-ic svg{width:24px;height:24px;fill:currentColor}
+.fila-mas .fm-tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.fila-mas .fm-tx small{color:var(--tx2);font-size:.8rem}
+.fila-mas .fm-ch{width:24px;height:24px;fill:var(--tx2);flex:none}
+.fila-mas .fm-bd{position:static}
+.vacio{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding:28px 16px}
+.vacio .vacio-ic{width:48px;height:48px;fill:var(--tx2);opacity:.8;margin-bottom:6px}
+.vacio b{font-size:1rem}
+.vacio p{margin:0 0 10px;max-width:32ch}
+@media (prefers-reduced-motion:no-preference){main>*{animation:entra .18s ease-out}}
+@keyframes entra{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}

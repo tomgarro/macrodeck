@@ -514,7 +514,7 @@ window.MD = window.MD || {};
     const caja = h('div', { class: 'tarjeta', id: 'editorTecla' });
     caja.append(h('h3', null, 'Tecla ' + NOM[i]));
     if (!t) {
-      caja.append(h('p', { class: 'suave' }, 'Esta tecla esta vacia.'));
+      caja.append(vacio('mesa', 'Esta tecla está vacía', 'Creala y elegí qué suena, cómo se llama y con qué icono se ve en la e-Paper.'));
       const fila = h('div', { class: 'fila' }, h('button', { class: 'primario', type: 'button', id: 'btnCrearTecla', onclick: () => { esc.teclas[i] = MD.Config.teclaNueva({ nombre: 'Nueva' }); A.cambio(true); A.render(); } }, 'Crear tecla'));
       if (A.portapapeles) fila.append(h('button', { type: 'button', onclick: () => { esc.teclas[i] = JSON.parse(JSON.stringify(A.portapapeles)); A.cambio(true); A.render(); } }, 'Pegar "' + (A.portapapeles.nombre || 'tecla') + '"'));
       caja.append(fila); return caja;
@@ -650,10 +650,26 @@ window.MD = window.MD || {};
   }
 
   // ===================== SONIDOS =====================
+  // v1.3-dev33: estado vacio con dibujito (icono del catalogo del Macrodeck) y una frase util
+  function vacio(icono, titulo, texto, accion) {
+    return h('div', { class: 'vacio' }, MD.IUI.svg(icono, 'vacio-ic'), h('b', null, titulo), h('p', { class: 'suave' }, texto), accion || null);
+  }
+  // v1.3-dev33: pestana "Mas": Sonidos, Drive y Herramientas (las mismas pantallas de antes, un toque mas adentro)
+  function vistaMas(A, el) {
+    const fila = (ic, titulo, sub, tab, badge) => h('button', { type: 'button', class: 'fila-mas', 'data-mas': tab, onclick: () => { A.tab = tab; A.render(); el.scrollTop = 0; } },
+      h('span', { class: 'fm-ic' }, MD.IUI.svg(ic)), h('span', { class: 'fm-tx' }, h('b', null, titulo), h('small', null, sub)),
+      badge ? h('b', { class: 'bd fm-bd' }, String(badge)) : null, MD.IUI.svg('adelante', 'fm-ch'));
+    const n = (A.cfg.sonidos || []).length;
+    el.append(h('h2', { class: 'tit-vista' }, 'Más'),
+      h('div', { class: 'lista-mas' },
+        fila('sonidos', 'Sonidos', n ? n + ' sonidos en este celu' : 'Tu biblioteca de sonidos', 'sonidos'),
+        fila('drive', 'Drive', 'Sincronizar, subir y bajar sonidos y escenas', 'drive', A.drivePend),
+        fila('herramientas', 'Herramientas', 'Packs, logos, apariencia, diagnóstico y ayuda', 'herramientas')));
+  }
   function vistaSonidos(A, el) {
     const cfg = A.cfg;
     // 1.3-dev24: se saco "Importar sonidos": los sonidos llegan directo desde Drive (pestana Drive). Aca solo se ven y se ajustan.
-    if (!cfg.sonidos.length) { el.append(h('div', { class: 'tarjeta' }, h('h3', null, 'Sonidos'), h('p', { class: 'suave' }, 'Todavia no hay sonidos en este celu. Se bajan desde la pestana Drive.'))); return; }
+    if (!cfg.sonidos.length) { el.append(vacio('sonidos', 'Todavía no hay sonidos en este celu', 'Se bajan desde Drive (Más > Drive).', h('button', { class: 'primario', type: 'button', onclick: () => { A.tab = 'drive'; A.render(); } }, 'Ir a Drive'))); return; }
     // v1.3-dev10: la lista va AGRUPADA POR CATEGORIA (la subcarpeta de Drive) y con buscador. Las categorias arrancan cerradas.
     const norm = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     A._sonAbiertas = A._sonAbiertas || new Set();
@@ -780,5 +796,5 @@ window.MD = window.MD || {};
     el.append(lista);
   }
 
-  MD.UI = { h, icoCanvas, barraEscenas, vistaMesa, vistaEscenas, vistaSonidos, vistaLuces, vistaHerramientas, NOM };
+  MD.UI = { h, icoCanvas, barraEscenas, vacio, vistaMas, vistaMesa, vistaEscenas, vistaSonidos, vistaLuces, vistaHerramientas, NOM };
 })(window.MD);
