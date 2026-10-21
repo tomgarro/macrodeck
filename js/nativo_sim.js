@@ -15,9 +15,9 @@
   window.__MD_NATIVO_SIM = true;
 
   const reg = [];                                   // registro de llamadas (tambien sirve para las pruebas automaticas)
-  const S = { servicio: false, duck: false, ble: 'desconectado', yt: 1, exento: false, quiere: false, historialDuck: [], tituloServicio: '',
+  const S = { red: { tipo: 'wifi', ssid: 'Casa', ssidLegible: true, medida: false, permisoUbicacion: true }, servicio: false, duck: false, ble: 'desconectado', yt: 1, exento: false, quiere: false, historialDuck: [], tituloServicio: '',
     celu: { bat: 82, carga: false, vol: 50, suena: false, sesion: false, acceso: false, titulo: '', app: '' } };   // v1.3-dev14: el celu de mentira
-  window.__nativoSim = { reg, S, perderBT: (ms) => perderBT(ms), parar: () => emit('parar', {}), quitarExencion: () => { S.exento = false; }, celu: (o) => celuCambiar(o) };
+  window.__nativoSim = { reg, S, perderBT: (ms) => perderBT(ms), parar: () => emit('parar', {}), quitarExencion: () => { S.exento = false; }, red: (o) => { Object.assign(S.red, o); }, celu: (o) => celuCambiar(o) };
   let sim = null, ui = null;
   const oyentes = { estado: [], trama: [], parar: [], celu: [] };
   const emit = (n, d) => oyentes[n].slice().forEach(f => { try { f(d); } catch (e) { console.error(e); } });
@@ -86,6 +86,8 @@
       S.servicio = !!o.on; S.tituloServicio = o.on ? (o.titulo || '') : '';
       log(S.servicio ? 'Servicio en primer plano ON: "' + (o.titulo || '') + '" + wake lock' : 'Servicio en primer plano OFF'); pintar();
     }),
+    redActual: puente(async () => json(S.red)),
+    pedirUbicacion: puente(async () => { S.red.permisoUbicacion = true; if (S.red.tipo === 'wifi' && S.red.nombreReal) { S.red.ssid = S.red.nombreReal; S.red.ssidLegible = true; } log('Permiso de ubicacion: concedido (simulado)'); return json(S.red); }),
     bateria: puente(async () => ({ exento: S.exento })),
     pedirExencionBateria: puente(async () => { S.exento = true; log('Bateria: app excluida del ahorro (aceptado)'); pintar(); }),
     celuEstado: puente(async () => json(S.celu)),

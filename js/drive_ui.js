@@ -13,6 +13,7 @@ window.MD = window.MD || {};
 
   function vista(A, el) {
     const h = MD.UI.h, D = MD.Drive, aj = D.ajustes();
+    if (MD.Red) MD.Red.revisar().then((r) => { if (r.bloqueada && el.isConnected) el.prepend(h('p', { class: 'aviso', id: 'avisoRed' }, '⛔ ' + r.motivo)); });      // 1.3-dev35: red sin descargas
     const url = D.urlFija ? null : h('input', { type: 'text', value: aj.url || '', placeholder: 'https://script.google.com/macros/s/.../exec', autocapitalize: 'off', spellcheck: 'false' });
     const clave = h('input', { type: 'password', value: aj.clave || '', placeholder: 'La clave', autocomplete: 'off' });
     const por = h('select', null, D.usuarios.map(n => h('option', { value: n, selected: n === aj.por }, n)));

@@ -10,6 +10,8 @@
 //   escribir({b64})                escribe una trama (<= 20 bytes) en la caracteristica RX
 //   duck({on})                     on=true pide el foco de audio "AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK"; on=false lo suelta
 //   servicio({on, titulo, texto})  prende/apaga el servicio en primer plano (notificacion) + wake lock parcial
+//   redActual()                    -> {tipo:'wifi'|'datos'|'otra'|'ninguna', ssid, ssidLegible, medida, permisoUbicacion}  (v1.3-dev35) a que red esta el celu
+//   pedirUbicacion()               -> lo mismo, despues de pedir el permiso de ubicacion (Android lo exige para leer el nombre del Wi-Fi)
 //   bateria()                      -> {exento:boolean}  si la app esta excluida del ahorro de bateria
 //   pedirExencionBateria()         abre el pedido de Android para excluirla
 //   celuEstado()                   -> {bat, carga, vol, suena, sesion, acceso, titulo, app}  (v1.3-dev14) bateria 0..100 (-1 = no se sabe), si carga, volumen de
@@ -43,6 +45,8 @@ window.MD = window.MD || {};
     servicio: (on, titulo, texto) => sinError(pl.servicio({ on: !!on, titulo: titulo || 'Macrodeck conectado', texto: texto || '' })),
     alParar: (fn) => { try { return pl.addListener('parar', () => { try { fn(); } catch (e) {} }); } catch (e) { return null; } },
     bateria: () => Promise.resolve(pl.bateria ? pl.bateria() : { exento: false }).catch(() => ({ exento: false })),
+    red: () => Promise.resolve(pl.redActual ? pl.redActual() : null).catch(() => null),
+    pedirUbicacion: () => Promise.resolve(pl.pedirUbicacion ? pl.pedirUbicacion() : null).catch(() => null),
     pedirExencionBateria: () => sinError(pl.pedirExencionBateria && pl.pedirExencionBateria()),
     // v1.3-dev14: estado del celu para la OLED del Macrodeck
     celu: () => Promise.resolve(pl.celuEstado ? pl.celuEstado() : null).catch(() => null),

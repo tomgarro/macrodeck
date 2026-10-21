@@ -190,29 +190,43 @@ window.MD = window.MD || {};
   }
 
   // ---------------- modo mesa (Frodo): pocos botones, grandes ----------------
+  const NOMS = ['A1', 'B1', 'C1', 'D1', 'E1', 'A2', 'B2', 'C2', 'D2', 'E2'];
   function ovMesa(el) {
     let ref = {};
     function render() {
-      const e = Au.estado(), d = e.d, c = Au.P.ctx, sig = Au.proximo(), prefs = Au.pc();
-      const vol = h('input', { type: 'range', class: 'au-vol', min: 0, max: 100, value: Math.round(prefs.vol * 100), 'aria-label': 'Volumen', oninput: (x) => { Au.setVol(x.target.value / 100); ref.v.textContent = x.target.value + ' %'; } });
-      ref.v = h('span', null, Math.round(prefs.vol * 100) + ' %');
-      ref.barra = h('i', { style: 'width:' + (e.dur ? e.t / e.dur * 100 : 0) + '%' });
-      const grande = (cl, t, sub, fn) => h('button', { type: 'button', class: 'au-mesa-b ' + cl, onclick: fn }, h('b', null, t), sub ? h('small', null, sub) : null);
+      const A = Au.app(), esc = A.cfg.escenas, vis = A.escenasMacrodeck ? A.escenasMacrodeck() : [];
+      const orden = vis.length ? vis : esc.map((_, i) => i);                        // las escenas que estan en el Macrodeck (si no hay, todas)
+      const pos = Math.max(0, orden.indexOf(A.activa)), lugar = A.lugarMacrodeck ? A.lugarMacrodeck(A.activa) : -1;
+      const irA = (d) => { if (!orden.length) return; const i = orden[(pos + d + orden.length) % orden.length]; A.activar(i); render(); };
+      const grande = (cl, t, sub, fn, ic) => h('button', { type: 'button', class: 'au-mesa-b ' + cl, onclick: fn }, MD.IUI.svg(ic), h('span', { class: 'au-mesa-tx' }, h('b', null, t), sub ? h('small', null, sub) : null));
+      ref.v = {}; ref.t = {};
+      const carril = (n) => {
+        const e = Au.estadoDe(n), pr = Au.pc(n);
+        const vol = h('input', { type: 'range', class: 'au-vol', min: 0, max: 100, value: Math.round(pr.vol * 100), 'aria-label': 'Volumen de ' + Au.NOMBRES_CARRIL[n], oninput: (x) => { Au.carril(n).setVol(x.target.value / 100); ref.v[n].textContent = x.target.value + ' %'; } });
+        ref.v[n] = h('span', { class: 'suave au-mesa-pct' }, Math.round(pr.vol * 100) + ' %');
+        return h('div', { class: 'au-mesa-carril' },
+          h('div', { class: 'au-mesa-carril-cab' }, h('span', { class: 'au-mesa-ic' }, MD.IUI.svg(n === 'ambiente' ? 'campana' : 'audios')),
+            h('div', { class: 'crece' }, h('b', null, Au.NOMBRES_CARRIL[n]), h('div', { class: 'suave au-corta' }, e.d ? e.d.titulo : 'Nada suena')),
+            h('button', { type: 'button', class: 'au-mesa-pp', 'aria-label': (e.sonando ? 'Pausar ' : 'Seguir ') + Au.NOMBRES_CARRIL[n], disabled: !e.d, onclick: () => { Au.carril(n).pausaSeguir(); setTimeout(render, 80); } }, MD.IUI.svg(e.sonando ? 'pausa_px' : 'play_px'))),
+          h('div', { class: 'au-mesa-vol' }, vol, ref.v[n]));
+      };
       const ls = Au.listas();
       el.replaceChildren(
-        h('div', { class: 'au-ov-cab' }, h('div', { class: 'au-ov-tit izq' }, h('small', { class: 'suave' }, 'Modo mesa'), h('div', null, c ? c.nombre : 'Audios')), h('button', { type: 'button', onclick: () => { cerrarOv(); } }, 'Salir')),
+        h('div', { class: 'au-ov-cab' }, h('div', { class: 'au-ov-tit izq' }, h('small', { class: 'suave' }, 'Modo mesa'), h('div', null, A.cfg.escenas[A.activa] ? A.cfg.escenas[A.activa].nombre : 'Audios')), h('button', { type: 'button', onclick: () => { cerrarOv(); } }, 'Salir')),
         h('div', { class: 'au-ov-cuerpo' },
-          h('div', { class: 'au-mesa-ahora' }, d ? Au.portada(d, 84) : null, h('div', { class: 'crece' }, h('h2', null, d ? d.titulo : 'Nada suena'), h('div', { class: 'suave' }, d ? [d.bioma, d.lugar, d.energia ? 'E' + d.energia : ''].filter(Boolean).join(' · ') : 'Elegí una lista abajo'),
-            h('div', { class: 'au-prog fina', style: 'margin:10px 0 4px' }, ref.barra), h('div', { class: 'suave au-corta' }, sig ? 'Sigue: ' + sig.titulo : ''))),
-          h('div', { class: 'au-mesa-fila' }, grande('amarillo', e.sonando ? 'Pausa' : 'Seguir', '', () => Au.pausaSeguir()), grande('', 'Siguiente', '', () => Au.siguiente(true))),
+          h('div', { class: 'au-mesa-escena' },
+            h('button', { type: 'button', class: 'au-mesa-nav', 'aria-label': 'Escena anterior', onclick: () => irA(-1) }, MD.IUI.svg('atras')),
+            h('div', { class: 'au-mesa-esc-n' }, h('b', null, A.cfg.escenas[A.activa] ? A.cfg.escenas[A.activa].nombre : '—'), h('small', { class: 'suave' }, lugar >= 0 ? NOMS[lugar] + ' en el Macrodeck' : 'solo en la app')),
+            h('button', { type: 'button', class: 'au-mesa-nav', 'aria-label': 'Escena siguiente', onclick: () => irA(1) }, MD.IUI.svg('adelante'))),
+          carril('ambiente'), carril('musica'),
           h('div', { class: 'au-mesa-grid' },
-            grande('rojo', 'Combate', 'salta a E4–E5', () => Au.saltarEnergia(4, 5, 3)), grande('azul', 'Calma', 'baja a E1–E2', () => Au.saltarEnergia(1, 2, 4)),
-            grande('', 'Parecido', 'mismo bioma y lugar', () => Au.parecidoAhora()), grande('', 'Apagar suave', 'fundido de salida', () => Au.apagarSuave(8))),
-          h('div', { class: 'au-caja' }, carrilesUI(), h('div', { class: 'au-fila2' }, h('span', { class: 'crece' }, 'Volumen del carril en foco'), ref.v), vol),
+            grande('rojo', 'Combate', 'salta a E4–E5', () => Au.saltarEnergia(4, 5, 3), 'mesa'), grande('azul', 'Calma', 'baja a E1–E2', () => Au.saltarEnergia(1, 2, 4), 'luz'),
+            grande('', 'Parecido', 'mismo bioma y lugar', () => Au.parecidoAhora(), 'escenas'), grande('', 'Apagar suave', 'fundido de salida', () => Au.apagarSuave(8), 'audio'),
+            grande('', 'Siguiente', 'pasa al próximo audio', () => Au.siguiente(true), 'adelante'), grande('', 'Silencio', 'todo a cero / devolver', () => A.motor.alternarSilencio(), 'audioOff')),
           ls.length ? h('div', { class: 'au-sec' }, 'Cambiar de lista') : null,
-          h('div', { class: 'au-mesa-listas' }, ls.map((l) => h('button', { type: 'button', class: 'au-mesa-l' + (c && c.listaId === l.id ? ' on' : ''), onclick: () => { Au.reproducirLista(l); } }, Au.mosaico(Au.idsDeLista(l).slice(0, 4), 96), h('span', null, l.nombre))))));
+          h('div', { class: 'au-mesa-listas' }, ls.map((l) => h('button', { type: 'button', class: 'au-mesa-l' + (Au.P.ctx && Au.P.ctx.listaId === l.id ? ' on' : ''), onclick: () => { Au.reproducirLista(l); } }, Au.mosaico(Au.idsDeLista(l).slice(0, 4), 96), h('span', null, l.nombre))))));
     }
-    return { render, tick: () => { const e = Au.estado(); if (ref.barra && e.dur) ref.barra.style.width = Math.min(100, e.t / e.dur * 100) + '%'; } };
+    return { render, tick: () => {} };
   }
 
   // ---------------- arrastrar para ordenar (agarre de 3 rayitas, con dedo o mouse) ----------------

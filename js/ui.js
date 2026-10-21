@@ -207,6 +207,7 @@ window.MD = window.MD || {};
     }
 
     el.append(barraEscenas(A, A.activa, (i) => A.activar(i), 'mesa'));
+    if (MD.Au && MD.Au.ui) el.append(h('button', { type: 'button', class: 'btn-modo-mesa', id: 'btnModoMesa', onclick: () => MD.Au.ui.abrirOv('mesa') }, MD.IUI.svg('mesa'), 'Modo mesa'));    // 1.3-dev35: vista grande para jugar (escena, Ambientes, Música)
 
     const rej = h('div', { class: 'rejilla' });
     const esc = A.cfg.escenas[A.activa];
@@ -394,6 +395,31 @@ window.MD = window.MD || {};
     el.append(tarjetaReposo(A));
   }
   // 1.3-dev31: DISCO EXTERNO para los audios (Chrome/Edge en la compu)
+  // v1.3-dev35: redes donde la app NO descarga (ej. el Wi-Fi "Tom's Phone": usa los datos de otro celu). Solo tiene efecto en el APK.
+  function tarjetaRed(A) {
+    const R = MD.Red, cfg = R.config(), estado = h('p', { class: 'suave', id: 'redEstado', style: 'margin-top:0' }, 'Mirando la red…'), msg = h('p', { class: 'suave', id: 'redMsg' }, '');
+    const caja = h('div', null, estado);
+    const recargar = () => A.render();
+    R.revisar(true).then((r) => {
+      const e = r.red || {};
+      if (!e.nativo) { estado.textContent = 'Esto solo funciona en el APK (en la compu no hace falta): ahí la app no sabe a qué Wi-Fi estás.'; return; }
+      const donde = e.tipo === 'wifi' ? 'Wi-Fi' + (e.ssidLegible ? ' «' + e.ssid + '»' : ' (no puedo leer el nombre)') + (e.medida ? ' · de uso medido' : '') : (e.tipo === 'datos' ? 'datos móviles' : (e.tipo === 'ninguna' ? 'sin conexión' : 'otra red'));
+      estado.textContent = 'Ahora: ' + donde + ' → ' + (r.bloqueada ? '⛔ DESCARGAS PAUSADAS' : '✓ descargas permitidas') + '.';
+      if (!e.permisoUbicacion) caja.insertBefore(h('div', { class: 'aviso', style: 'margin:8px 0' }, 'Para leer el nombre del Wi-Fi Android pide el permiso de ubicación (la app no usa tu ubicación para nada más). ',
+        h('button', { type: 'button', id: 'btnPermUbic', style: 'margin-top:6px', onclick: async () => { await R.pedirUbicacion(); recargar(); } }, 'Dar permiso de ubicación')), estado.nextSibling);
+      if (e.tipo === 'wifi' && e.ssidLegible && !cfg.bloquear.some(n => n.trim().toLowerCase() === e.ssid.trim().toLowerCase()))
+        accion.append(h('button', { type: 'button', id: 'btnRedActual', onclick: () => { R.agregar(e.ssid); recargar(); } }, 'Agregar la red actual (' + e.ssid + ')'));
+    });
+    const lista = h('div', { class: 'lista-s', style: 'margin:8px 0' });
+    cfg.bloquear.forEach((n) => lista.append(h('div', { class: 's' }, h('span', { class: 'crece' }, n), h('button', { type: 'button', class: 'peligro', 'aria-label': 'Quitar ' + n, onclick: () => { R.quitar(n); recargar(); } }, '✕'))));
+    if (!cfg.bloquear.length) lista.append(h('p', { class: 'suave', style: 'margin:0' }, 'No hay redes en la lista.'));
+    const nueva = h('input', { type: 'text', id: 'inRedNueva', placeholder: 'Nombre exacto del Wi-Fi', maxlength: 40 });
+    const accion = h('div', { class: 'fila' }, h('button', { type: 'button', id: 'btnRedAgregar', onclick: () => { if (R.agregar(nueva.value)) recargar(); else msg.textContent = 'Escribí un nombre que no esté ya en la lista.'; } }, 'Agregar'));
+    caja.append(h('label', null, 'Redes donde NO se descarga nada'), lista, nueva, accion,
+      h('label', { class: 'chk' }, h('input', { type: 'checkbox', id: 'chkSinDatos', checked: cfg.sinDatos, onchange: (ev) => { R.fijarSinDatos(ev.target.checked); recargar(); } }), ' Tampoco descargar con datos móviles'),
+      msg, h('p', { class: 'suave' }, 'Con la red en esta lista, Sincronizar todo y las descargas de Drive y Audios quedan pausadas y avisan por qué. Las luces (que hablan con tu propio celu) siguen igual.'));
+    return caja;
+  }
   function tarjetaDisco(A) {
     const D = MD.Disco, msg = h('p', { class: 'suave', id: 'discoMsg' }, '');
     const ok = (t) => { msg.textContent = t; };
@@ -468,13 +494,16 @@ window.MD = window.MD || {};
   // ===================== ESCENAS (editor) =====================
   function vistaEscenas(A, el) {
     const cfg = A.cfg;
+    const desk = !!(MD.Maqueta && MD.Maqueta.activa());          // 1.3-dev35: en pantalla ancha, lista de escenas a la izquierda y editor a la derecha
+    const izq = desk ? h('div', { class: 'esc-lista' }) : el, der = desk ? h('div', { class: 'esc-ed' }) : el;
+    if (desk) el.append(h('div', { class: 'esc-2col' }, izq, der));
     A.edEsc = Math.min(A.edEsc, cfg.escenas.length - 1);
     const esc = cfg.escenas[A.edEsc];
     const dm = !!(MD.Drive && MD.Drive.esDM());                    // 1.3-dev21: Frodo (DM) arma en borrador y confirma
-    el.append(barraEscenas(A, A.edEsc, (i) => { A.edEsc = i; A.edTecla = null; A.render(); }, 'ed'));
+    izq.append(barraEscenas(A, A.edEsc, (i) => { A.edEsc = i; A.edTecla = null; A.render(); }, 'ed'));
     const nuevaEsc = cfg.escenas.length < MD.Config.MAX_ESCENAS ? h('button', { type: 'button', id: 'btnNuevaEscena', onclick: () => { cfg.escenas.push(MD.Config.escenaNueva('Escena ' + (cfg.escenas.length + 1), dm ? 'borrador' : '')); A.edEsc = cfg.escenas.length - 1; A.edTecla = null; A.cambio(true); A.render(); } }, '+ Escena') : null;
     const enMac = A.escenasMacrodeck();
-    el.append(h('div', { class: 'fila esc-acciones' }, nuevaEsc,
+    izq.append(h('div', { class: 'fila esc-acciones' }, nuevaEsc,
       h('button', { type: 'button', id: 'btnEscMacrodeck', onclick: () => dialogoMacrodeck(A) }, 'Escenas en el Macrodeck (' + enMac.length + '/' + MD.Config.MAX_EN_MACRODECK + ')'),
       h('span', { class: 'suave' }, cfg.escenas.length + ' escena(s)')));
 
@@ -492,7 +521,7 @@ window.MD = window.MD || {};
     const estadoFila = dm ? h('div', { class: 'fila', style: 'margin-bottom:10px;align-items:center' },
       h('span', { class: 'crece suave' }, borrador ? '✎ Borrador: Tom todavia no la ve.' : '✓ Confirmada: Tom la ve al sincronizar.'),
       h('button', { type: 'button', class: borrador ? 'primario' : '', id: 'btnConfirmar', onclick: () => { if (borrador) delete esc.estado; else esc.estado = 'borrador'; A.cambio(true); A.render(); } }, borrador ? 'Confirmar escena' : 'Volver a borrador')) : null;
-    el.append(h('div', { class: 'tarjeta' },
+    der.append(h('div', { class: 'tarjeta' },
       estadoFila,
       h('label', { style: 'margin-top:0' }, 'Nombre de la escena (en el selector del Macrodeck se ven ~7 letras)'), nombre,
       (() => { const lug = A.lugarMacrodeck(A.edEsc), tilde = esc.macrodeck !== false;
@@ -500,15 +529,15 @@ window.MD = window.MD || {};
           ' Mostrar en el Macrodeck ', h('span', { class: 'suave' }, lug >= 0 ? '(lugar ' + NOM[lug] + ' del selector)' : (tilde ? '(no entra: ya hay ' + MD.Config.MAX_EN_MACRODECK + ' en el selector)' : '(solo en la app)'))); })(),
       h('div', { class: 'fila', style: 'margin-top:10px' }, h('button', { type: 'button', onclick: () => mover(-1) }, '←'), h('button', { type: 'button', onclick: () => mover(1) }, '→'), dup, borrar),
       barraGuardar(A, true, false)));
-    if (MD.LucesDnd) el.append(lucesEscena(A, esc));
-    if (MD.Audios && MD.Audios.tarjetaEscena) el.append(MD.Audios.tarjetaEscena(A, esc));        // 1.3-dev25: musica de fondo (lista de Audios) de la escena
+    if (MD.LucesDnd) der.append(lucesEscena(A, esc));
+    if (MD.Audios && MD.Audios.tarjetaEscena) der.append(MD.Audios.tarjetaEscena(A, esc));        // 1.3-dev25: musica de fondo (lista de Audios) de la escena
 
     const rej = h('div', { class: 'rejilla' });
     esc.teclas.forEach((t, i) => { const c = celda(t, i, { onclick: () => { A.edTecla = i; A.render(); } }); if (i === A.edTecla) c.classList.add('sel'); rej.append(c); });
-    el.append(h('div', { class: 'tarjeta' }, h('p', { class: 'suave', style: 'margin-top:0' }, 'Toca una tecla para editarla. Estan en el mismo orden que en el Macrodeck (arriba A1–E1, abajo A2–E2).'), rej));
-    el.append(leyenda());
+    der.append(h('div', { class: 'tarjeta' }, h('p', { class: 'suave', style: 'margin-top:0' }, 'Toca una tecla para editarla. Estan en el mismo orden que en el Macrodeck (arriba A1–E1, abajo A2–E2).'), rej));
+    der.append(leyenda());
 
-    if (A.edTecla != null) el.append(editorTecla(A, esc, A.edTecla));
+    if (A.edTecla != null) der.append(editorTecla(A, esc, A.edTecla));
   }
 
   function editorTecla(A, esc, i) {
@@ -818,6 +847,7 @@ window.MD = window.MD || {};
           h('button', { type: 'button', onclick: async (e) => { try { await navigator.clipboard.writeText(MD.Diag.texto()); e.target.textContent = 'Copiado'; } catch (x) { e.target.textContent = 'No se pudo copiar'; } } }, 'Copiar'),
           h('button', { class: 'peligro', type: 'button', onclick: () => { MD.Diag.borrar(); refrescar(); } }, 'Borrar')));
     }));
+    if (MD.Red && MD.Nativo) lista.append(acordeon(A, 'red', 'drive', 'Redes sin descargas', MD.Red.config().bloquear.join(', ') || 'ninguna', () => tarjetaRed(A)));
     if (MD.Disco && MD.Disco.disponible()) lista.append(acordeon(A, 'disco', 'almacen', 'Disco externo', MD.Disco.activo() ? (MD.Disco.listo() ? MD.Disco.nombre() : 'desconectado') : 'no usado', () => tarjetaDisco(A)));
     lista.append(acordeon(A, 'almacen', 'almacen', 'Almacenamiento', 'v' + MD.VERSION, () => h('div', null,
       h('p', { class: 'suave', style: 'margin-top:0' }, A.infoAlmacen || ''),

@@ -31,7 +31,7 @@ window.MD = window.MD || {};
   // Los que no tienen equivalente en el catalogo quedan con el trazo MDI de arriba.
   const PX = { mesa: 'dado20', escenas: 'mapa', audios: 'notas', sonidos: 'volumen_alto', drive: 'disco', herramientas: 'herramientas', mas: 'herramientas',
     audio: 'volumen_alto', audioOff: 'silencio', bt: 'bluetooth', btOff: 'bluetooth', bateria: 'bateria', bateriaCarga: 'bateria', bateriaBaja: 'bateria',
-    luz: 'bombilla', flecha: 'flecha_abajo', campana: 'campana', buscar: 'lupa', sync: 'actualizar', ok: 'confirmar', ajustes: 'ajustes', atras: 'flecha_izquierda', adelante: 'flecha_derecha' };
+    luz: 'bombilla', flecha: 'flecha_abajo', campana: 'campana', buscar: 'lupa', sync: 'actualizar', ok: 'confirmar', ajustes: 'ajustes', atras: 'flecha_izquierda', pausa_px: 'pausa', play_px: 'play', adelante: 'flecha_derecha' };
   const cachePx = {};
   function trazoPx(id) {   // bits del catalogo -> trazado de rectangulos (una tira horizontal por fila)
     if (cachePx[id] !== undefined) return cachePx[id];

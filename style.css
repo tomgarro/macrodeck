@@ -213,11 +213,22 @@ input[type=color]{width:100%;min-height:42px;border:0;border-radius:10px;backgro
 /* ===== 1.3-dev22: version de ESCRITORIO (pantalla ancha): editor a la izquierda y Macrodeck simulado a la derecha, sobre la foto del equipo ===== */
 #maqueta{display:none}
 @media (min-width:1100px){
-  #app{max-width:1500px;display:grid;grid-template-columns:minmax(0,1fr) minmax(500px,620px);grid-template-rows:auto auto minmax(0,1fr) auto auto;
-    grid-template-areas:"cab cab" "est est" "vista maq" "mini maq" "tabs tabs";column-gap:28px}
+  /* v1.3-dev35: escritorio en columnas: riel de pestanas a la izquierda | pantalla | Macrodeck (foto) a la derecha */
+  #app{max-width:1640px;display:grid;grid-template-columns:92px minmax(0,1fr) minmax(500px,580px);grid-template-rows:auto auto minmax(0,1fr) auto;
+    grid-template-areas:"tabs cab cab" "tabs est est" "tabs vista maq" "tabs mini maq";column-gap:24px}
   header.cab{grid-area:cab} #estadoTxt{grid-area:est} main{grid-area:vista} #miniPlayer{grid-area:mini} nav.tabs{grid-area:tabs}
   #maqueta{grid-area:maq;display:block;overflow-y:auto;padding:14px 16px 24px 0}
-  nav.tabs{justify-content:center} nav.tabs button{max-width:200px}
+  nav.tabs{flex-direction:column;justify-content:flex-start;align-items:stretch;gap:4px;padding:18px 6px;border-top:0;border-right:1px solid var(--linea);background:var(--panel)}
+  nav.tabs button{flex:none;max-width:none;min-height:72px;border-radius:var(--r)}
+  nav.tabs button.on{background:var(--panel2)}
+  nav.tabs button.on .tab-ic{background:none}
+  .esc-2col{display:grid;grid-template-columns:290px minmax(0,1fr);gap:22px;align-items:start}
+  .esc-lista{position:sticky;top:0;max-height:calc(100vh - 160px);overflow-y:auto;padding-right:6px}
+  .esc-lista .escenas{flex-direction:column;overflow:visible;gap:4px}
+  .esc-lista .escenas button{width:100%;text-align:left;background:none;padding:.6em .8em}
+  .esc-lista .escenas button.on{background:var(--panel2);color:var(--tx);font-weight:700}
+  .esc-lista .esc-acciones{margin-top:10px}
+  .esc-ed .tarjeta:first-child{margin-top:0}
 }
 .maq-foto,.sim.maqueta .cuerpo{position:relative;width:100%;aspect-ratio:1047/816;background:url(macrodeck.webp) center/100% 100% no-repeat}
 .maq-foto{filter:saturate(.6) brightness(.6)}
@@ -446,3 +457,27 @@ nav.tabs button.on .tab-ic{background:var(--panel2)}
 .sec.abierta .sec-cuerpo{display:block}
 .sec-cuerpo .tarjeta,.sec-cuerpo .ico-box{background:none;padding:0;margin:8px 0 0;border-radius:0}
 .sec-cuerpo>label:first-child{margin-top:4px}
+
+/* ===== 1.3-dev35: modo mesa (Frodo) ===== */
+.btn-modo-mesa{display:flex;align-items:center;gap:10px;width:100%;justify-content:center;margin:0 0 12px;background:var(--panel);border-radius:var(--r);min-height:48px;font-weight:600}
+.btn-modo-mesa svg{width:24px;height:24px;fill:currentColor}
+.au-mesa-escena{display:flex;align-items:center;gap:10px}
+.au-mesa-nav{width:60px;height:60px;border-radius:18px;background:var(--panel);display:flex;align-items:center;justify-content:center;padding:0;flex:none}
+.au-mesa-nav svg{width:24px;height:24px;fill:currentColor}
+.au-mesa-esc-n{flex:1;min-height:60px;border-radius:18px;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 8px}
+.au-mesa-esc-n b{font-size:1.1rem}
+.au-mesa-carril{background:var(--panel);border-radius:20px;padding:14px 16px 10px}
+.au-mesa-carril-cab{display:flex;align-items:center;gap:12px}
+.au-mesa-ic{width:44px;height:44px;border-radius:12px;background:var(--panel2);display:flex;align-items:center;justify-content:center;color:var(--amarillo);flex:none}
+.au-mesa-ic svg{width:24px;height:24px;fill:currentColor}
+.au-mesa-pp{width:52px;height:52px;border-radius:50%;background:var(--acento);color:var(--sobre-acento);display:flex;align-items:center;justify-content:center;padding:0;flex:none}
+.au-mesa-pp svg{width:24px;height:24px;fill:currentColor}
+.au-mesa-vol{display:flex;align-items:center;gap:10px;margin-top:6px}
+.au-mesa-vol .au-vol{height:32px}
+.au-mesa-pct{width:46px;text-align:right;font-variant-numeric:tabular-nums}
+.au-mesa-b{flex-direction:row;justify-content:flex-start;gap:12px;text-align:left;padding:14px}
+.au-mesa-b svg{width:24px;height:24px;fill:currentColor;flex:none}
+.au-mesa-tx{display:flex;flex-direction:column}
+.au-mesa-pct{width:56px;white-space:nowrap}
+/* v1.3-dev35: el firmware v4.4-dev32 ya no tiene CEL: se esconden sus controles del simulador (la logica interna no cambia) */
+.sim-homeb1,.sim-pie label:has(.sim-dest){display:none}
