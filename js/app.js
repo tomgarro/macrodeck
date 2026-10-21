@@ -116,7 +116,7 @@
   let tTxt = 0;
   estadoCab.addEventListener('click', () => {
     estadoTxt.hidden = !estadoTxt.hidden; clearTimeout(tTxt);
-    if (!estadoTxt.hidden) { estadoTxt.textContent = A.estadoTexto || ''; tTxt = setTimeout(() => { estadoTxt.hidden = true; }, 6000); }
+    if (!estadoTxt.hidden) { estadoTxt.textContent = A.estadoTexto || ''; if (conectado()) estadoTxt.append(' ', h('button', { type: 'button', class: 'chico', id: 'btnDesconectar', onclick: (ev) => { ev.stopPropagation(); A.cortar(); estadoTxt.hidden = true; } }, 'Desconectar')); tTxt = setTimeout(() => { estadoTxt.hidden = true; }, 6000); }
   });
   try { if (navigator.getBattery) navigator.getBattery().then((b) => { A.bat = b; ['levelchange', 'chargingchange'].forEach(ev => b.addEventListener(ev, pintarPills)); pintarPills(); }).catch(() => {}); } catch (e) {}
   function pintarPills() {
@@ -134,7 +134,7 @@
       indBat.hidden = false; tBat = 'Bateria de este celu ' + pct + '%' + (carga ? ' (cargando)' : '');
     }
     A.estadoTexto = [tAudio, tCon, tBat].filter(Boolean).join(' · ');
-    if (estadoCab.title !== A.estadoTexto) { estadoCab.title = A.estadoTexto; if (!estadoTxt.hidden) estadoTxt.textContent = A.estadoTexto; }
+    if (estadoCab.title !== A.estadoTexto) { estadoCab.title = A.estadoTexto; if (!estadoTxt.hidden && !estadoTxt.querySelector('button')) estadoTxt.textContent = A.estadoTexto; }
   }
   // ---------- escuchar un sonido (con pausa, barra y parar) ----------
   // Pasa por el MISMO camino que la Mesa (volumen del sonido x volumen general), asi se oye igual.

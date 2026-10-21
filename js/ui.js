@@ -184,6 +184,12 @@ window.MD = window.MD || {};
     const con = h('div', { class: 'tarjeta' });
     const esBle = A.tr && A.tr.tipo === 'ble' && A.tr.estado !== 'desconectado';
     const esSim = A.tr && A.tr.tipo === 'sim' && A.tr.conectado;
+    if (esBle || esSim) {
+      // 1.3-dev32: conectado -> la tarjeta "Conexion" desaparece (el estado queda en el icono de Bluetooth de la cabecera, con su tilde verde; tocandolo aparece "Desconectar").
+      // Solo se ve, y solo si hace falta, el aviso del ahorro de bateria (APK) y el del permiso de notificaciones.
+      if (MD.Nativo) { const f = filaBateria(A), cx = h('div', { class: 'tarjeta', hidden: true }, f); MD.Nativo.bateria().then(b => { cx.hidden = !!(b && b.exento); }); el.append(cx); }
+      if (MD.Nativo && MD.Celu && !MD.Celu.s.acceso) el.append(h('p', { class: 'aviso', id: 'avisoAccesoMedios' }, 'Para ver en la OLED si suena YouTube falta un permiso: Herramientas > Celu en la OLED.'));
+    } else {
     con.append(h('h3', null, 'Conexion'));
     if (MD.Nativo) con.append(filaBateria(A));      // v1.3-dev8: el estado del ahorro de bateria se ve siempre, conectado o no
     if (MD.Nativo && MD.Celu && !MD.Celu.s.acceso) con.append(h('p', { class: 'suave', id: 'avisoAccesoMedios' }, 'Para ver en la OLED si suena YouTube falta un permiso: Herramientas > Celu en la OLED.'));
@@ -196,11 +202,9 @@ window.MD = window.MD || {};
         h('button', { class: 'primario', type: 'button', id: 'btnConectar', onclick: () => A.conectarBle() }, 'Conectar Macrodeck'),
         h('button', { type: 'button', id: 'btnSim', onclick: () => A.usarSimulador() }, 'Probar con el simulador')));
       con.append(h('p', { class: 'suave' }, 'En el Macrodeck abri el programa D&D (desde el lobby): va a decir "Buscando…". Despues toca "Conectar" y elegi "Macrodeck".'));
-    } else {
-      con.append(h('div', { class: 'fila' }, h('span', { class: 'crece' }, esSim ? 'Simulador activo' : 'Estado: ' + A.tr.estado + (A.tr.detalle ? ' (' + A.tr.detalle + ')' : '')),
-        h('button', { type: 'button', onclick: () => A.cortar() }, 'Desconectar')));
     }
     el.append(con);
+    }
 
     el.append(barraEscenas(A, A.activa, (i) => A.activar(i), 'mesa'));
 
