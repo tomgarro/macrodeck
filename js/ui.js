@@ -397,16 +397,18 @@ window.MD = window.MD || {};
   function tarjetaDisco(A) {
     const D = MD.Disco, msg = h('p', { class: 'suave', id: 'discoMsg' }, '');
     const ok = (t) => { msg.textContent = t; };
-    const estado = D.activo() ? (D.listo() ? 'Usando el disco «' + D.nombre() + '» (carpeta Macrodeck-audios). Los audios nuevos se guardan ahí y no ocupan lugar en la compu.' : '⚠ El disco «' + D.nombre() + '» no está conectado. ' + (D.error() || '')) : 'Los audios se guardan en la memoria del navegador. Si la compu no tiene lugar, elegí un disco externo USB.';
+    const estado = D.activo() ? (D.listo() ? 'Usando el disco «' + D.nombre() + '». Ahí se guardan los audios, los sonidos de las teclas y las carátulas (no ocupan lugar en la compu), y se hace una copia de la configuración (escenas, teclas, looks, favoritos y listas).' : '⚠ El disco «' + D.nombre() + '» no está conectado. ' + (D.error() || '')) : 'Todo se guarda en la memoria del navegador. Si la compu no tiene lugar, elegí un disco externo USB: va a guardar ahí todo lo pesado y una copia de la configuración.';
+    const recargar = async () => { try { await A.recargar(); } catch (e) {} A.render(); };
     return h('div', null, h('p', { class: 'suave', style: 'margin-top:0' }, estado),
       h('div', { class: 'fila' },
-        h('button', { type: 'button', class: 'primario', id: 'btnElegirDisco', onclick: async () => { try { const n = await D.elegir(); ok('Listo: uso «' + n + '».'); A.render(); } catch (e) { if (e && e.name !== 'AbortError') ok(e.message || String(e)); } } }, D.activo() ? 'Cambiar de disco…' : 'Elegir disco o carpeta…'),
-        D.activo() && !D.listo() ? h('button', { type: 'button', onclick: async () => { ok((await D.reconectar()) ? 'Disco reconectado.' : 'No se pudo reconectar.'); A.render(); } }, 'Reconectar disco') : null),
+        h('button', { type: 'button', class: 'primario', id: 'btnElegirDisco', onclick: async () => { try { const n = await D.elegir(); ok('Listo: uso «' + n + '».'); await recargar(); } catch (e) { if (e && e.name !== 'AbortError') ok(e.message || String(e)); } } }, D.activo() ? 'Cambiar de disco…' : 'Elegir disco o carpeta…'),
+        D.activo() && !D.listo() ? h('button', { type: 'button', onclick: async () => { const r = await D.reconectar(); ok(r ? 'Disco reconectado.' : 'No se pudo reconectar.'); if (r) await recargar(); else A.render(); } }, 'Reconectar disco') : null),
       D.activo() && D.listo() ? h('div', { class: 'fila', style: 'margin-top:8px' },
-        h('button', { type: 'button', onclick: async (e) => { e.target.disabled = true; try { const n = await D.moverTodo((i, t) => ok('Moviendo… ' + i + ' de ' + t)); ok('Listo: pasé ' + n + ' audio(s) al disco y liberé ese lugar.'); if (MD.Au) D.alCambiar && D.alCambiar(); } catch (x) { ok(x.message || String(x)); } e.target.disabled = false; } }, 'Mover lo ya bajado al disco'),
+        h('button', { type: 'button', id: 'btnMoverDisco', onclick: async (e) => { e.target.disabled = true; try { const n = await D.moverTodo((i, tt) => ok('Moviendo… ' + i + ' de ' + tt)); ok('Listo: pasé al disco ' + n.audios + ' audio(s), ' + n.sonidos + ' sonido(s) y ' + n.caratulas + ' carátula(s), y copié la configuración.'); if (MD.Au) D.alCambiar && D.alCambiar(); } catch (x) { ok(x.message || String(x)); } e.target.disabled = false; } }, 'Mover todo al disco'),
+        h('button', { type: 'button', id: 'btnTraerCfg', onclick: async (e) => { e.target.disabled = true; try { const r = await D.restaurarConfig(); ok('Listo: traje ' + r.escenas + ' escena(s) y ' + r.claves + ' ajuste(s) del disco.'); await recargar(); } catch (x) { ok(x.message || String(x)); } e.target.disabled = false; } }, 'Traer la configuración del disco'),
         h('button', { type: 'button', class: 'peligro', onclick: async () => { await D.quitar(); A.render(); } }, 'Dejar de usar el disco')) : null,
       msg,
-      h('p', { class: 'suave' }, 'Chrome te pide permiso la primera vez y cada vez que lo abrís de nuevo (tocá «Reconectar disco»). Si el disco no está enchufado, la app avisa y no baja nada a la compu.'));
+      h('p', { class: 'suave' }, 'Chrome te pide permiso la primera vez y cada vez que lo abrís de nuevo (tocá «Reconectar disco»). Si el disco no está enchufado, la app avisa y no baja nada a la compu. «Traer la configuración del disco» sirve para una compu nueva: reemplaza la configuración de acá por la copia del disco.'));
   }
   // 1.3-dev31: LUZ DE REPOSO = a que quedan (y a que vuelven al terminar un efecto) las lamparas cuando la escena no define su luz
   function tarjetaReposo(A) {
@@ -524,22 +526,47 @@ window.MD = window.MD || {};
       if (campo === 'tipo' && v === 'luz_toggle') { t.estados = MD.Config.normEstadosToggle(t.estados); if (t.fundido == null) t.fundido = 4; if (!t.nombre || t.nombre === 'Nueva') t.nombre = 'Dia/Noche'; }
       if (campo === 'tipo' && v === 'intensidad') { if (!t.icono) t.icono = MD.Config.ICONO_INTENSIDAD; if (!t.nombre) t.nombre = 'Intensidad'; }
       A.cambio(true); if (render) A.render(); };
+    // v1.3-dev34: el editor se ordena en una parte basica (siempre visible: vista previa de la e-Paper, nombre y comportamiento) y 4 secciones que se abren y cierran.
+    const basico = h('div', { class: 'ed-basico' });
+    const previa = h('div', { class: 'ed-previa' });
+    const pintarPrevia = () => { previa.textContent = ''; previa.append(h('div', { class: 'ed-previa-t' }, celda(t, i, { disabled: true, 'aria-hidden': 'true', tabindex: '-1' })),
+      h('div', { class: 'ed-previa-tx' }, h('b', null, 'Así se ve en el Macrodeck'), h('small', null, 'La tecla es lisa: el dibujo y el nombre se ven en la e-Paper, y la tecla se prende con luz cálida mientras suena.'))); };
+    pintarPrevia();
+    const seccion = (id, titulo, icono, resumen) => {
+      const cuerpo = h('div', { class: 'sec-cuerpo' }), abierta = (A._edSec || 'sonido') === id;
+      const cab = h('button', { type: 'button', class: 'sec-cab', 'aria-expanded': abierta ? 'true' : 'false', 'data-sec': id },
+        h('span', { class: 'sec-ic' }, MD.IUI.svg(icono)), h('span', { class: 'sec-tx' }, h('b', null, titulo), h('small', null, resumen)), MD.IUI.svg('flecha', 'sec-ch'));
+      const caja2 = h('div', { class: 'sec' + (abierta ? ' abierta' : '') }, cab, cuerpo);
+      cab.addEventListener('click', () => { const ab = !caja2.classList.contains('abierta'); A._edSec = ab ? id : '-'; caja2.classList.toggle('abierta', ab); cab.setAttribute('aria-expanded', ab ? 'true' : 'false'); });
+      return { el: caja2, cuerpo };
+    };
+    const nSon = (t.sonidos || []).length;
+    const resSonido = t.tipo === 'ambiente' ? (t.audio ? 'Ambiente elegido' : 'Sin ambiente todavía') : (t.tipo === 'luz_toggle' ? 'Cambio de luz' : (nSon ? nSon + (nSon === 1 ? ' sonido' : ' sonidos') : 'Sin sonido todavía'));
+    const secSonido = seccion('sonido', 'Sonido', 'sonidos', resSonido);
+    const secLuces = seccion('luces', 'Luces', 'luz', (t.luces && t.luces.length) ? t.luces.length + (t.luces.length === 1 ? ' lámpara' : ' lámparas') : 'No toca las lámparas');
+    const actIc = t.icono ? MD.Iconos.entradaDeHex(t.icono) : null;
+    const secIcono = seccion('icono', 'Icono', 'mesa', actIc ? actIc.nombre : (t.icono ? 'Icono propio' : 'Sin icono'));
+    const secAvanz = seccion('avanzado', 'Avanzado', 'ajustes', 'Ducking, retoque y grupo exclusivo');
+    let dest = caja;
+    caja.append(previa, basico);
     const av = h('ul', { class: 'avisos' });
     const actAv = () => { av.innerHTML = ''; avisosTecla(A, t).forEach(x => av.append(h('li', null, x))); };
 
-    caja.append(h('label', { style: 'margin-top:0' }, 'Nombre (hasta 18 letras, sin palabras de mas de 7)'),
-      h('input', { type: 'text', id: 'inNombre', maxlength: 18, value: t.nombre, oninput: (e) => { t.nombre = e.target.value; A.cambio(true); actAv(); } }));
-    caja.append(h('label', null, 'Comportamiento (decide el color del marco en el Macrodeck)'),
+    dest = basico;
+    dest.append(h('label', { style: 'margin-top:0' }, 'Nombre (hasta 18 letras, sin palabras de mas de 7)'),
+      h('input', { type: 'text', id: 'inNombre', maxlength: 18, value: t.nombre, oninput: (e) => { t.nombre = e.target.value; A.cambio(true); actAv(); pintarPrevia(); } }));
+    dest.append(h('label', null, 'Comportamiento (decide el color del marco en el Macrodeck)'),
       h('select', { id: 'selTipo', onchange: cam('tipo', true) }, MD.Config.tiposVisibles(t.tipo).map(c => h('option', { value: c.id, selected: c.id === t.tipo }, c.nombre))));
-    caja.append(h('p', { class: 'suave' }, tipoDe(t.tipo).ayuda));
+    dest.append(h('p', { class: 'suave' }, tipoDe(t.tipo).ayuda));
 
-    if (t.tipo === 'ambiente') caja.append(ambienteTecla(A, t));
-    if (t.tipo === 'luz_toggle') caja.append(toggleTecla(A, t));
+    dest = secSonido.cuerpo;
+    if (t.tipo === 'ambiente') dest.append(ambienteTecla(A, t));
+    if (t.tipo === 'luz_toggle') dest.append(toggleTecla(A, t));
     if (!['silenciar', 'fadeout', 'intensidad', 'ambiente', 'luz_toggle'].includes(t.tipo)) {
       const introLoop = t.tipo === 'intro_loop';
       const multi = ['azar', 'secuencia', 'intro_loop'].includes(t.tipo);
-      caja.append(h('label', null, introLoop ? 'Sonidos (en orden: primero la intro, al final el loop)' : (multi ? 'Sonidos (en orden)' : 'Sonido')));
-      if (introLoop) caja.append(h('p', { class: 'suave', style: 'margin-top:0' }, 'Suenan en este orden, uno atras del otro sin cortes, y el ULTIMO se repite hasta que lo apagues. Podes poner mas de una intro.'));
+      dest.append(h('label', null, introLoop ? 'Sonidos (en orden: primero la intro, al final el loop)' : (multi ? 'Sonidos (en orden)' : 'Sonido')));
+      if (introLoop) dest.append(h('p', { class: 'suave', style: 'margin-top:0' }, 'Suenan en este orden, uno atras del otro sin cortes, y el ULTIMO se repite hasta que lo apagues. Podes poner mas de una intro.'));
       const lista = h('div', { class: 'lista-s' });
       t.sonidos.forEach((id, k) => {
         const s = cfg.sonidos.find(x => x.id === id);
@@ -549,10 +576,10 @@ window.MD = window.MD || {};
           multi ? h('button', { type: 'button', onclick: () => { if (k > 0) { [t.sonidos[k - 1], t.sonidos[k]] = [t.sonidos[k], t.sonidos[k - 1]]; A.cambio(true); A.render(); } } }, '↑') : null,
           h('button', { class: 'peligro', type: 'button', onclick: () => { t.sonidos.splice(k, 1); A.cambio(true); A.render(); } }, '✕')));
       });
-      caja.append(lista);
+      dest.append(lista);
       {
         // v1.3-dev9: ventana con buscador, categorias y seleccion multiple (selector.js)
-        caja.append(h('button', { type: 'button', id: 'btnAgregarSonidos', class: 'primario', disabled: !cfg.sonidos.length, style: 'width:100%',
+        dest.append(h('button', { type: 'button', id: 'btnAgregarSonidos', class: 'primario', disabled: !cfg.sonidos.length, style: 'width:100%',
           onclick: () => {
             const unico = t.tipo === 'una_vez';                    // v1.3-dev10: en una tecla Unica se pueden marcar varios y se convierte en Al azar / En secuencia
             MD.Selector.abrir(A, { multi: multi || unico, convertir: unico, yaEstan: t.sonidos,
@@ -569,19 +596,20 @@ window.MD = window.MD || {};
       }
     }
     if (t.tipo === 'ambiente') {
-      caja.append(h('div', { class: 'cols' }, h('div', null, h('label', null, 'Entrada (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.entrada, oninput: cam('entrada') })),
+      dest.append(h('div', { class: 'cols' }, h('div', null, h('label', null, 'Entrada (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.entrada, oninput: cam('entrada') })),
         h('div', null, h('label', null, 'Salida (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.salida, oninput: cam('salida') }))));
     }
     if (!['silenciar', 'intensidad', 'ambiente', 'luz_toggle'].includes(t.tipo)) {
       const etVol = h('label', null, 'Volumen de la tecla (' + Math.round(t.volumen * 100) + '%)');
-      caja.append(h('div', { class: 'cols' },
+      dest.append(h('div', { class: 'cols' },
         h('div', null, etVol, h('input', { type: 'range', min: 0, max: 1.5, step: 0.05, value: t.volumen, oninput: (e) => { t.volumen = +e.target.value; A.cambio(false); etVol.textContent = 'Volumen de la tecla (' + Math.round(t.volumen * 100) + '%)'; } })),
         ['loop', 'intro_loop', 'mantener', 'una_vez', 'azar', 'secuencia'].includes(t.tipo) ? h('div', null, h('label', null, 'Entrada (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.entrada, oninput: cam('entrada') })) : null,
         ['loop', 'intro_loop', 'mantener', 'fadeout'].includes(t.tipo) ? h('div', null, h('label', null, 'Salida (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.salida, oninput: cam('salida') })) : null));
     }
+    dest = secAvanz.cuerpo;
     if (MD.Config.admiteDucking(t.tipo)) {
       const nativo = !!(MD.Nativo && MD.Nativo.duck);
-      caja.append(h('label', { class: 'chk' },
+      dest.append(h('label', { class: 'chk' },
         h('input', { type: 'checkbox', id: 'chkDucking', checked: !!t.ducking, onchange: (e) => { t.ducking = e.target.checked; A.cambio(true); A.render(); } }),
         ' Ducking: bajar la musica del celu mientras suena este sonido'),
         h('p', { class: 'suave' }, nativo
@@ -589,14 +617,16 @@ window.MD = window.MD || {};
           : 'Se guarda y se ve en el mapa del Macrodeck, pero SOLO baja la musica dentro de la app Android (APK). En el navegador no hace nada.'));
     }
     if (['una_vez', 'azar', 'secuencia', 'mantener'].includes(t.tipo))
-      caja.append(h('label', null, 'Si la tocas mientras ya suena'), h('select', { onchange: cam('retoque') }, MD.Config.RETOQUES.map(r => h('option', { value: r.id, selected: r.id === t.retoque }, r.nombre))));
+      dest.append(h('label', null, 'Si la tocas mientras ya suena'), h('select', { onchange: cam('retoque') }, MD.Config.RETOQUES.map(r => h('option', { value: r.id, selected: r.id === t.retoque }, r.nombre))));
     if (MD.Config.esLoop(t.tipo) && t.tipo !== 'ambiente')
-      caja.append(h('label', null, 'Grupo exclusivo (los loops con el mismo grupo se reemplazan entre si con fundido cruzado; ej: "amb")'), h('input', { type: 'text', maxlength: 20, value: t.grupo, oninput: cam('grupo') }));
+      dest.append(h('label', null, 'Grupo exclusivo (los loops con el mismo grupo se reemplazan entre si con fundido cruzado; ej: "amb")'), h('input', { type: 'text', maxlength: 20, value: t.grupo, oninput: cam('grupo') }));
 
-    if (MD.LucesDnd && !['silenciar', 'intensidad', 'luz_toggle'].includes(t.tipo)) caja.append(lucesTecla(A, t));
+    dest = secLuces.cuerpo;
+    if (MD.LucesDnd && !['silenciar', 'intensidad', 'luz_toggle'].includes(t.tipo)) dest.append(lucesTecla(A, t));
 
     // v1.3-dev11: selector de iconos con CATEGORIAS, BUSCADOR y SUGERENCIAS segun el nombre de la tecla (428 iconos, ver iconos_datos.js)
-    const icoBox = h('div', { class: 'tarjeta', style: 'background:var(--panel2);margin-top:14px' });
+    dest = secIcono.cuerpo;
+    const icoBox = h('div', { class: 'ico-box' });
     const IC = MD.Iconos;
     const actual = t.icono ? IC.entradaDeHex(t.icono) : null;
     const prev = t.icono ? icoCanvas(t.icono) : h('span', { class: 'suave' }, 'sin icono');
@@ -638,8 +668,9 @@ window.MD = window.MD || {};
     setTimeout(() => { grid.scrollTop = A._icoScroll || 0; }, 0);
     icoBox.append(h('div', { class: 'fila', style: 'margin-top:8px' }, h('button', { type: 'button', onclick: () => A.abrirConversor(i) }, 'Usar mi propia imagen…'),
       h('details', { style: 'flex:1;min-width:140px' }, h('summary', { class: 'suave', style: 'cursor:pointer;font-size:12px' }, 'Creditos de los iconos'), h('p', { class: 'suave', style: 'font-size:11px' }, IC.creditos))));
-    caja.append(icoBox);
+    dest.append(icoBox);
 
+    [secSonido, secLuces, secIcono, secAvanz].forEach(s => { if (s.cuerpo.childNodes.length) caja.append(s.el); });
     caja.append(av); actAv();
     caja.append(h('div', { class: 'fila', style: 'margin-top:10px' },
       h('button', { type: 'button', onclick: () => { A.portapapeles = JSON.parse(JSON.stringify(t)); A.render(); } }, 'Copiar tecla'),
@@ -787,7 +818,7 @@ window.MD = window.MD || {};
           h('button', { type: 'button', onclick: async (e) => { try { await navigator.clipboard.writeText(MD.Diag.texto()); e.target.textContent = 'Copiado'; } catch (x) { e.target.textContent = 'No se pudo copiar'; } } }, 'Copiar'),
           h('button', { class: 'peligro', type: 'button', onclick: () => { MD.Diag.borrar(); refrescar(); } }, 'Borrar')));
     }));
-    if (MD.Disco && MD.Disco.disponible()) lista.append(acordeon(A, 'disco', 'almacen', 'Disco externo (audios)', MD.Disco.activo() ? (MD.Disco.listo() ? MD.Disco.nombre() : 'desconectado') : 'no usado', () => tarjetaDisco(A)));
+    if (MD.Disco && MD.Disco.disponible()) lista.append(acordeon(A, 'disco', 'almacen', 'Disco externo', MD.Disco.activo() ? (MD.Disco.listo() ? MD.Disco.nombre() : 'desconectado') : 'no usado', () => tarjetaDisco(A)));
     lista.append(acordeon(A, 'almacen', 'almacen', 'Almacenamiento', 'v' + MD.VERSION, () => h('div', null,
       h('p', { class: 'suave', style: 'margin-top:0' }, A.infoAlmacen || ''),
       h('div', { class: 'fila' }, h('button', { type: 'button', onclick: () => A.pedirPersistencia() }, 'Proteger datos'),

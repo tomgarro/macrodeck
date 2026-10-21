@@ -38,6 +38,8 @@ window.MD = window.MD || {};
     audiosIds: () => tx('audios', 'readonly', s => s.getAllKeys()),
     guardarCaratula: (id, blob) => tx('caratulas', 'readwrite', s => s.put(blob, id)),   // dev24: tapa real (jpg) de un audio, por id de Drive
     leerCaratulas: async () => { const d = await abrir(); return new Promise((ok, mal) => { const t = d.transaction('caratulas', 'readonly'), s = t.objectStore('caratulas'), out = new Map(), q = s.openCursor(); q.onsuccess = () => { const c = q.result; if (c) { out.set(c.key, c.value); c.continue(); } else ok(out); }; q.onerror = () => mal(q.error); }); },
+    borrarCaratula: (id) => tx('caratulas', 'readwrite', s => s.delete(id)),
+    clavesConfig: () => tx('config', 'readonly', s => s.getAllKeys()),    // v1.3-dev34: para copiar toda la configuracion al disco
     todosSonidosIds: () => tx('sonidos', 'readonly', s => s.getAllKeys()),
     borrarTodo: async () => { await tx('config', 'readwrite', s => s.clear()); await tx('sonidos', 'readwrite', s => s.clear()); },
     pedirPersistencia: async () => { try { return navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false; } catch (e) { return false; } },

@@ -612,8 +612,8 @@
 
   // ---------- arranque ----------
   (async function () {
+    if (MDg.Disco) await MDg.Disco.iniciar();               // 1.3-dev34: el disco externo se inicia ANTES de leer la configuracion y los sonidos (que tambien pueden estar ahi)
     await A.recargar();
-    if (MDg.Disco) await MDg.Disco.iniciar();               // 1.3-dev31: disco externo elegido para los audios (antes de leer lo bajado)
     if (MDg.Audios) await MDg.Audios.iniciar(A);          // dev23: pestana Audios (catalogo guardado y audios bajados)
     if (MDg.Audios && MDg.Audios.enganchar) MDg.Audios.enganchar(A);   // dev25: la musica de fondo de cada escena (envuelve A.activar)
     if (MDg.LucesDnd) MDg.LucesDnd.enganchar(A);         // 1.3-dev16: luces de D&D (envuelve motor.tecla y A.activar)

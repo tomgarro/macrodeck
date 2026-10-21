@@ -426,3 +426,23 @@ nav.tabs button.on .tab-ic{background:var(--panel2)}
 .vacio p{margin:0 0 10px;max-width:32ch}
 @media (prefers-reduced-motion:no-preference){main>*{animation:entra .18s ease-out}}
 @keyframes entra{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ===== 1.3-dev34: editor de tecla por secciones plegables ===== */
+.ed-previa{display:flex;gap:14px;align-items:center;background:var(--panel2);border-radius:var(--r);padding:12px;margin:0 0 12px}
+.ed-previa-t{flex:none;width:104px}
+.ed-previa .t:disabled{opacity:1;cursor:default}
+.ed-previa-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ed-previa-tx small{color:var(--tx2);font-size:.78rem;line-height:1.35}
+.ed-basico{margin-bottom:10px}
+.sec{background:var(--panel2);border-radius:var(--r);margin:0 0 8px;overflow:hidden}
+.sec-cab{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border-radius:0;padding:12px 14px;min-height:60px}
+.sec-ic{flex:none;width:36px;height:36px;border-radius:10px;background:var(--panel);display:flex;align-items:center;justify-content:center}
+.sec-ic svg{width:24px;height:24px;fill:currentColor}
+.sec-tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.sec-tx small{color:var(--tx2);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec-ch{width:24px;height:24px;fill:var(--tx2);flex:none;transition:transform .2s}
+.sec.abierta .sec-ch{transform:rotate(180deg)}
+.sec-cuerpo{display:none;padding:2px 14px 16px}
+.sec.abierta .sec-cuerpo{display:block}
+.sec-cuerpo .tarjeta,.sec-cuerpo .ico-box{background:none;padding:0;margin:8px 0 0;border-radius:0}
+.sec-cuerpo>label:first-child{margin-top:4px}
