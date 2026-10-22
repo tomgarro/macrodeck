@@ -447,6 +447,23 @@
   };
   A.driveElegir = function (id, quien) { A.escElec[id] = quien; A.driveEscenas(); };
 
+  // 1.3-dev38: sonidos que llegaron por PENDRIVE. Estan en el disco (carpeta Macrodeck-sonidos, con su .json de datos) pero la app todavia no los conoce:
+  // los registra (nombre, carpeta, fecha de Drive y duracion) SIN bajar nada, como si los hubiera bajado de Drive. Devuelve cuantos registro.
+  A.adoptarSonidosDeDisco = async function () {
+    const D = MDg.Disco; if (!D || !D.activo() || !D.listo()) return 0;
+    let n = 0;
+    for (const id of await MDg.Almacen.todosSonidosIds()) {
+      if (A.cfg.sonidos.some(x => x.id === id)) continue;
+      const reg = await MDg.Almacen.leerSonido(id).catch(() => null);
+      if (!reg || !reg.blob || !reg.nombre || !reg.mod) continue;            // sin 'mod' = no vino del pendrive (es un sonido suelto): no se toca
+      try { A.regs.set(id, reg); await A.motor.fijarArchivo(id, reg); } catch (e) {}
+      const dur = await duracionDe(reg.blob), nombre = reg.nombre.replace(/\.[a-z0-9]+$/i, '').replace(/[_]+/g, ' ').trim().slice(0, 60);
+      A.cfg.sonidos.push({ id, nombre, volumen: 1, duracion: dur, archivoOriginal: reg.nombre, carpeta: reg.carpeta, driveMod: reg.mod });
+      n++;
+    }
+    if (n) { A.cambio(false); await A.guardarYa(); await A.infoStorage(); if (A.driveLista) A.drivePend = A.driveLista.filter(x => MDg.DriveUI.estadoDe(A, x) !== 'ok').length; }
+    return n;
+  };
   A.driveCancelar = false;
   A.driveBajarTodo = async function (lista) {
     A.driveMsg = ''; A.driveCancelar = false;

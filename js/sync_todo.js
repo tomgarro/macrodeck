@@ -94,6 +94,8 @@ window.MD = window.MD || {};
       await Au.actualizar(true);
       S.fase = 'Sonidos de Drive…'; pintar();
       await A.driveActualizar();
+      let adoptados = 0;
+      if (A.adoptarSonidosDeDisco) { S.fase = 'Registrando sonidos que ya están en el disco…'; pintar(); try { adoptados = await A.adoptarSonidosDeDisco(); } catch (e) {} }   // 1.3-dev38: los que vinieron por pendrive
       const aud = todo ? audiosTodos() : audiosQueFaltan(A), son = sonidosQueFaltan(A);
       const bytes = aud.reduce((n, d) => n + (d.tam || 0), 0) + son.reduce((n, s) => n + (s.tam || 0), 0);
       let bajados = '';
@@ -109,6 +111,7 @@ window.MD = window.MD || {};
         } else bajados = ' · faltan ' + aud.length + ' audio(s) y ' + son.length + ' sonido(s) (' + mb(bytes) + ')';
       } else if (todo) { marca(false); bajados = ' · ✓ ya tenés TODO en este equipo (' + Au.S.cat.filter((d) => Au.bajado(d.id)).length + ' audios)'; }
       if (todo) { try { await Au.bajarCaratulas(); } catch (e) {} }
+      if (adoptados) bajados += ' · registré ' + adoptados + ' sonido(s) del disco';
       S.ultima = Date.now();
       S.resumen = 'Listo ' + hora(S.ultima) + (A.escMsg ? ' · ' + A.escMsg.replace(/\s*Ojo:.*$/, '') : '') + bajados;
     } catch (e) { S.error = e.message || String(e); }
