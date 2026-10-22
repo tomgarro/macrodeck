@@ -447,9 +447,16 @@
   };
   A.driveElegir = function (id, quien) { A.escElec[id] = quien; A.driveEscenas(); };
 
+  A.driveCancelar = false;
   A.driveBajarTodo = async function (lista) {
-    A.driveMsg = '';
-    for (let i = 0; i < lista.length; i++) { A.driveBajandoTodo = (i + 1) + ' / ' + lista.length; if (A.tab === 'drive') A.render(); await A.driveBajar(lista[i]); }
+    A.driveMsg = ''; A.driveCancelar = false;
+    const soltar = MDg.Sostener ? MDg.Sostener.tomar() : () => {};            // 1.3-dev37: la compu no se duerme ni bloquea sola mientras baja
+    for (let i = 0; i < lista.length; i++) {
+      if (A.driveCancelar) break;
+      if (!navigator.onLine) await MDg.Au.esperarRed(() => A.driveCancelar);
+      A.driveBajandoTodo = (i + 1) + ' / ' + lista.length; if (A.tab === 'drive') A.render(); await A.driveBajar(lista[i]);
+    }
+    soltar();
     A.driveBajandoTodo = ''; if (!A.driveMsg) A.driveMsg = 'Listo: ' + lista.length + ' sonido(s) bajados a este celu.'; if (A.tab === 'drive') A.render();
   };
 

@@ -17,8 +17,10 @@ window.MD = window.MD || {};
   const durLarga = (s) => { s = Math.round(s || 0); const hh = Math.floor(s / 3600), mm = Math.round(s % 3600 / 60); return hh ? hh + ' h ' + String(mm).padStart(2, '0') + ' min' : Math.max(1, mm) + ' min'; };
   const mb = (n) => n >= 1e9 ? (n / 1e9).toFixed(2) + ' GB' : Math.round(n / 1e6) + ' MB';
   const dormir = (ms) => new Promise((ok) => setTimeout(ok, ms));
+  // Si se cae internet a mitad de una descarga larga, espera a que vuelva (en vez de fallar todo). Se corta si se cancela.
+  const esperarRed = async (cancelado) => { while (!navigator.onLine && !(cancelado && cancelado())) await dormir(2000); };
   let APP = null;                                                // la app (la entrega app.js al iniciar y cada vez que se abre la pestana)
-  const Au = { S, P: null, prefs, cov, BIOMAS, FILAS, norm, esc, dur, durLarga, mb, dormir, nuevoFiltro, app: () => APP };
+  const Au = { S, P: null, prefs, cov, BIOMAS, FILAS, norm, esc, dur, durLarga, mb, dormir, esperarRed, nuevoFiltro, app: () => APP };
   const h = (...a) => MD.UI.h(...a);
 
   // ---------------- preferencias de ESTE equipo (favoritos, escuchados hace poco, aleatorio, repetir...) ----------------
@@ -221,7 +223,10 @@ window.MD = window.MD || {};
         const p = sig++;
         for (let i = 0; ; i++) {
           try { const j = await MD.Drive.bajarAudio(d.drive_id, p); trozos[p] = await aBytes(j.datos); break; }
-          catch (e) { if (i >= 3 || S.dl.cancelar) throw e; await dormir(900 * (i + 1)); }
+          catch (e) {
+            if (i >= 7 || S.dl.cancelar) throw e;                                      // 1.3-dev37: hasta 8 intentos, con pausa creciente (hasta 15 s) y esperando si no hay internet
+            if (!navigator.onLine) await esperarRed(() => S.dl.cancelar); else await dormir(Math.min(15000, 900 * Math.pow(2, i)));
+          }
         }
         hechos++; alProgreso(hechos / partes);
       }
@@ -242,14 +247,19 @@ window.MD = window.MD || {};
     if (!lista.length) return;
     MD.Almacen.pedirPersistencia();
     Object.assign(D, { activo: true, cancelar: false, hechos: 0, total: lista.length, actual: '', pct: 0, errores: [] });
+    const soltar = MD.Sostener ? MD.Sostener.tomar() : () => {};              // 1.3-dev37: la compu no se duerme ni bloquea sola mientras baja
     for (const d of lista) {
       if (D.cancelar) break;
       D.actual = d.titulo; D.pct = 0; if (Au.pintarBajada) Au.pintarBajada();
       try { await bajarUno(d, (p) => { D.pct = p; if (Au.pintarBajada) Au.pintarBajada(); }); }
-      catch (e) { if (e.message !== 'cancelado') D.errores.push(d.titulo.slice(0, 40) + ': ' + e.message); }
+      catch (e) {
+        if (e.message !== 'cancelado') D.errores.push(d.titulo.slice(0, 40) + ': ' + e.message);
+        if (/disco externo/i.test(e.message || '')) { D.errores.push('Se frenó: el disco externo no responde. Conectalo, tocá «Reconectar disco» y retomá.'); break; }   // no seguir tirando error por cada audio
+      }
       D.hechos++;
       if (Au.pintarTarjeta) Au.pintarTarjeta(d.id);
     }
+    soltar();
     D.activo = false; D.actual = ''; Au.pintar();
   }
   Au.bajarLista = bajarLista;
