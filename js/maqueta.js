@@ -52,6 +52,10 @@ window.MD = window.MD || {};
     if (!aside) return;
     if (!hook) { hook = true; if (MQ.addEventListener) MQ.addEventListener('change', () => { A.render(); }); }
     const desk = activa(), sim = !!(A.sim && A.tr === A.sim);
+    // (2.0-dev4) En la pestaña Initiative Tracker, la columna de la derecha muestra el tracker con su joystick EN LUGAR del Macrodeck.
+    if (desk && A.tab === 'tracker' && MD.Trk && MD.Trk._lado) {
+      aside.dataset.est = 'tracker'; aside.replaceChildren(...MD.Trk._lado); A.simRaiz.classList.remove('maqueta'); return;
+    }
     A.simRaiz.classList.toggle('maqueta', desk);
     if (!desk) { aside.replaceChildren(); aside.dataset.est = ''; return; }
     const est = sim ? 'sim' : 'vacio';

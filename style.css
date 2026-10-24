@@ -571,7 +571,7 @@ body.au-ov-abierto #app{visibility:hidden}
 
 /* ---------- Initiative Tracker (2.0-dev4) ---------- */
 .tk{--tk-oro:#e0b21f}
-.tk .tarjeta h3 small,.tk h3 small{font-weight:400;font-size:.72rem;color:var(--tx2)}
+.tk .tarjeta h3 small,.tk h3 small,#maqueta .tarjeta h3 small{font-weight:400;font-size:.72rem;color:var(--tx2)}
 .tk-cab{display:flex;align-items:center;gap:12px;margin:2px 0 12px}
 .tk-cab .crece{flex:1;min-width:0}.tk-cab h2{margin:0}.tk-cab small{color:var(--tx2)}
 .tk-dr{flex:none;width:44px;height:44px;border-radius:12px;background:var(--panel);display:flex;align-items:center;justify-content:center;color:var(--tk-oro)}
