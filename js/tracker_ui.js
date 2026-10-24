@@ -90,14 +90,16 @@ window.MD = window.MD || {};
     // ---------- el tracker (foto + fichas) ----------
     refs.foto = el('div', { class: 'tk-foto' }, el('img', { alt: 'Tracker de frente', src: 'tracker/tracker.jpg', draggable: 'false' }));
     refs.svgT = document.createElementNS(NS, 'svg'); refs.svgT.setAttribute('viewBox', '0 0 1998 800'); refs.svgT.setAttribute('preserveAspectRatio', 'none');
-    refs.svgT.innerHTML = '<defs><filter id="tk-gl" x="-60%" y="-30%" width="220%" height="160%"><feGaussianBlur stdDeviation="7"/></filter><linearGradient id="tk-fade" gradientUnits="userSpaceOnUse" x1="0" y1="170" x2="0" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".34"/></linearGradient></defs>';
+    refs.svgT.innerHTML = '<defs><filter id="tk-gl" x="-60%" y="-30%" width="220%" height="160%"><feGaussianBlur stdDeviation="7"/></filter><clipPath id="tk-clip"><rect x="0" y="0" width="1998" height="287"/></clipPath><linearGradient id="tk-fade" gradientUnits="userSpaceOnUse" x1="0" y1="170" x2="0" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".34"/></linearGradient></defs>';
     refs.slots = [];
+    const tapa = document.createElementNS(NS, 'g'); tapa.setAttribute('clip-path', 'url(#tk-clip)');   // lo que pasa de la tapa de madera no se ve
     for (let i = 0; i < 12; i++) {
-      const cov = document.createElementNS(NS, 'rect'); cov.setAttribute('x', CX[i] - 71); cov.setAttribute('y', 66); cov.setAttribute('width', 142); cov.setAttribute('height', 218); cov.setAttribute('fill', '#040404'); refs.svgT.append(cov);
-      const g = document.createElementNS(NS, 'g'); g.setAttribute('transform', 'translate(' + (CX[i] - 60) + ',78) scale(1.2)');
-      g.innerHTML = '<g class="gl" filter="url(#tk-gl)"></g><g class="sh"></g><g class="fd" fill="url(#tk-fade)"></g>'; refs.svgT.append(g);
+      const cov = document.createElementNS(NS, 'rect'); cov.setAttribute('x', CX[i] - 71); cov.setAttribute('y', 66); cov.setAttribute('width', 142); cov.setAttribute('height', 220); cov.setAttribute('fill', '#040404'); refs.svgT.append(cov);
+      const g = document.createElementNS(NS, 'g'); g.setAttribute('transform', 'translate(' + (CX[i] - 71.5) + ',83) scale(1.43)');   // la ficha mide lo que la de la foto; la base queda tapada por la tapa
+      g.innerHTML = '<g class="gl" filter="url(#tk-gl)"></g><g class="sh"></g><g class="fd" fill="url(#tk-fade)"></g>'; tapa.append(g);
       refs.slots.push({ g, gl: g.querySelector('.gl'), sh: g.querySelector('.sh'), fd: g.querySelector('.fd'), firma: '' });
     }
+    refs.svgT.append(tapa);
     refs.foto.append(refs.svgT);
     refs.sinSenal = el('div', { class: 'tk-vacio' }, 'Conectá el Arduino (o el simulador) para ver el tracker en vivo.');
     refs.foto.append(refs.sinSenal);
@@ -107,9 +109,16 @@ window.MD = window.MD || {};
     refs.barra = el('i');
     const bJ = (cls, lado, etiqueta) => {
       const b = el('button', { type: 'button', class: 'tk-jb ' + cls, 'aria-label': etiqueta });
-      const arriba = () => { b.classList.remove('p'); Sv.simBoton(lado, false); if (lado === 'C') { cDown = 0; refs.barra.style.width = '0'; } };
-      b.addEventListener('pointerdown', (ev) => { ev.preventDefault(); if (Sv.modo !== 'sim' || Sv.estado !== 'conectado') { toast('El joystick de la pantalla maneja el simulador. En el aparato real, usá el joystick de Frodo.'); return; } b.classList.add('p'); Sv.simBoton(lado, true); if (lado === 'C') cDown = performance.now(); });
-      ['pointerup', 'pointerleave', 'pointercancel'].forEach((k) => b.addEventListener(k, arriba));
+      let abajo = false;
+      const arriba = () => {
+        if (!abajo) return; abajo = false; b.classList.remove('p'); Sv.simBoton(lado, false);
+        if (lado === 'C') {
+          const dur = cDown ? performance.now() - cDown : 0; cDown = 0; refs.barra.style.width = '0';
+          if (dur && dur < 500 && E && E.S && E.S.modo === 'Q') toast('Para confirmar la cantidad hay que mantener el botón del medio 2 segundos');
+        }
+      };
+      b.addEventListener('pointerdown', (ev) => { ev.preventDefault(); if (Sv.modo !== 'sim' || Sv.estado !== 'conectado') { toast('El joystick de la pantalla maneja el simulador. En el aparato real, usá el joystick de Frodo.'); return; } abajo = true; try { b.setPointerCapture(ev.pointerId); } catch (e) {} b.classList.add('p'); Sv.simBoton(lado, true); if (lado === 'C') cDown = performance.now(); });
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((k) => b.addEventListener(k, arriba));   // con captura: aunque el mouse se corra un poco, el boton sigue apretado hasta soltar
       return b;
     };
     let cDown = 0;
