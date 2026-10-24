@@ -12,7 +12,7 @@
 </head>
 <body>
 <div id="app">
-  <header class="cab"><h1>Macrodeck · D&amp;D<small id="ver" class="ver"></small></h1><span id="guardadoCab" class="guardado-cab" hidden>⚠ Sin guardar</span><button type="button" id="estadoCab" class="estado" aria-label="Estado del audio, del Macrodeck y de la bateria del celu"></button></header>
+  <header class="cab"><h1>Macrodeck · D&amp;D<small id="ver" class="ver"></small></h1><span id="guardadoCab" class="guardado-cab" hidden>⚠ Sin guardar</span><button type="button" id="estadoCab" class="estado" aria-expanded="false" aria-controls="estadoTxt" aria-label="Estado del audio, del Macrodeck, de las luces y de la bateria del celu. Abre el panel."></button></header>
   <div id="estadoTxt" class="estado-txt" hidden></div>
   <main id="vista"></main>
   <aside id="maqueta" aria-label="Macrodeck simulado"></aside>
@@ -54,6 +54,8 @@
 <script src="js/audios_ui.js"></script>
 <script src="js/selector.js"></script>
 <script src="js/sync_todo.js"></script>
+<script src="js/panel_luces.js"></script>
+<script src="js/navegacion.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

@@ -108,7 +108,8 @@
   // v1.3-dev13: el estado va en la cabecera como PUNTITOS (verde = bien, amarillo = en camino / silenciado, rojo = sin conexion, gris = apagado)
   // sobre un icono: parlante (audio), Bluetooth (Macrodeck) y la bateria de ESTE celu con su porcentaje. Tocar el grupo muestra el detalle escrito.
   const mkInd = (id, punto) => { const e = h('span', { class: 'ind', id }, punto ? h('i', { class: 'pt' }) : null); estadoCab.append(e); return e; };
-  const indAudio = mkInd('indAudio', true), indCon = mkInd('indCon', true), indBat = mkInd('indBat', false);
+  const indAudio = mkInd('indAudio', true), indCon = mkInd('indCon', true), indLuz = mkInd('indLuz', true), indBat = mkInd('indBat', false);
+  indLuz.hidden = true;
   indBat.hidden = true;
   const pctBat = h('span', { class: 'pct' }); indBat.append(pctBat);
   function ponerInd(e, clase, icono) {
@@ -116,9 +117,9 @@
     if (e._cl !== clase) { e.className = 'ind ' + clase; e._cl = clase; }
   }
   let tTxt = 0;
-  estadoCab.addEventListener('click', () => {
-    estadoTxt.hidden = !estadoTxt.hidden; clearTimeout(tTxt);
-    if (!estadoTxt.hidden) { estadoTxt.textContent = A.estadoTexto || ''; if (conectado()) estadoTxt.append(' ', h('button', { type: 'button', class: 'chico', id: 'btnDesconectar', onclick: (ev) => { ev.stopPropagation(); A.cortar(); estadoTxt.hidden = true; } }, 'Desconectar')); tTxt = setTimeout(() => { estadoTxt.hidden = true; }, 6000); }
+  // 2.0-dev2: tocar los iconos abre el PANEL plegable (estado + luces + pantalla). Va dentro de la pagina, no flota: no se pisa con el reproductor.
+  estadoCab.addEventListener('click', (ev) => {
+    if (MDg.Panel) MDg.Panel.alternar(ev.target.closest && ev.target.closest('#indLuz') ? 'luces' : 'estado');
   });
   try { if (navigator.getBattery) navigator.getBattery().then((b) => { A.bat = b; ['levelchange', 'chargingchange'].forEach(ev => b.addEventListener(ev, pintarPills)); pintarPills(); }).catch(() => {}); } catch (e) {}
   function pintarPills() {
@@ -135,8 +136,17 @@
       if (pctBat.textContent !== pct + '%') pctBat.textContent = pct + '%';
       indBat.hidden = false; tBat = 'Bateria de este celu ' + pct + '%' + (carga ? ' (cargando)' : '');
     }
-    A.estadoTexto = [tAudio, tCon, tBat].filter(Boolean).join(' · ');
-    if (estadoCab.title !== A.estadoTexto) { estadoCab.title = A.estadoTexto; if (!estadoTxt.hidden && !estadoTxt.querySelector('button')) estadoTxt.textContent = A.estadoTexto; }
+    // luces de D&D (2.0-dev2): verde = todas conectadas, amarillo = alguna, rojo = ninguna / el servidor no contesta, oculto = apagadas en este celu
+    const LZ = MDg.LucesDnd; let tLuz = '';
+    if (LZ && LZ.aj.activo) {
+      const g = LZ.conectadas; let cl = 'off';
+      if (LZ.estado === 'sin conexion') cl = 'mal'; else if (g) cl = (g.luces && g.conectadas === g.luces) ? 'ok' : (g.conectadas > 0 ? 'warn' : 'mal');
+      ponerInd(indLuz, cl, 'luz'); indLuz.hidden = false;
+      tLuz = LZ.estado === 'sin conexion' ? 'Luces: el servidor no contesta' : (g ? 'Luces D&D ' + g.conectadas + '/' + g.luces : 'Luces: mirando…');
+    } else indLuz.hidden = true;
+    A.estadoTexto = [tAudio, tCon, tLuz, tBat].filter(Boolean).join(' · ');
+    if (estadoCab.title !== A.estadoTexto) estadoCab.title = A.estadoTexto;
+    if (MDg.Panel) MDg.Panel.pintarEstado(A.estadoTexto, !!conectado());
   }
   // ---------- escuchar un sonido (con pausa, barra y parar) ----------
   // Pasa por el MISMO camino que la Mesa (volumen del sonido x volumen general), asi se oye igual.
@@ -234,7 +244,7 @@
     if (A.tr) { try { A.tr.desconectar(); } catch (e) {} }
     A.tr = tr;
     tr.onFrame = (f) => A.alTrama(f);
-    tr.onEstado = () => { if (MDg.Diag) MDg.Diag.anotar('bluetooth ' + tr.estado); pintarPills(); if (tr.estado === 'conectado') A.mantenerVivo(true); if (A.tab === 'mesa') A.render(); };
+    tr.onEstado = () => { if (MDg.Diag) MDg.Diag.anotar('bluetooth ' + tr.estado); pintarPills(); if (tr.estado === 'conectado') A.mantenerVivo(true); else A.notifEstado(); if (A.tab === 'mesa') A.render(); };
     tr.onConectado = () => { A.ultLeds = ''; A.ultFilas = ['', '', '', '']; A.motor.fijarTope(A.cfg.ajustes.volMax); };
   }
   A.conectarBle = async function () {
@@ -253,6 +263,15 @@
     A.render();
   };
   A.cortar = function () { if (A.tr) A.tr.desconectar(); A.mantenerVivo(false); A.render(); };
+  // 2.0-dev2: el icono y el texto de la notificacion siguen el estado del Bluetooth (solo si el servicio ya esta andando)
+  A._svcOn = false;
+  A.notifEstado = function () {
+    if (!A._svcOn || !MDg.Nativo || !MDg.Nativo.servicio || !A.tr) return;
+    const e = A.tr.estado === 'conectado' ? 'conectado' : (A.tr.estado === 'desconectado' ? 'desconectado' : 'buscando');
+    const tit = e === 'conectado' ? '✔ Conectado al Macrodeck' : (e === 'buscando' ? 'Buscando el Macrodeck…' : 'Macrodeck desconectado');
+    const txt = e === 'conectado' ? (A.cfg && A.cfg.nombre ? A.cfg.nombre : 'Sonidos listos') : (e === 'buscando' ? 'Se reconecta solo' : 'Sin conexión con el Macrodeck');
+    MDg.Nativo.servicio(true, tit, txt, e);
+  };
 
   // ---------- mantener vivo (celu en el bolsillo) ----------
   let silencioEl = null, wake = null;
@@ -266,7 +285,8 @@
       // En el APK lo hace el servicio en primer plano de Android (notificacion + wake lock). NO se usa el audio silencioso
       // del navegador: un <audio> en el WebView podria pedirle el foco de audio a Android y pausar YouTube.
       if (MDg.Nativo && MDg.Nativo.servicio) {
-        await MDg.Nativo.servicio(!!si, 'Macrodeck conectado', A.cfg && A.cfg.nombre ? A.cfg.nombre : '');
+        A._svcOn = !!si;
+        await MDg.Nativo.servicio(!!si, '✔ Conectado al Macrodeck', A.cfg && A.cfg.nombre ? A.cfg.nombre : 'Sonidos listos', 'conectado');
         if (MDg.Vivo) {   // que Chromium no congele la pagina con el celu bloqueado (ver js/vivo.js)
           if (si) { try { await A.motor.iniciar(); } catch (e) {} MDg.Vivo.activar(A.motor.ctx); } else MDg.Vivo.parar();
         }
@@ -617,16 +637,17 @@
 
   // ---------- pantallas ----------
   // v1.3-dev13: cada pestana lleva su icono (MDI); la de Drive muestra un numerito si hay sonidos nuevos o cambiados.
+  A.irATab = function (id) { volcar(); A.tab = id; A.render(); vista.scrollTop = 0; };
   A.pintarTabs = function () {
     tabsEl.innerHTML = '';
     const activa = EN_MAS.includes(A.tab) ? 'mas' : A.tab;
-    TABS.forEach(([id, n, ic, corto]) => tabsEl.append(h('button', { type: 'button', class: id === activa ? 'on' : '', 'data-tab': id, 'aria-label': n, 'aria-current': id === activa ? 'page' : null, onclick: () => { volcar(); A.tab = id; A.render(); vista.scrollTop = 0; } },
+    TABS.forEach(([id, n, ic, corto]) => tabsEl.append(h('button', { type: 'button', class: id === activa ? 'on' : '', 'data-tab': id, 'aria-label': n, 'aria-current': id === activa ? 'page' : null, onclick: () => A.irATab(id) },
       h('span', { class: 'tab-ic' }, MDg.IUI.svg(ic), id === 'mas' && A.drivePend ? h('b', { class: 'bd' }, String(A.drivePend)) : null), h('span', { class: 'tab-n' }, corto || n))));
   };
   A.render = function () {
     const sc = vista.scrollTop;
     vista.innerHTML = ''; A.mesaCeldas = []; A.mesaVol = A.mesaSonando = null;
-    if (EN_MAS.includes(A.tab)) vista.append(h('button', { type: 'button', class: 'atras', onclick: () => { volcar(); A.tab = 'mas'; A.render(); vista.scrollTop = 0; } }, MDg.IUI.svg('atras'), 'Más'));
+    if (EN_MAS.includes(A.tab)) vista.append(h('button', { type: 'button', class: 'atras', onclick: () => A.irATab('mas') }, MDg.IUI.svg('atras'), 'Más'));
     ({ mesa: MDg.UI.vistaMesa, mas: MDg.UI.vistaMas, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     A.pintarTabs();
     if (MDg.Sync) MDg.Sync.montar();                          // 1.3-dev31: boton grande "Sincronizar todo" arriba, en todas las pestanas
@@ -647,6 +668,10 @@
     if (!enApk && 'serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
     window.addEventListener('beforeunload', () => { try { MDg.Almacen.guardarConfig(A.cfg); } catch (e) {} });
     if (MDg.Celu) { MDg.Celu.onCambio = () => { if (A._celuPintar) A._celuPintar(); const av = document.getElementById('avisoAccesoMedios'); if (av) av.hidden = !!MDg.Celu.s.acceso; }; MDg.Celu.iniciar(A); }
+    if (MDg.LucesDnd) MDg.LucesDnd.pintores.cab = pintarPills;
+    if (MDg.Panel) MDg.Panel.iniciar(A);                  // 2.0-dev2: panel plegable de la cabecera + ambilight
+    if (MDg.Nav) MDg.Nav.iniciar(A);                      // 2.0-dev2: el boton Atras de Android navega dentro de la app
+    pintarPills();
     window.appListo = true;
   })();
 })();

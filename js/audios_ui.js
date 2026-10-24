@@ -112,11 +112,16 @@ window.MD = window.MD || {};
     cerrarOv();
     const el = h('div', { class: 'au-ov au-ov-' + tipo, role: 'dialog', 'aria-label': tipo === 'player' ? 'Reproductor' : tipo === 'cola' ? 'En cola' : 'Modo mesa' });
     document.body.append(el); document.body.classList.add('au-ov-abierto');
+    if (tipo === 'mesa' && MD.Panel) { MD.Panel.cerrar(); MD.Panel.pantallaCompleta(true, true); }       // 2.0-dev2: Modo mesa = pantalla completa (sin barras)
     const def = { player: ovPlayer, cola: ovCola, mesa: ovMesa }[tipo];
     U.ov = Object.assign({ tipo, el }, def(el));
     U.ov.render();
   }
-  function cerrarOv() { if (U.ov) { U.ov.el.remove(); U.ov = null; } document.body.classList.remove('au-ov-abierto'); }
+  function cerrarOv() {
+    const eraMesa = !!(U.ov && U.ov.tipo === 'mesa');
+    if (U.ov) { U.ov.el.remove(); U.ov = null; } document.body.classList.remove('au-ov-abierto');
+    if (eraMesa && MD.Panel) MD.Panel.pantallaCompleta(false, true);
+  }
   const cab = (titulo, derecha, alCerrar) => h('div', { class: 'au-ov-cab' }, btn('abajo', 'Cerrar', alCerrar || cerrarOv, 'au-ib', 26), h('div', { class: 'au-ov-tit' }, titulo), derecha || h('span', { style: 'width:44px' }));
 
   // --- dos carriles: Musica y Ambientes suenan a la vez, cada uno con su volumen ---
@@ -219,6 +224,7 @@ window.MD = window.MD || {};
             h('div', { class: 'au-mesa-esc-n' }, h('b', null, A.cfg.escenas[A.activa] ? A.cfg.escenas[A.activa].nombre : '—'), h('small', { class: 'suave' }, lugar >= 0 ? NOMS[lugar] + ' en el Macrodeck' : 'solo en la app')),
             h('button', { type: 'button', class: 'au-mesa-nav', 'aria-label': 'Escena siguiente', onclick: () => irA(1) }, MD.IUI.svg('adelante'))),
           carril('ambiente'), carril('musica'),
+          MD.Panel && MD.LucesDnd && MD.LucesDnd.aj.activo ? h('div', { class: 'au-mesa-luces' }, MD.Panel.plegable('Luces de D&D', h('div', { class: 'pl-pila' }, MD.Panel.botonConectar(false), MD.Panel.controlesLuces()), 'mesaLuces', null, false).el) : null,
           h('div', { class: 'au-mesa-grid' },
             grande('rojo', 'Combate', 'salta a E4–E5', () => Au.saltarEnergia(4, 5, 3), 'mesa'), grande('azul', 'Calma', 'baja a E1–E2', () => Au.saltarEnergia(1, 2, 4), 'luz'),
             grande('', 'Parecido', 'mismo bioma y lugar', () => Au.parecidoAhora(), 'escenas'), grande('', 'Apagar suave', 'fundido de salida', () => Au.apagarSuave(8), 'audio'),

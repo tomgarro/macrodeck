@@ -19,7 +19,7 @@
     celu: { bat: 82, carga: false, vol: 50, suena: false, sesion: false, acceso: false, titulo: '', app: '' } };   // v1.3-dev14: el celu de mentira
   window.__nativoSim = { reg, S, perderBT: (ms) => perderBT(ms), parar: () => emit('parar', {}), quitarExencion: () => { S.exento = false; }, red: (o) => { Object.assign(S.red, o); }, celu: (o) => celuCambiar(o) };
   let sim = null, ui = null;
-  const oyentes = { estado: [], trama: [], parar: [], celu: [] };
+  const oyentes = { estado: [], trama: [], parar: [], celu: [], accion: [] };
   const emit = (n, d) => oyentes[n].slice().forEach(f => { try { f(d); } catch (e) { console.error(e); } });
   const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); };
   const u8 = (b) => Uint8Array.from(atob(b), c => c.charCodeAt(0));
@@ -78,13 +78,14 @@
     }),
     desconectar: puente(async () => { S.quiere = false; log('BLE: desconectar()'); sim.desconectar(); estado('desconectado'); }),
     escribir: puente(async (o) => { if (!o || typeof o.b64 !== 'string') throw new Error('escribir pide {b64}'); const f = u8(o.b64); if (f.length > 20) throw new Error('trama de mas de 20 bytes'); if (S.ble === 'conectado') sim.send(f); }),
+    pantallaCompleta: puente(async (o) => { S.completa = !!o.on; log(S.completa ? 'Pantalla completa ON (barras escondidas, pantalla siempre prendida)' : 'Pantalla completa OFF'); }),
     duck: puente(async (o) => {
       S.duck = !!o.on; S.historialDuck.push(S.duck); S.yt = S.duck ? 0.3 : 1;
       log(S.duck ? 'Audio: requestAudioFocus(GAIN_TRANSIENT_MAY_DUCK) -> YouTube baja' : 'Audio: abandonAudioFocus() -> YouTube sube'); pintar();
     }),
     servicio: puente(async (o) => {
-      S.servicio = !!o.on; S.tituloServicio = o.on ? (o.titulo || '') : '';
-      log(S.servicio ? 'Servicio en primer plano ON: "' + (o.titulo || '') + '" + wake lock' : 'Servicio en primer plano OFF'); pintar();
+      S.servicio = !!o.on; S.tituloServicio = o.on ? (o.titulo || '') : ''; S.estadoServicio = o.estado || 'conectado';
+      log(S.servicio ? 'Servicio en primer plano ON [' + S.estadoServicio + ']: "' + (o.titulo || '') + '" + wake lock' : 'Servicio en primer plano OFF'); pintar();
     }),
     redActual: puente(async () => json(S.red)),
     pedirUbicacion: puente(async () => { S.red.permisoUbicacion = true; if (S.red.tipo === 'wifi' && S.red.nombreReal) { S.red.ssid = S.red.nombreReal; S.red.ssidLegible = true; } log('Permiso de ubicacion: concedido (simulado)'); return json(S.red); }),
@@ -135,6 +136,7 @@
       <button type="button" id="nsPerder">Cortar Bluetooth (reconecta solo)</button>
       <button type="button" id="nsBateria">Excluir de bateria</button>
       <button type="button" id="nsParar">Notificacion: Parar todo</button>
+      <button type="button" id="nsEscena">Notificacion: Escena</button>
       <ol id="nsLog"></ol>
       <div class="simbox" id="nsSim"></div>`;
     document.body.appendChild(p);
@@ -150,6 +152,7 @@
     p.querySelector('#nsPerder').onclick = () => perderBT(3000);
     p.querySelector('#nsBateria').onclick = () => plugin.pedirExencionBateria();
     p.querySelector('#nsParar').onclick = () => { log('Notificacion: se toco "Parar todo"'); emit('parar', {}); };
+    if (p.querySelector('#nsEscena')) p.querySelector('#nsEscena').onclick = () => { log('Notificacion: se toco "Escena"'); emit('accion', { id: 'escena' }); };
     sim = new MD.Simulador(p.querySelector('#nsSim'));
     sim.onFrame = (f) => emit('trama', { b64: b64(f) });     // lo que manda el Macrodeck sube a la app por el puente
     sim.onEstado = () => {}; sim.onConectado = () => {};

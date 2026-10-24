@@ -214,9 +214,9 @@ input[type=color]{width:100%;min-height:42px;border:0;border-radius:10px;backgro
 #maqueta{display:none}
 @media (min-width:1100px){
   /* v1.3-dev35: escritorio en columnas: riel de pestanas a la izquierda | pantalla | Macrodeck (foto) a la derecha */
-  #app{max-width:1640px;display:grid;grid-template-columns:92px minmax(0,1fr) minmax(500px,580px);grid-template-rows:auto auto minmax(0,1fr) auto;
-    grid-template-areas:"tabs cab cab" "tabs est est" "tabs vista maq" "tabs mini maq";column-gap:24px}
-  header.cab{grid-area:cab} #estadoTxt{grid-area:est} main{grid-area:vista} #miniPlayer{grid-area:mini} nav.tabs{grid-area:tabs}
+  #app{max-width:1640px;display:grid;grid-template-columns:92px minmax(0,1fr) minmax(500px,580px);grid-template-rows:auto auto auto minmax(0,1fr) auto;
+    grid-template-areas:"tabs cab cab" "tabs est est" "tabs sync maq" "tabs vista maq" "tabs mini maq";column-gap:24px}
+  header.cab{grid-area:cab} #estadoTxt{grid-area:est} .barra-sync{grid-area:sync} main{grid-area:vista} #miniPlayer{grid-area:mini} nav.tabs{grid-area:tabs}
   #maqueta{grid-area:maq;display:block;overflow-y:auto;padding:14px 16px 24px 0}
   nav.tabs{flex-direction:column;justify-content:flex-start;align-items:stretch;gap:4px;padding:18px 6px;border-top:0;border-right:1px solid var(--linea);background:var(--panel)}
   nav.tabs button{flex:none;max-width:none;min-height:72px;border-radius:var(--r)}
@@ -483,3 +483,88 @@ nav.tabs button.on .tab-ic{background:var(--panel2)}
 .au-mesa-pct{width:56px;white-space:nowrap}
 /* v1.3-dev35: el firmware v4.4-dev32 ya no tiene CEL: se esconden sus controles del simulador (la logica interna no cambia) */
 .sim-homeb1,.sim-pie label:has(.sim-dest){display:none}
+
+/* ===== 2.0-dev2: panel plegable de la cabecera, controles de luces, ambilight, aviso de "Atras" ===== */
+/* Todo va EN el flujo de la pagina (nada flota encima): asi no se pisa con el reproductor, la barra de Sincronizar ni la maqueta de escritorio. */
+#app{position:relative;z-index:1}
+.panel-estado{flex:none;margin:0 12px 8px;padding:4px 8px 8px;background:var(--panel);border:1px solid var(--linea);border-radius:var(--r);max-height:min(60vh,560px);overflow-y:auto;font-size:.85rem;color:var(--tx);overscroll-behavior:contain}
+.panel-estado[hidden]{display:none}
+.pl{border:1px solid var(--linea);border-radius:12px;background:var(--panel2);margin:6px 0;overflow:hidden}
+.pl .pl{background:var(--panel)}
+.pl-cab{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;border-radius:0;padding:8px 12px;min-height:44px;text-align:left;font-weight:700;font-size:.92rem;color:var(--tx)}
+.pl-tit{flex:1;min-width:0}
+.pl-flecha{width:22px;height:22px;fill:currentColor;flex:none;transition:transform .18s}
+.pl.abierto>.pl-cab .pl-flecha{transform:rotate(180deg)}
+.pl-cuerpo{padding:2px 12px 12px}
+.pl-cuerpo[hidden]{display:none}
+.pl-badge{font-size:.78rem;font-weight:600;color:var(--tx2);font-variant-numeric:tabular-nums}
+.pl-pila{display:flex;flex-direction:column;gap:10px}
+.pl-txt{margin:0 0 8px;color:var(--tx2);line-height:1.4}
+.pl-fila-con{gap:8px}
+.pl-conectar{display:inline-flex;align-items:center;gap:6px}
+.pl-conectar svg{width:20px;height:20px;fill:currentColor}
+.pl-conectar.grande{font-weight:700;padding:.65em 1.1em}
+.tarjeta.pl-arriba{padding:0;background:none;border:0}
+.tarjeta.pl-arriba>.pl{margin-top:0}
+/* controles de una o dos lamparas */
+.pl-ctl{background:var(--panel);border:1px solid var(--linea);border-radius:12px;padding:10px 12px}
+.pl .pl .pl-ctl{background:var(--panel2)}
+.pl-ctl-cab{display:flex;align-items:center;gap:10px;margin-bottom:2px}
+.pl-pt{width:10px;height:10px;border-radius:50%;background:var(--gris);flex:none}
+.pl-pt.ok{background:var(--ok)}.pl-pt.warn{background:var(--amarillo)}.pl-pt.mal{background:var(--rojo)}
+.pl-muestra{width:22px;height:22px;border-radius:50%;border:1px solid var(--linea);flex:none}
+.pl-sw{position:relative;width:54px;height:30px;min-height:0;padding:0;border-radius:999px;background:var(--panel2);border:1px solid var(--linea);flex:none}
+.pl-sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--tx2);transition:transform .15s,background .15s}
+.pl-sw.on{background:var(--amarillo);border-color:var(--amarillo)}
+.pl-sw.on i{transform:translateX(24px);background:#1b1407}
+.pl-et{display:flex;align-items:baseline;gap:6px;margin:.7em 0 .15em;font-size:.8rem;color:var(--tx2)}
+.pl-val{margin-left:auto;font-variant-numeric:tabular-nums}
+.pl-ext{margin-left:auto;font-size:.72rem}
+.pl-ctl.apagada .pl-rango{opacity:.45}
+.pl-rango{width:100%;min-height:30px;margin:0}
+.pl-hue,.pl-temp{-webkit-appearance:none;appearance:none;height:16px;border-radius:8px;outline:none;border:1px solid var(--linea)}
+.pl-hue{background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)}
+.pl-temp{background:linear-gradient(to right,#ff8a12,#ffbf80,#fff1e0,#d6e4ff,#9ec2ff)}
+.pl-hue::-webkit-slider-thumb,.pl-temp::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#fff;border:3px solid #222;box-shadow:0 1px 4px #0009}
+.pl-hue::-moz-range-thumb,.pl-temp::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:#fff;border:3px solid #222}
+/* conectar todo: las 3 runas */
+.pl-runas{display:flex;flex-wrap:wrap;gap:8px}
+.pl-runas[hidden]{display:none}
+.pl-runa{flex:1 1 150px;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:center;background:var(--panel);border:1px solid var(--linea);border-radius:12px;padding:8px 10px}
+.pl-runa small{grid-column:1/-1;line-height:1.25}
+.pl-runa-ic{position:relative;display:inline-flex}
+.pl-runa-ic svg{width:24px;height:24px;fill:currentColor}
+.pl-runa-pt{position:absolute;top:-3px;right:-5px;width:10px;height:10px;border-radius:50%;background:var(--gris);box-shadow:0 0 0 2px var(--panel)}
+.pl-runa.giro .pl-runa-pt{background:var(--amarillo);animation:plPulso 1s ease-in-out infinite}
+.pl-runa.ok{border-color:var(--ok)}.pl-runa.ok .pl-runa-pt{background:var(--ok)}
+.pl-runa.warn{border-color:var(--amarillo)}.pl-runa.warn .pl-runa-pt{background:var(--amarillo)}
+.pl-runa.mal{border-color:var(--rojo)}.pl-runa.mal .pl-runa-pt{background:var(--rojo)}
+@keyframes plPulso{50%{opacity:.25}}
+/* pintar con el dedo */
+.pl-lienzo-caja{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--linea)}
+.pl-lienzo{display:block;width:100%;height:150px;cursor:crosshair}
+.pl-mira{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #0009;pointer-events:none}
+.panel-estado select,.panel-estado input[type=text]{width:100%}
+/* ambilight: los bordes brillan con el color de cada lampara (izquierda D&D 1, derecha D&D 2) */
+.ambi{position:fixed;top:0;bottom:0;width:min(24vw,200px);pointer-events:none;z-index:0;opacity:0;transition:opacity .9s ease;--ac:#000;--b:.6;--v:1}
+.ambi-l{left:0;background:linear-gradient(to right,var(--ac),transparent)}
+.ambi-r{right:0;background:linear-gradient(to left,var(--ac),transparent)}
+.ambi.on{opacity:calc(var(--b) * .5)}
+.ambi.e-fuego,.ambi.e-vela{animation:ambiFuego calc(1.7s * var(--v)) ease-in-out infinite alternate}
+.ambi.e-respirar,.ambi.e-magia{animation:ambiResp calc(3.2s * var(--v)) ease-in-out infinite alternate}
+.ambi.e-latido{animation:ambiResp calc(.9s * var(--v)) ease-in-out infinite alternate}
+.ambi.e-tormenta,.ambi.e-relampago{animation:ambiRayo 4s linear infinite}
+.ambi.e-parpadeo{animation:ambiParp .9s steps(1) infinite}
+@keyframes ambiFuego{0%{opacity:calc(var(--b) * .28)}35%{opacity:calc(var(--b) * .62)}60%{opacity:calc(var(--b) * .38)}100%{opacity:calc(var(--b) * .55)}}
+@keyframes ambiResp{from{opacity:calc(var(--b) * .16)}to{opacity:calc(var(--b) * .6)}}
+@keyframes ambiRayo{0%,84%,100%{opacity:calc(var(--b) * .18)}86%{opacity:.85}88%{opacity:calc(var(--b) * .22)}91%{opacity:.7}}
+@keyframes ambiParp{0%{opacity:calc(var(--b) * .6)}50%{opacity:0}}
+body.sin-ambi .ambi{display:none}
+@media (prefers-reduced-motion:reduce){.ambi.on{animation:none!important}}
+/* con una pantalla grande abierta (Modo mesa, reproductor, cola) la app de abajo se esconde y se ve el ambilight */
+body.au-ov-abierto #app{visibility:hidden}
+.au-ov{background:transparent}
+.au-mesa-luces{margin:2px 0}
+/* aviso "Toca otra vez para salir" */
+.toast-nav{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(10px);background:var(--panel2);color:var(--tx);border:1px solid var(--linea);border-radius:999px;padding:9px 18px;font-size:.88rem;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:95;white-space:nowrap}
+.toast-nav.on{opacity:1;transform:translateX(-50%)}

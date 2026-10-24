@@ -152,8 +152,14 @@ window.MD = window.MD || {};
   L.enviar = function (ordenes) {
     if (!L.aj.activo || !ordenes.length) return Promise.resolve(null);
     if (L.escenaN) for (const o of ordenes) if (o && o.escena === undefined) o.escena = L.escenaN;
+    for (const f of (L.alOrden || [])) { try { f(ordenes); } catch (e) {} }     // 2.0-dev2: el ambilight mira lo que se manda
     return pedir('/efectos', { ordenes }, 0, true).catch(() => null).then((d) => { L.pintar(); return d; });
   };
+  // 2.0-dev2: lo que usa el panel de la cabecera
+  L.salud = function () { return pedir('/salud'); };
+  L.leer = function () { return pedir('/luces?grupo=dnd'); };
+  L.buscar = function () { return pedir('/red/buscar', {}, 5000); };       // reintenta las lamparas caidas y recorre la red
+  L.alOrden = [];
   L.probarConexion = async function () {
     try {
       const s = await pedir('/salud');
@@ -161,7 +167,7 @@ window.MD = window.MD || {};
       L.conectadas = g;
       try { const lu = await pedir('/luces?grupo=dnd'); for (const k in lu) if (lu[k] && lu[k].nombre) L.nombres[k] = lu[k].nombre; } catch (e) {}
       return 'Servidor ' + s.version + ': ' + g.conectadas + ' de ' + g.luces + ' luces de D&D conectadas.';
-    } catch (e) { return 'No se pudo: ' + L.ultimoError + '. ¿Esta prendida la app Macrodeck Luces en este celu?'; }
+    } catch (e) { return 'No se pudo: ' + L.ultimoError + '. ¿Esta andando el servidor de luces? (es la notificacion «Macrodeck Luces»; viene adentro de esta app)'; }
   };
 
   // ---- ordenes ----

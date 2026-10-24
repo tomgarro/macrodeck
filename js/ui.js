@@ -350,6 +350,7 @@ window.MD = window.MD || {};
     return h('div', { class: 'tarjeta' },
       h('div', { class: 'fila' }, MD.IUI.svg('luz', 'ic-luz'), estado),
       h('div', { class: 'fila', style: 'margin-top:8px' },
+        MD.Panel ? MD.Panel.botonConectar(false) : null,
         h('button', { type: 'button', onclick: () => LZ.alEscena(A.cfg.escenas[A.activa]) }, 'Ambiente de la escena'),
         h('button', { type: 'button', onclick: () => LZ.pararMomentos() }, 'Cortar efectos'),
         h('button', { type: 'button', onclick: () => LZ.enviar([{ grupo: 'dnd', look: { efecto: 'apagado' }, capa: 'ambiente' }]) }, 'Apagar luces')));
@@ -360,11 +361,11 @@ window.MD = window.MD || {};
     cfg.looks = cfg.looks || [];
     const res = h('p', { class: 'suave', id: 'lucesPrueba', style: 'margin:6px 0 0' }, A._lucesMsg || '');
     const cuerpo = h('div', null,
-      h('p', { class: 'suave', style: 'margin-top:0' }, 'Las 2 lamparas de D&D las maneja la app "Macrodeck Luces" (el servidor de luces) que corre en este mismo celu. Esta app le pide los efectos; el servidor los anima.'),
+      h('p', { class: 'suave', style: 'margin-top:0' }, 'Las 2 lamparas de D&D las maneja el servidor de luces, que desde la 2.0 viene ADENTRO de esta misma app (corre aparte, con su notificacion «Macrodeck Luces»). Esta pantalla le pide los efectos; el servidor los anima.'),
       h('label', { class: 'chk', style: 'margin-top:0' }, h('input', { type: 'checkbox', checked: LZ.aj.activo, onchange: (e) => { LZ.aj.activo = e.target.checked; LZ.guardarAjustes(); A.render(); } }), ' Usar las luces en este celu'),
       h('label', null, 'Direccion del servidor de luces'),
       h('input', { type: 'text', value: LZ.aj.servidor, oninput: (e) => { LZ.aj.servidor = e.target.value.trim().replace(/\/+$/, ''); LZ.guardarAjustes(); } }),
-      h('p', { class: 'suave', style: 'margin:4px 0 0' }, 'En el dummy (las dos apps en el mismo celu): http://127.0.0.1:8765. Desde otro celu: la IP del dummy.'),
+      h('p', { class: 'suave', style: 'margin:4px 0 0' }, 'En el dummy (el servidor va adentro de la app): http://127.0.0.1:8765. Desde otro celu: la IP del dummy.'),
       h('div', { class: 'fila', style: 'margin-top:8px' },
         h('button', { type: 'button', onclick: async () => { A._lucesMsg = 'Probando…'; res.textContent = A._lucesMsg; A._lucesMsg = await LZ.probarConexion(); res.textContent = A._lucesMsg; } }, 'Probar conexion'),
         h('button', { type: 'button', onclick: () => LZ.pararTodo() }, 'Parar todos los efectos')),
@@ -391,6 +392,8 @@ window.MD = window.MD || {};
     if (!MD.LucesDnd) { el.append(h('p', { class: 'suave' }, 'Las luces no estan disponibles en esta version.')); return; }
     const LZ = MD.LucesDnd;
     el.append(h('div', { class: 'au-cab' }, h('h2', null, 'Luces de D&D'), h('span', { class: 'au-cuenta suave' }, LZ.aj.activo ? ((A.cfg.looks || []).length + LZ.FABRICA.length) + ' looks' : 'apagadas')));
+    // 2.0-dev2: el control individual (brillo, color, temperatura, prender/apagar) queda ARRIBA, plegable; es el mismo del panel de la cabecera
+    if (MD.Panel && LZ.aj.activo) el.append(h('div', { class: 'tarjeta pl-arriba' }, MD.Panel.plegable('Control rápido de las lámparas', MD.Panel.controlesLuces(), 'rapido', null, true).el));
     el.append(h('div', { class: 'tarjeta' }, tarjetaLuces(A)));
     el.append(tarjetaReposo(A));
   }
