@@ -76,7 +76,13 @@ window.MD = window.MD || {};
     refs.cBtn = el('button', { type: 'button', class: 'primario', onclick: () => { if (Sv.estado === 'conectado' || Sv.estado === 'conectando') Sv.desconectar(); else Sv.conectar(Sv.modo || undefined); } }, 'Conectar');
     refs.cTxt = el('div', { class: 'tk-estado' });
     refs.cAyuda = el('p', { class: 'suave tk-nota' });
-    root.append(el('div', { class: 'tarjeta' }, el('h3', null, 'Conexión'), segm, el('div', { class: 'fila tk-fila' }, refs.cBtn, refs.cTxt), refs.cAyuda));
+    // Desplegable: abierto mientras no hay conexion; al conectar se pliega solo (la ultima eleccion de Tom se recuerda y manda).
+    refs.cResumen = el('span', { class: 'tk-resumen' });
+    refs.conex = el('details', { class: 'tarjeta tk-conex' }, el('summary', null, el('h3', null, 'Conexión'), refs.cResumen), segm, el('div', { class: 'fila tk-fila' }, refs.cBtn, refs.cTxt), refs.cAyuda);
+    let conexElegido = null; try { conexElegido = localStorage.getItem('tk_conex'); } catch (e) {}
+    refs.conex.open = conexElegido ? conexElegido === '1' : Sv.estado !== 'conectado';
+    refs.conex.addEventListener('toggle', () => { if (refs.conex._auto) return; try { localStorage.setItem('tk_conex', refs.conex.open ? '1' : '0'); } catch (e) {} });
+    root.append(refs.conex);
 
     // ---------- ahora (ronda, turno, ficha) ----------
     refs.ronda = el('span', { class: 'tk-ronda' }, '1');
@@ -133,13 +139,14 @@ window.MD = window.MD || {};
       el('p', { class: 'suave tk-nota' }, 'Armando: izquierda / derecha cambian la cantidad o el personaje; centro 2 s confirma la cantidad; centro corto confirma cada personaje. Los tres botones juntos 3 s reinician.'));
     // En pantalla ancha (escritorio) el tracker con su joystick va en la columna de la derecha, en el lugar de la maqueta del Macrodeck (lo monta Maqueta.montar).
     const lado = !!(MD.Maqueta && MD.Maqueta.activa());
-    Trk._lado = lado ? [cardFoto, refs.joyCard] : null;
+    Trk._lado = lado ? [el('div', { class: 'tk' }, cardFoto, refs.joyCard)] : null;     // dentro de un .tk para que le lleguen los colores y estilos del tracker
     if (!lado) root.append(cardFoto, refs.joyCard);
 
     // ---------- sesion ----------
     const tile = (n) => { const b = el('b', null, '0'); refs['s_' + n[0]] = b; return el('div', null, b, el('span', null, n[1])); };
-    root.append(el('div', { class: 'tarjeta' }, el('h3', null, 'Sesión'), el('div', { class: 'tk-stats' }, [['ronda', 'ronda'], ['muertes', 'muertes'], ['caidos', 'caídos'], ['turnos', 'turnos'], ['tiempo', 'combate'], ['medio', 'por turno']].map(tile)),
+    const sesCard = (el('div', { class: 'tarjeta' }, el('h3', null, 'Sesión'), el('div', { class: 'tk-stats' }, [['ronda', 'ronda'], ['muertes', 'muertes'], ['caidos', 'caídos'], ['turnos', 'turnos'], ['tiempo', 'combate'], ['medio', 'por turno']].map(tile)),
       el('div', { class: 'fila tk-fila' }, el('button', { type: 'button', onclick: () => { Sv.stats = Trk.statsNueva(); Sv.avisar('ev'); } }, 'Poner en cero'))));
+    root.append(sesCard);
 
     // ============================================================================================================
     // ---------- sonidos y luces por movimiento ----------
@@ -277,10 +284,11 @@ window.MD = window.MD || {};
     cmd.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') mandar(); });
     refs.pausaB = el('button', { type: 'button', onclick: () => { pausa = !pausa; refs.pausaB.textContent = pausa ? 'Seguir' : 'Pausa'; if (!pausa) { sucio.log = true; pedir(); } } }, 'Pausa');
     refs.monInfo = el('small', { class: 'suave' });
-    root.append(el('div', { class: 'tarjeta' }, el('h3', null, 'Monitor serie ', el('small', null, 'lo que dice el Arduino, renglón por renglón')), refs.chips, refs.mon, refs.monInfo,
+    const monCard = (el('div', { class: 'tarjeta tk-monCard' }, el('h3', null, 'Monitor serie ', el('small', null, 'lo que dice el Arduino, renglón por renglón')), refs.chips, refs.mon, refs.monInfo,
       el('div', { class: 'fila tk-fila' }, refs.pausaB, el('button', { type: 'button', onclick: () => { Sv.limpiarLog(); refs.monN.forEach((e) => e.remove()); refs.monN.clear(); } }, 'Limpiar'),
         el('button', { type: 'button', onclick: () => { const t = Sv.log.map((l) => hora(l.t) + ' ' + (l.dir === 'tx' ? '> ' : '') + l.txt + (l.n > 1 ? '  x' + l.n : '') + (l.nota ? '   // ' + l.nota : '')).join('\n'); try { navigator.clipboard.writeText(t); toast('Copiado'); } catch (e) { toast('No se pudo copiar'); } } }, 'Copiar todo')),
       el('div', { class: 'fila tk-fila' }, el('div', { class: 'crece' }, cmd), el('button', { type: 'button', onclick: mandar }, 'Enviar'), el('button', { type: 'button', onclick: () => { if (!Sv.enviar('?')) toast('Conectá el Arduino primero'); } }, 'Pedir estado (?)'))));
+    root.insertBefore(monCard, sesCard);          // el monitor va arriba: entre la ronda / el tracker y la sesion
     function pintarMonitor() {
       if (pausa) return;
       const ok = (l) => filtro === 'todo' || (filtro === 'ev' && l.k === '@') || (filtro === 'st' && (l.k === '#' || l.k === '!')) || (filtro === 'info' && l.dir === 'info');
@@ -289,7 +297,7 @@ window.MD = window.MD || {};
       const pegado = refs.mon.scrollTop + refs.mon.clientHeight >= refs.mon.scrollHeight - 30;
       lista.forEach((l) => {
         let e = refs.monN.get(l.id);
-        if (!e) { e = el('div', { class: 'tk-l k' + (l.dir === 'tx' ? 'tx' : (l.dir === 'info' ? 'info' : l.k)) }, el('span', { class: 'h' }), el('span', { class: 't' }), el('span', { class: 'x' }), el('span', { class: 'n' })); refs.mon.append(e); refs.monN.set(l.id, e); }
+        if (!e) { e = el('div', { class: 'tk-l k' + (l.dir === 'tx' ? 'tx' : (l.dir === 'info' ? 'info' : l.k)) }, el('span', { class: 'tk-lh' }), el('span', { class: 'tk-lt' }), el('span', { class: 'tk-lx' }), el('span', { class: 'tk-ln' })); refs.mon.append(e); refs.monN.set(l.id, e); }
         e.children[0].textContent = hora(l.t); e.children[1].textContent = (l.dir === 'tx' ? '→ ' : '') + l.txt; e.children[2].textContent = l.n > 1 ? ' ×' + l.n : ''; e.children[3].textContent = l.nota ? '  ' + l.nota : '';
       });
       if (pegado) refs.mon.scrollTop = refs.mon.scrollHeight;
@@ -307,6 +315,9 @@ window.MD = window.MD || {};
       const p = Sv.pill();
       refs.cTxt.textContent = c ? (Sv.sinSenal() ? '⚠ Conectado, pero no llega nada del Arduino' : '● Conectado' + (Sv.modo === 'sim' ? ' (simulador)' : '') + (Sv.hola ? ' · firmware ' + Sv.hola.ver : '')) : (ocup ? '… ' + Sv.detalle : (est === 'error' ? '✖ ' + Sv.detalle : 'Sin conexión'));
       refs.cTxt.className = 'tk-estado ' + (c ? (Sv.sinSenal() ? 'warn' : 'ok') : (est === 'error' ? 'mal' : ''));
+      refs.cResumen.textContent = refs.cTxt.textContent; refs.cResumen.className = 'tk-resumen ' + (c ? (Sv.sinSenal() ? 'warn' : 'ok') : (est === 'error' ? 'mal' : ''));
+      if (refs.conex._c !== c) { const primera = refs.conex._c === undefined; refs.conex._c = c; let el2 = null; try { el2 = localStorage.getItem('tk_conex'); } catch (e) {}
+        if (!el2 && !(primera && c)) { refs.conex._auto = true; refs.conex.open = !c; setTimeout(() => { refs.conex._auto = false; }, 50); } }
       refs.cAyuda.textContent = Sv.modo === 'usb' ? 'Enchufá el Arduino al celu con un cable OTG; Android te pide permiso la primera vez. Si el Uno se reinicia al conectar, es normal: retoma el combate guardado.' : (Sv.modo === 'web' ? 'Chrome o Edge en la compu: te deja elegir el puerto del Arduino.' : (Sv.modo === 'sim' ? 'El simulador es un Arduino virtual con la misma lógica que el sketch: probá todo sin el aparato.' : (sop.usb ? 'Elegí cómo conectar.' : 'Sin el APK no hay USB: probá con el simulador, o con Web Serial desde Chrome en la compu.')));
       refs.pill.className = 'tk-pill ' + (p ? p.clase : 'off'); refs.pill.textContent = p ? p.texto : 'Sin conexión';
       refs.joyCard.classList.toggle('inactivo', !(Sv.modo === 'sim' && c));
@@ -332,11 +343,11 @@ window.MD = window.MD || {};
       const S = E.S, cols = E.p.cols, hay = Sv.estado === 'conectado' && E.hay, off = E.p.off;
       for (let i = 1; i <= 12; i++) {
         const sl = refs.slots[i - 1], k = i - off;
-        if (!hay || k < 1 || k > S.total) { if (sl.g.style.display !== 'none') sl.g.style.display = 'none'; continue; }
-        const t = S.modo === 'B' || (S.modo === 'C' && k <= S.cfg) ? S.tipo[k] : '?', num = t === 'E' ? Trk.numEnemigo(S, k) : 0, firma = t + num;
+        const en = hay && k >= 1 && k <= S.total;                       // lugar en uso; el resto son calaveras lisas apagadas (el aparato siempre tiene sus 12 fichas puestas)
+        const t = en && (S.modo === 'B' || (S.modo === 'C' && k <= S.cfg)) ? S.tipo[k] : '?', num = t === 'E' ? Trk.numEnemigo(S, k) : 0, firma = t + num;
         if (sl.firma !== firma) { sl.firma = firma; const html = Trk.ficha(t, num); sl.gl.innerHTML = html; sl.sh.innerHTML = html; sl.fd.innerHTML = html; }
         sl.g.style.display = '';
-        const c = cols[i] || [0, 0, 0], luz = c[0] + c[1] + c[2] > 12, fill = luz ? rgb(c) : '#1d1d20';
+        const c = en ? (cols[i] || [0, 0, 0]) : [0, 0, 0], luz = c[0] + c[1] + c[2] > 12, fill = luz ? rgb(c) : '#2a2b31';
         sl.gl.setAttribute('fill', fill); sl.gl.style.opacity = luz ? Math.min(0.8, 0.15 + Math.max(c[0], c[1], c[2]) / 255 * 0.55) : 0; sl.sh.setAttribute('fill', fill); sl.fd.style.display = luz ? '' : 'none';
       }
       if (hay && S.modo === 'B') { const c = cols[S.turno + off] || [0, 0, 0], tc = Trk.TIPOS[S.tipo[S.turno]].c; refs.fichaTurno.style.fill = rgb(tc); }
