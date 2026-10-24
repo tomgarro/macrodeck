@@ -29,7 +29,7 @@ window.MD = window.MD || {};
 };
   // v1.3-dev33: los iconos de la interfaz son los MISMOS bitmaps de 24 x 24 que usa el Macrodeck (catalogo de iconos), dibujados punto por punto.
   // Los que no tienen equivalente en el catalogo quedan con el trazo MDI de arriba.
-  const PX = { mesa: 'dado20', escenas: 'mapa', audios: 'notas', sonidos: 'volumen_alto', drive: 'disco', herramientas: 'herramientas', mas: 'herramientas',
+  const PX = { tracker: 'dragon', mesa: 'dado20', escenas: 'mapa', audios: 'notas', sonidos: 'volumen_alto', drive: 'disco', herramientas: 'herramientas', mas: 'herramientas',
     audio: 'volumen_alto', audioOff: 'silencio', bt: 'bluetooth', btOff: 'bluetooth', bateria: 'bateria', bateriaCarga: 'bateria', bateriaBaja: 'bateria',
     luz: 'bombilla', flecha: 'flecha_abajo', campana: 'campana', buscar: 'lupa', sync: 'actualizar', ok: 'confirmar', ajustes: 'ajustes', atras: 'flecha_izquierda', pausa_px: 'pausa', play_px: 'play', adelante: 'flecha_derecha' };
   const cachePx = {};

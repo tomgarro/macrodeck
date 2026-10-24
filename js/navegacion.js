@@ -23,6 +23,7 @@ window.MD = window.MD || {};
     const A = N.A; if (!A) return false;
     const dlg = document.querySelector('dialog[open]');
     if (dlg) { try { dlg.close(); } catch (e) { dlg.remove(); } return true; }
+    if (MD.Trk && MD.Trk.cerrarMesa && MD.Trk.cerrarMesa()) return true;        // 2.0-dev4: pantalla de mesa del Initiative Tracker
     if (document.querySelector('.au-ov') && MD.Au && MD.Au.ui) { MD.Au.ui.cerrarOv(); return true; }
     if (MD.Panel && MD.Panel.abierto()) { MD.Panel.cerrar(); return true; }
     if (A.tab === 'escenas' && A.edTecla != null) { A.edTecla = null; A.render(); return true; }

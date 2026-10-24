@@ -9,7 +9,7 @@
   const vista = document.getElementById('vista'), tabsEl = document.getElementById('tabs');
   const estadoCab = document.getElementById('estadoCab'), estadoTxt = document.getElementById('estadoTxt');
   // v1.3-dev33: 5 pestanas. "Mas" junta Sonidos, Drive y Herramientas (siguen siendo las mismas pantallas, solo que un toque mas adentro).
-  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['audios', 'Audios', 'audios'], ['luces', 'Luces', 'luz'], ['mas', 'Más', 'mas']];
+  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['audios', 'Audios', 'audios'], ['luces', 'Luces', 'luz'], ['tracker', 'Initiative Tracker', 'tracker', 'Tracker'], ['mas', 'Más', 'mas']];
   const EN_MAS = ['sonidos', 'drive', 'herramientas'];
 
   // ---------- guardar ----------
@@ -108,8 +108,8 @@
   // v1.3-dev13: el estado va en la cabecera como PUNTITOS (verde = bien, amarillo = en camino / silenciado, rojo = sin conexion, gris = apagado)
   // sobre un icono: parlante (audio), Bluetooth (Macrodeck) y la bateria de ESTE celu con su porcentaje. Tocar el grupo muestra el detalle escrito.
   const mkInd = (id, punto) => { const e = h('span', { class: 'ind', id }, punto ? h('i', { class: 'pt' }) : null); estadoCab.append(e); return e; };
-  const indAudio = mkInd('indAudio', true), indCon = mkInd('indCon', true), indLuz = mkInd('indLuz', true), indBat = mkInd('indBat', false);
-  indLuz.hidden = true;
+  const indAudio = mkInd('indAudio', true), indCon = mkInd('indCon', true), indLuz = mkInd('indLuz', true), indTrk = mkInd('indTrk', true), indBat = mkInd('indBat', false);
+  indLuz.hidden = true; indTrk.hidden = true;
   indBat.hidden = true;
   const pctBat = h('span', { class: 'pct' }); indBat.append(pctBat);
   function ponerInd(e, clase, icono) {
@@ -144,7 +144,10 @@
       ponerInd(indLuz, cl, 'luz'); indLuz.hidden = false;
       tLuz = LZ.estado === 'sin conexion' ? 'Luces: el servidor no contesta' : (g ? 'Luces D&D ' + g.conectadas + '/' + g.luces : 'Luces: mirando…');
     } else indLuz.hidden = true;
-    A.estadoTexto = [tAudio, tCon, tLuz, tBat].filter(Boolean).join(' · ');
+    // Initiative Tracker (2.0-dev4): el dragon de la cabecera (verde = el Arduino habla, amarillo = conectando / sin senal, rojo = error). Oculto si no hay nada conectado.
+    let tTrk = ''; const TS = MDg.Trk && MDg.Trk.Servicio, pTrk = TS && TS.pill();
+    if (pTrk) { ponerInd(indTrk, pTrk.clase, 'tracker'); indTrk.hidden = false; tTrk = pTrk.texto; } else indTrk.hidden = true;
+    A.estadoTexto = [tAudio, tCon, tLuz, tTrk, tBat].filter(Boolean).join(' · ');
     if (estadoCab.title !== A.estadoTexto) estadoCab.title = A.estadoTexto;
     if (MDg.Panel) MDg.Panel.pintarEstado(A.estadoTexto, !!conectado());
   }
@@ -281,6 +284,7 @@
     return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
   }
   A.mantenerVivo = async function (si) {
+    if (!si && MDg.Trk && MDg.Trk.Servicio && MDg.Trk.Servicio._vivoPropio) { A._svcOn = false; return; }   // el Tracker USB sigue conectado: no apagar el servicio
     try {
       // En el APK lo hace el servicio en primer plano de Android (notificacion + wake lock). NO se usa el audio silencioso
       // del navegador: un <audio> en el WebView podria pedirle el foco de audio a Android y pausar YouTube.
@@ -648,7 +652,7 @@
     const sc = vista.scrollTop;
     vista.innerHTML = ''; A.mesaCeldas = []; A.mesaVol = A.mesaSonando = null;
     if (EN_MAS.includes(A.tab)) vista.append(h('button', { type: 'button', class: 'atras', onclick: () => A.irATab('mas') }, MDg.IUI.svg('atras'), 'Más'));
-    ({ mesa: MDg.UI.vistaMesa, mas: MDg.UI.vistaMas, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
+    ({ mesa: MDg.UI.vistaMesa, mas: MDg.UI.vistaMas, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, tracker: MDg.Trk.vista, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     A.pintarTabs();
     if (MDg.Sync) MDg.Sync.montar();                          // 1.3-dev31: boton grande "Sincronizar todo" arriba, en todas las pestanas
     if (MDg.Maqueta) MDg.Maqueta.montar(A);                    // 1.3-dev22: version de escritorio
@@ -662,6 +666,7 @@
     if (MDg.Audios) await MDg.Audios.iniciar(A);          // dev23: pestana Audios (catalogo guardado y audios bajados)
     if (MDg.Audios && MDg.Audios.enganchar) MDg.Audios.enganchar(A);   // dev25: la musica de fondo de cada escena (envuelve A.activar)
     if (MDg.LucesDnd) MDg.LucesDnd.enganchar(A);         // 1.3-dev16: luces de D&D (envuelve motor.tecla y A.activar)
+    if (MDg.Trk && MDg.Trk.iniciar) { try { await MDg.Trk.iniciar(A); } catch (e) { if (MDg.Diag) MDg.Diag.anotar('Initiative Tracker: ' + e); } }   // 2.0-dev4: pestaña Initiative Tracker (conexion, sonidos y luces por movimiento)
     A.render();
     if (MDg.Drive.configurado() && navigator.onLine) A.driveActualizar();     // mira en silencio si hay sonidos nuevos (aparece el numero en la pestana Drive)
     const enApk = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());   // dentro del APK la web viene empaquetada: no hace falta cache offline (y evitaria ver una version vieja)
@@ -669,6 +674,7 @@
     window.addEventListener('beforeunload', () => { try { MDg.Almacen.guardarConfig(A.cfg); } catch (e) {} });
     if (MDg.Celu) { MDg.Celu.onCambio = () => { if (A._celuPintar) A._celuPintar(); const av = document.getElementById('avisoAccesoMedios'); if (av) av.hidden = !!MDg.Celu.s.acceso; }; MDg.Celu.iniciar(A); }
     if (MDg.LucesDnd) MDg.LucesDnd.pintores.cab = pintarPills;
+    if (MDg.Trk && MDg.Trk.Servicio) MDg.Trk.Servicio.alCambio((q) => { if (q === 'estado' || q === 'vigia' || q === 'hola') pintarPills(); });
     if (MDg.Panel) MDg.Panel.iniciar(A);                  // 2.0-dev2: panel plegable de la cabecera + ambilight
     if (MDg.Nav) MDg.Nav.iniciar(A);                      // 2.0-dev2: el boton Atras de Android navega dentro de la app
     pintarPills();

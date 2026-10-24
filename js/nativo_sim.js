@@ -95,7 +95,29 @@
     volumenCelu: puente(async (o) => { const v = Math.max(0, Math.min(100, o.pct | 0)); log('Audio: setStreamVolume(MUSIC) -> ' + v + '%'); S.celu.vol = v; pintarCelu(); }),
     pedirAccesoMedios: puente(async () => { log('Ajustes de Android: se abre "Acceso a notificaciones" (en el simulador se da con la casilla de abajo)'); })
   };
-  window.Capacitor = { isNativePlatform: () => true, Plugins: { MacrodeckNativo: plugin } };
+  // 2.0-dev4: USB de mentira para el Initiative Tracker (plugin "TrackerSerie"): un Arduino virtual detras de un "cable". Imita al Uno: al abrir el puerto se
+  // reinicia (el saludo llega ~1,5 s despues) y larga las lineas de a una. window.__nativoSim.trk = { motor, boton(lado, abajo), cortar() } para las pruebas.
+  const trkOy = { linea: [], estado: [] }, trkEmit = (n, d) => trkOy[n].slice().forEach(f => { try { f(json(d)); } catch (e) { console.error(e); } });
+  const trk = window.__nativoSim.trk = { motor: null, abierto: false, timer: 0, boton: (l, a) => { if (trk.motor) trk.motor.boton(l, a); }, cortar: () => { if (!trk.abierto) return; cerrarTrk(); trkEmit('estado', { estado: 'desconectado', detalle: 'se cortó el cable (simulado)' }); } };
+  function cerrarTrk() { clearInterval(trk.timer); trk.motor = null; trk.abierto = false; }
+  const trkPlugin = {
+    addListener: (n, f) => { (trkOy[n] = trkOy[n] || []).push(f); return Promise.resolve({ remove: () => { trkOy[n] = trkOy[n].filter(x => x !== f); } }); },
+    listar: puente(async () => ({ dispositivos: [{ nombre: 'Arduino Uno (simulado)', vid: 9025, pid: 67 }], permitido: true })),
+    conectar: puente(async (o) => {
+      log('USB: abre el puerto a ' + ((o && o.baud) || 0) + ' baudios'); cerrarTrk(); trk.abierto = true;
+      let guardado = null; try { guardado = JSON.parse(localStorage.getItem('trk_nsim_guardado') || 'null'); } catch (e) {}
+      const t0 = performance.now();
+      setTimeout(() => {                                   // el Uno tarda en arrancar (se reinicia al abrir el puerto)
+        if (!trk.abierto) return;
+        trk.motor = new MD.Trk.Motor({ salida: (l) => trkEmit('linea', { texto: l }), restaurar: guardado, alGuardar: (x) => { try { if (x) localStorage.setItem('trk_nsim_guardado', JSON.stringify(x)); else localStorage.removeItem('trk_nsim_guardado'); } catch (e) {} } });
+        trk.timer = setInterval(() => { if (trk.motor) trk.motor.tick(Math.floor(performance.now() - t0)); }, 2);
+      }, 1500);
+      return { nombre: 'Arduino Uno (simulado)' };
+    }),
+    desconectar: puente(async () => { log('USB: cierra el puerto'); cerrarTrk(); }),
+    escribir: puente(async (o) => { if (trk.motor) trk.motor.entrada(o && o.texto); })
+  };
+  window.Capacitor = { isNativePlatform: () => true, Plugins: { MacrodeckNativo: plugin, TrackerSerie: trkPlugin } };
 
   function construir() {
     document.body.classList.add('nsim');
