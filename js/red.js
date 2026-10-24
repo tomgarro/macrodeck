@@ -5,10 +5,13 @@
 window.MD = window.MD || {};
 (function (MD) {
   const LS = 'md_red';
-  const POR_DEFECTO = { bloquear: ["Tom's Phone"], sinDatos: false };
+  const POR_DEFECTO = { bloquear: ["Tom's Phone"], sinDatos: false, liviano: true };
+  // (2.0-dev3) Pedidos LIVIANOS (unos pocos KB): escenas, looks, listas, catalogo y lista de sonidos. Pasan aunque la red este en la lista, asi se sincroniza
+  // una escena sin soltar el hotspot de las luces. Lo PESADO (audios, sonidos, caratulas, subir archivos) sigue pausado.
+  const LIVIANAS = ['ping', 'escenas', 'escenas_guardar', 'listar', 'catalogo'];
   function leer() {
-    try { const o = JSON.parse(localStorage.getItem(LS) || 'null'); if (o && Array.isArray(o.bloquear)) return { bloquear: o.bloquear.filter(x => typeof x === 'string' && x.trim()), sinDatos: !!o.sinDatos }; } catch (e) {}
-    return { bloquear: POR_DEFECTO.bloquear.slice(), sinDatos: POR_DEFECTO.sinDatos };
+    try { const o = JSON.parse(localStorage.getItem(LS) || 'null'); if (o && Array.isArray(o.bloquear)) return { bloquear: o.bloquear.filter(x => typeof x === 'string' && x.trim()), sinDatos: !!o.sinDatos, liviano: o.liviano !== false }; } catch (e) {}
+    return { bloquear: POR_DEFECTO.bloquear.slice(), sinDatos: POR_DEFECTO.sinDatos, liviano: POR_DEFECTO.liviano };
   }
   let cfg = leer();
   const guardar = () => { try { localStorage.setItem(LS, JSON.stringify(cfg)); } catch (e) {} };
@@ -38,10 +41,13 @@ window.MD = window.MD || {};
     return { bloqueada: false, motivo: '', red: e };
   }
   // Lo llama drive.js antes de cada pedido: si la red esta prohibida, corta con un mensaje claro y NO sale nada a internet.
-  async function verificar() { const r = await revisar(false); if (r.bloqueada) { const x = new Error(r.motivo); x.redBloqueada = true; throw x; } }
+  async function verificar(accion) { const r = await revisar(false); if (r.bloqueada && cfg.liviano && LIVIANAS.includes(accion)) return; if (r.bloqueada) { const x = new Error(r.motivo); x.redBloqueada = true; throw x; } }
 
   MD.Red = {
-    config: () => ({ bloquear: cfg.bloquear.slice(), sinDatos: cfg.sinDatos }),
+    config: () => ({ bloquear: cfg.bloquear.slice(), sinDatos: cfg.sinDatos, liviano: cfg.liviano }),
+    // true si hoy la red esta en la lista pero se permiten los pedidos livianos (para avisar en el resumen de Sincronizar)
+    async soloLiviano() { const r = await revisar(false); return !!(r.bloqueada && cfg.liviano); },
+    fijarLiviano(v) { cfg.liviano = !!v; guardar(); cache = null; },
     estado, revisar, verificar,
     agregar(nombre) { const n = String(nombre || '').trim(); if (!n || cfg.bloquear.some(x => norm(x) === norm(n))) return false; cfg.bloquear.push(n); guardar(); cache = null; return true; },
     quitar(nombre) { cfg.bloquear = cfg.bloquear.filter(x => norm(x) !== norm(nombre)); guardar(); cache = null; },

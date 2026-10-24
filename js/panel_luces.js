@@ -59,18 +59,40 @@ window.MD = window.MD || {};
   // ---------- modelo de las lamparas (lo que el panel mando por ultima vez) ----------
   const LAMP = [['dnd-1', 'D&D 1'], ['dnd-2', 'D&D 2']];
   const M = P.modelo = {};
-  LAMP.forEach(([id]) => { M[id] = { on: true, brillo: 80, hue: 30, sat: 1, temp: 15, modo: 'color', conectada: null, tocado: false }; });
+  LAMP.forEach(([id]) => { M[id] = { on: true, brillo: 100, hue: 30, sat: 1, temp: 15, modo: 'color', conectada: null, tocado: false }; });
   const colorDe = (m) => m.modo === 'temp' ? temp2hex(m.temp) : hsv2hex(m.hue, m.sat, 1);
   const lookDe = (m, efecto) => m.on ? { efecto: efecto || 'fijo', color: colorDe(m), brillo: m.brillo, velocidad: 1, intensidad: 5 }
     : { efecto: 'apagado', color: '#000000', brillo: 1, velocidad: 1, intensidad: 5 };
-  const timers = {};
+  const timers = {}, blanco = {};
+  // TEMPERATURA = el BLANCO de la lampara (sus LED blancos, mucho mas fuertes que los de color). El servidor lo anima con "efectos" solo en color,
+  // asi que antes se corta el efecto de esa lampara y despues se manda la orden directa (encendida + brillo + temperatura), de a una por vez.
+  async function mandarBlanco(id) {
+    const L = LZ(), b = blanco[id] = blanco[id] || { vuelo: false, pend: false, ult: 0 };
+    if (b.vuelo) { b.pend = true; return; }
+    b.vuelo = true;
+    try {
+      do {
+        b.pend = false;
+        const m = M[id];
+        if (!m.on || m.modo !== 'temp') break;
+        if (Date.now() - b.ult > 1500) await L.enviar([{ luz: id, parar: 'todo' }]);              // corta el efecto que estuviera andando
+        b.ult = Date.now();
+        try { await L.postLuz(id, { encendida: true, brillo: m.brillo, temperatura: m.temp }); } catch (e) {}
+        b.ult = Date.now();
+      } while (b.pend);
+    } finally { b.vuelo = false; }
+  }
   function mandar(ids) {
     const L = LZ(); if (!L || !L.aj.activo) return;
     ids.forEach((id) => {
       clearTimeout(timers[id]);
       timers[id] = setTimeout(() => {
-        L.enviar([{ luz: id, look: lookDe(M[id]), capa: 'ambiente', id: 'manual' }]);
-      }, 90);
+        const m = M[id];
+        if (m.on && m.modo === 'temp') {
+          P.alOrdenes([{ luz: id, capa: 'ambiente', look: { efecto: 'fijo', color: temp2hex(m.temp), brillo: m.brillo, velocidad: 1 } }]);   // el ambilight
+          mandarBlanco(id);
+        } else L.enviar([{ luz: id, look: lookDe(m), capa: 'ambiente', id: 'manual' }]);
+      }, 110);
     });
   }
   P.aplicar = function (ids, parcial) { ids.forEach((id) => { Object.assign(M[id], parcial, { tocado: true }); }); mandar(ids); refrescarVivos(); };
@@ -92,8 +114,10 @@ window.MD = window.MD || {};
     const temp = rango(0, 100, ref.temp, 'pl-temp', (v) => P.aplicar(ids, { temp: v, modo: 'temp', on: true }), 'Temperatura de ' + titulo);
     const vb = h('span', { class: 'pl-val' }), vt = h('span', { class: 'pl-val' });
     const muestra = h('i', { class: 'pl-muestra' });
+    const preset = (txt, t) => h('button', { type: 'button', class: 'chico pl-preset', onclick: () => P.aplicar(ids, { modo: 'temp', temp: t, brillo: 100, on: true }) }, txt);
     const el = h('div', { class: 'pl-ctl' },
       h('div', { class: 'pl-ctl-cab' }, punto, h('strong', { class: 'crece' }, titulo), muestra, sw),
+      h('div', { class: 'pl-presets' }, preset('Cálida a full', 0), preset('Neutra', 50), preset('Fría', 100)),
       h('label', { class: 'pl-et' }, 'Brillo ', vb), brillo,
       h('label', { class: 'pl-et' }, 'Color'), color,
       h('label', { class: 'pl-et' }, 'Temperatura ', vt, h('span', { class: 'suave pl-ext' }, 'cálido ↔ frío')), temp);
@@ -318,7 +342,14 @@ window.MD = window.MD || {};
       });
     }
   };
-  P.fijarAmbi = function (v) { cfg.ambi = !!v; guardar(); document.body.classList.toggle('sin-ambi', !cfg.ambi); ['dnd-1', 'dnd-2'].forEach(pintarAmbi); };
+  const sincChk = () => { document.querySelectorAll('input.chk-ambi').forEach((i) => { i.checked = cfg.ambi; }); document.querySelectorAll('input.chk-completa').forEach((i) => { i.checked = cfg.completa; }); };
+  P.fijarAmbi = function (v) { cfg.ambi = !!v; guardar(); document.body.classList.toggle('sin-ambi', !cfg.ambi); ['dnd-1', 'dnd-2'].forEach(pintarAmbi); sincChk(); };
+  // Las dos opciones de pantalla (las usa el panel de la cabecera y la pestaña Mas)
+  P.opcionesPantalla = function () {
+    return h('div', { class: 'pl-pila' },
+      h('label', { class: 'chk' }, h('input', { type: 'checkbox', class: 'chk-ambi', checked: cfg.ambi, onchange: (e) => P.fijarAmbi(e.target.checked) }), ' Ambilight: los bordes de la app toman el color de las luces'),
+      h('label', { class: 'chk' }, h('input', { type: 'checkbox', class: 'chk-completa', checked: cfg.completa, onchange: (e) => P.fijarCompleta(e.target.checked) }), ' Pantalla completa: esconde la barra de Android (se ve deslizando desde el borde)'));
+  };
 
   // ---------- pantalla completa ----------
   let completaMesa = false;
@@ -333,7 +364,7 @@ window.MD = window.MD || {};
       }
     } catch (e) {}
   };
-  P.fijarCompleta = function (v) { cfg.completa = !!v; guardar(); P.pantallaCompleta(completaMesa, false); };
+  P.fijarCompleta = function (v) { cfg.completa = !!v; guardar(); P.pantallaCompleta(completaMesa, false); sincChk(); };
 
   // ---------- el panel ----------
   let raiz = null, secs = {}, txtEstado = null, btnDesc = null;
@@ -354,11 +385,8 @@ window.MD = window.MD || {};
       P.plegable('Pintar con el dedo', pintarConElDedo(A), 'pintar', null, false).el);
     secs.luces = P.plegable('Luces de D&D', cuerpoLuces, 'luces', badge, true);
     // 3. Pantalla
-    const chkAmbi = h('input', { type: 'checkbox', checked: cfg.ambi, onchange: (e) => P.fijarAmbi(e.target.checked) });
-    const chkComp = h('input', { type: 'checkbox', checked: cfg.completa, onchange: (e) => P.fijarCompleta(e.target.checked) });
     secs.pantalla = P.plegable('Pantalla', h('div', { class: 'pl-pila' },
-      h('label', { class: 'chk' }, chkAmbi, ' Ambilight: los bordes de la app toman el color de las luces'),
-      h('label', { class: 'chk' }, chkComp, ' Pantalla completa (esconde la barra de Android; se ve deslizando desde el borde)'),
+      P.opcionesPantalla(),
       h('div', { class: 'fila' }, h('button', { type: 'button', onclick: () => { P.cerrar(); if (MD.Au && MD.Au.ui) MD.Au.ui.abrirOv('mesa'); } }, 'Abrir el Modo mesa'))), 'pantalla', null, false);
     raiz.append(secs.estado.el, secs.luces.el, secs.pantalla.el);
     document.body.classList.toggle('sin-ambi', !cfg.ambi);

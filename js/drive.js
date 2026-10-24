@@ -13,7 +13,7 @@ window.MD = window.MD || {};
 
   async function get(params) {
     if (!urlActual() || !aj.clave) throw new Error('Falta la direccion o la clave de Drive.');
-    if (MD.Red) await MD.Red.verificar();          // 1.3-dev35: en una red prohibida (ej. el Wi-Fi "Tom's Phone") no se descarga nada
+    if (MD.Red) await MD.Red.verificar(params && params.accion);          // 1.3-dev35: en una red prohibida (ej. el Wi-Fi "Tom's Phone") no se descarga nada
     let u;
     try { u = new URL(urlActual()); } catch (e) { throw new Error('La direccion no es valida (tiene que empezar con https:// y terminar en /exec).'); }
     u.searchParams.set('clave', aj.clave);
@@ -30,7 +30,7 @@ window.MD = window.MD || {};
   // OJO: no usar XMLHttpRequest con upload.onprogress, eso fuerza esa consulta previa y el POST falla con "No se pudo conectar".
   async function post(obj) {
     if (!urlActual() || !aj.clave) throw new Error('Falta la direccion o la clave de Drive.');
-    if (MD.Red) await MD.Red.verificar();
+    if (MD.Red) await MD.Red.verificar(obj && obj.accion);
     obj.clave = aj.clave;
     let r;
     try { r = await fetch(urlActual(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(obj) }); }

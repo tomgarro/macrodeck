@@ -419,8 +419,9 @@ window.MD = window.MD || {};
     const nueva = h('input', { type: 'text', id: 'inRedNueva', placeholder: 'Nombre exacto del Wi-Fi', maxlength: 40 });
     const accion = h('div', { class: 'fila' }, h('button', { type: 'button', id: 'btnRedAgregar', onclick: () => { if (R.agregar(nueva.value)) recargar(); else msg.textContent = 'Escribí un nombre que no esté ya en la lista.'; } }, 'Agregar'));
     caja.append(h('label', null, 'Redes donde NO se descarga nada'), lista, nueva, accion,
+      h('label', { class: 'chk' }, h('input', { type: 'checkbox', id: 'chkLiviano', checked: cfg.liviano, onchange: (ev) => { R.fijarLiviano(ev.target.checked); recargar(); } }), ' Aun así sincronizar lo liviano (escenas, looks, listas): sirve para recibir una escena con el hotspot de las luces'),
       h('label', { class: 'chk' }, h('input', { type: 'checkbox', id: 'chkSinDatos', checked: cfg.sinDatos, onchange: (ev) => { R.fijarSinDatos(ev.target.checked); recargar(); } }), ' Tampoco descargar con datos móviles'),
-      msg, h('p', { class: 'suave' }, 'Con la red en esta lista, Sincronizar todo y las descargas de Drive y Audios quedan pausadas y avisan por qué. Las luces (que hablan con tu propio celu) siguen igual.'));
+      msg, h('p', { class: 'suave' }, 'Con la red en esta lista, las descargas pesadas (audios, sonidos, carátulas) quedan pausadas y avisan por qué; lo liviano (escenas, looks, listas) pasa si dejás tildado el cuadro de arriba. Las luces (que hablan con tu propio celu) siguen igual.'));
     return caja;
   }
   function tarjetaDisco(A) {
@@ -727,7 +728,8 @@ window.MD = window.MD || {};
       h('div', { class: 'lista-mas' },
         fila('sonidos', 'Sonidos', n ? n + ' sonidos en este celu' : 'Tu biblioteca de sonidos', 'sonidos'),
         fila('drive', 'Drive', 'Sincronizar, subir y bajar sonidos y escenas', 'drive', A.drivePend),
-        fila('herramientas', 'Herramientas', 'Packs, logos, apariencia, diagnóstico y ayuda', 'herramientas')));
+        fila('herramientas', 'Herramientas', 'Packs, logos, apariencia, diagnóstico y ayuda', 'herramientas')),
+      (MD.Panel && MD.Panel.opcionesPantalla) ? h('div', { class: 'tarjeta', id: 'masPantalla' }, h('h3', { style: 'margin:0 0 8px' }, 'Pantalla'), MD.Panel.opcionesPantalla()) : null);
   }
   function vistaSonidos(A, el) {
     const cfg = A.cfg;

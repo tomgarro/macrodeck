@@ -33,9 +33,14 @@ window.MD = window.MD || {};
 
   const poner = () => { try { history.pushState({ md: 1 }, ''); } catch (e) {} };
 
+  // (2.0-dev3) En la APK el boton Atras lo maneja la parte nativa (MainActivity) y le pregunta a esta funcion:
+  // 'si' = cerre una capa (no hagas nada mas) / 'no' = no habia nada abierto (la parte nativa avisa "Tocá otra vez para salir").
+  N.atrasNativo = function () { clearTimeout(armado); try { return N.cerrarCapa() ? 'si' : 'no'; } catch (e) { return 'no'; } };
+
   N.iniciar = function (A) {
     N.A = A;
     if (N.listo) return; N.listo = true;
+    if (enApk()) return;                        // en la APK no hace falta el centinela: Atras lo atiende MainActivity
     try { history.replaceState({ md: 0 }, ''); } catch (e) {}
     poner();
     window.addEventListener('popstate', () => {

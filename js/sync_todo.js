@@ -96,7 +96,10 @@ window.MD = window.MD || {};
       await A.driveActualizar();
       let adoptados = 0;
       if (A.adoptarSonidosDeDisco) { S.fase = 'Registrando sonidos que ya están en el disco…'; pintar(); try { adoptados = await A.adoptarSonidosDeDisco(); } catch (e) {} }   // 1.3-dev38: los que vinieron por pendrive
-      const aud = todo ? audiosTodos() : audiosQueFaltan(A), son = sonidosQueFaltan(A);
+      // (2.0-dev3) En una red de la lista (ej. el hotspot) solo se sincroniza lo liviano; los audios y sonidos esperan a otro Wi-Fi
+      const soloLiv = MD.Red && MD.Red.soloLiviano ? await MD.Red.soloLiviano() : false;
+      const aud = soloLiv ? [] : (todo ? audiosTodos() : audiosQueFaltan(A)), son = soloLiv ? [] : sonidosQueFaltan(A);
+      if (soloLiv) { const fa = audiosQueFaltan(A).length, fs = sonidosQueFaltan(A).length; S.avisoLiviano = ' · red con datos de otro celu: sincronicé escenas, looks y listas (' + ((fa || fs) ? 'faltan ' + fa + ' audio(s) y ' + fs + ' sonido(s) para otro Wi-Fi' : 'no faltaba nada pesado') + ')'; } else S.avisoLiviano = '';
       const bytes = aud.reduce((n, d) => n + (d.tam || 0), 0) + son.reduce((n, s) => n + (s.tam || 0), 0);
       let bajados = '';
       if (aud.length || son.length) {
@@ -109,8 +112,9 @@ window.MD = window.MD || {};
           else if (quedanA || quedanS) bajados += ' · ⚠ no se pudieron bajar ' + quedanA + ' audio(s) y ' + quedanS + ' sonido(s): tocá de nuevo para reintentar' + ((Di && Di.activo() && !Di.listo()) ? ' (el disco se desconectó)' : '');
           else if (todo) { marca(false); bajados += ' · ✓ ya tenés TODO en este equipo'; }
         } else bajados = ' · faltan ' + aud.length + ' audio(s) y ' + son.length + ' sonido(s) (' + mb(bytes) + ')';
-      } else if (todo) { marca(false); bajados = ' · ✓ ya tenés TODO en este equipo (' + Au.S.cat.filter((d) => Au.bajado(d.id)).length + ' audios)'; }
-      if (todo) { try { await Au.bajarCaratulas(); } catch (e) {} }
+      } else if (todo && !soloLiv) { marca(false); bajados = ' · ✓ ya tenés TODO en este equipo (' + Au.S.cat.filter((d) => Au.bajado(d.id)).length + ' audios)'; }
+      if (todo && !soloLiv) { try { await Au.bajarCaratulas(); } catch (e) {} }
+      if (soloLiv) bajados = S.avisoLiviano;
       if (adoptados) bajados += ' · registré ' + adoptados + ' sonido(s) del disco';
       S.ultima = Date.now();
       S.resumen = 'Listo ' + hora(S.ultima) + (A.escMsg ? ' · ' + A.escMsg.replace(/\s*Ojo:.*$/, '') : '') + bajados;

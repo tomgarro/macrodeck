@@ -159,6 +159,7 @@ window.MD = window.MD || {};
   L.salud = function () { return pedir('/salud'); };
   L.leer = function () { return pedir('/luces?grupo=dnd'); };
   L.buscar = function () { return pedir('/red/buscar', {}, 5000); };       // reintenta las lamparas caidas y recorre la red
+  L.postLuz = function (alias, cuerpo) { return pedir('/luces/' + encodeURIComponent(alias), cuerpo, 6000); };      // orden directa a una lampara (blanco: encendida + brillo + temperatura)
   L.alOrden = [];
   L.probarConexion = async function () {
     try {
