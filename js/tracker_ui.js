@@ -101,7 +101,7 @@ window.MD = window.MD || {};
     refs.foto.append(refs.svgT);
     refs.sinSenal = el('div', { class: 'tk-vacio' }, 'Conectá el Arduino (o el simulador) para ver el tracker en vivo.');
     refs.foto.append(refs.sinSenal);
-    root.append(el('div', { class: 'tarjeta' }, el('h3', null, 'El tracker, en vivo'), refs.foto, el('p', { class: 'suave tk-nota' }, 'Las fichas se ponen según los personajes que armó Frodo en el Arduino y se iluminan con el mismo color que los LED del aparato. Solo el combate muestra fichas; al armar, se ven los LED.')));
+    const cardFoto = (el('div', { class: 'tarjeta' }, el('h3', null, 'El tracker, en vivo'), refs.foto, el('p', { class: 'suave tk-nota' }, 'Las fichas se ponen según los personajes que armó Frodo en el Arduino y se iluminan con el mismo color que los LED del aparato. Solo el combate muestra fichas; al armar, se ven los LED.')));
 
     // ---------- joystick ----------
     refs.barra = el('i');
@@ -122,7 +122,10 @@ window.MD = window.MD || {};
       el('div', { class: 'tk-ayuda' }, el('div', null, '◀ Izq.', el('br'), 'turno siguiente'), el('div', null, 'Centro: estado', el('br'), 'mantené 2 s = caído / muerte'), el('div', null, 'Der. ▶', el('br'), 'turno anterior')),
       el('div', { class: 'tk-barra' }, refs.barra), el('div', { class: 'fila tk-fila' }, botonUndo, botonIns, botonRst),
       el('p', { class: 'suave tk-nota' }, 'Armando: izquierda / derecha cambian la cantidad o el personaje; centro 2 s confirma la cantidad; centro corto confirma cada personaje. Los tres botones juntos 3 s reinician.'));
-    root.append(refs.joyCard);
+    // En pantalla ancha (escritorio) el tracker con su joystick va en la columna de la derecha, en el lugar de la maqueta del Macrodeck (lo monta Maqueta.montar).
+    const lado = !!(MD.Maqueta && MD.Maqueta.activa());
+    Trk._lado = lado ? [cardFoto, refs.joyCard] : null;
+    if (!lado) root.append(cardFoto, refs.joyCard);
 
     // ---------- sesion ----------
     const tile = (n) => { const b = el('b', null, '0'); refs['s_' + n[0]] = b; return el('div', null, b, el('span', null, n[1])); };
