@@ -342,8 +342,8 @@ window.MD = window.MD || {};
     function dibujar(ms) {
       const S = E.S, cols = E.p.cols, hay = Sv.estado === 'conectado' && E.hay, off = E.p.off;
       for (let i = 1; i <= 12; i++) {
-        const sl = refs.slots[i - 1], k = i - off;
-        const en = hay && k >= 1 && k <= S.total;                       // lugar en uso; el resto son calaveras lisas apagadas (el aparato siempre tiene sus 12 fichas puestas)
+        const sl = refs.slots[i - 1], q = S.modo === 'Q', k = q ? i : i - off;   // en cantidad el sketch prende por LED fisico (sin centrar)
+        const en = hay && (q || (k >= 1 && k <= S.total));                       // lugar en uso; el resto son calaveras lisas apagadas (el aparato siempre tiene sus 12 fichas puestas)
         const t = en && (S.modo === 'B' || (S.modo === 'C' && k <= S.cfg)) ? S.tipo[k] : '?', num = t === 'E' ? Trk.numEnemigo(S, k) : 0, firma = t + num;
         if (sl.firma !== firma) { sl.firma = firma; const html = Trk.ficha(t, num); sl.gl.innerHTML = html; sl.sh.innerHTML = html; sl.fd.innerHTML = html; }
         sl.g.style.display = '';
