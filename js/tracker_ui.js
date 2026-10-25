@@ -109,7 +109,7 @@ window.MD = window.MD || {};
     refs.foto.append(refs.svgT);
     refs.sinSenal = el('div', { class: 'tk-vacio' }, 'Conectá el Arduino (o el simulador) para ver el tracker en vivo.');
     refs.foto.append(refs.sinSenal);
-    const cardFoto = (el('div', { class: 'tarjeta' }, el('h3', null, 'El tracker, en vivo'), refs.foto, el('p', { class: 'suave tk-nota' }, 'Las fichas se ponen según los personajes que armó Frodo en el Arduino y se iluminan con el mismo color que los LED del aparato. Solo el combate muestra fichas; al armar, se ven los LED.')));
+    const cardFoto = (el('div', { class: 'tarjeta' }, el('h3', null, 'El tracker, en vivo'), refs.foto, el('p', { class: 'suave tk-nota' }, 'Las fichas se ponen según los personajes que armó Frodo en el Arduino y se iluminan con el mismo color que los LED del aparato. Al elegir la cantidad se prenden los LED de la 1 en adelante; al armar y en combate se acomodan al centro con la ficha de cada personaje.')));
 
     // ---------- joystick ----------
     refs.barra = el('i');
