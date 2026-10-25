@@ -211,7 +211,7 @@ window.MD = window.MD || {};
   function iniciarSim() {
     let guardado = null; try { guardado = JSON.parse(localStorage.getItem('trk_sim_guardado') || 'null'); } catch (e) {}
     const t0 = performance.now();
-    Sv.motor = new Trk.Motor({ salida: (l) => Sv.linea(l), restaurar: guardado, alGuardar: (o) => { try { if (o) localStorage.setItem('trk_sim_guardado', JSON.stringify(o)); else localStorage.removeItem('trk_sim_guardado'); } catch (e) {} } });
+    Sv.motor = new Trk.Motor({ invertir: true, salida: (l) => Sv.linea(l), restaurar: guardado, alGuardar: (o) => { try { if (o) localStorage.setItem('trk_sim_guardado', JSON.stringify(o)); else localStorage.removeItem('trk_sim_guardado'); } catch (e) {} } });
     clearInterval(Sv.tSim);
     Sv.tSim = setInterval(() => { if (Sv.motor) Sv.motor.tick(Math.floor(performance.now() - t0)); }, 4);
   }

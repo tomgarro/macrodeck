@@ -51,7 +51,7 @@ window.MD = window.MD || {};
       n.nom.textContent = nombreFicha(S, k); n.cl.textContent = Trk.TIPOS[S.tipo[k]].cl + (S.alt[k] ? ' · ' + Trk.ALT_N[S.alt[k]] : '');
       let sig = k, q = 0; do { sig = sig % S.total + 1; q++; } while (S.muerto[sig] && q < 13);
       n.sig.textContent = sig !== k && !S.muerto[sig] ? 'Sigue: ' + nombreFicha(S, sig) : '';
-    } else { n.f._k = ''; n.f.innerHTML = ''; n.nom.textContent = hay ? (S.modo === 'Q' ? 'Armando el combate…' : 'Eligiendo personajes…') : 'Sin conexión'; n.cl.textContent = ''; n.sig.textContent = ''; }
+    } else { n.f._k = ''; n.f.innerHTML = ''; n.nom.textContent = hay ? (S.modo === 'F' ? 'Combate terminado' : (S.modo === 'Q' ? 'Armando el combate…' : 'Eligiendo personajes…')) : 'Sin conexión'; n.cl.textContent = ''; n.sig.textContent = ''; }
   }
 
   // ============================================================================================================
@@ -128,13 +128,13 @@ window.MD = window.MD || {};
       return b;
     };
     let cDown = 0;
-    refs.joy = el('div', { class: 'tk-joy' }, el('img', { alt: 'Joystick de 3 botones', src: 'tracker/joystick.png', draggable: 'false' }), bJ('b1', 'I', 'Izquierda: turno siguiente'), bJ('b2', 'C', 'Centro'), bJ('b3', 'D', 'Derecha: turno anterior'));
-    const botonUndo = el('button', { type: 'button', onclick: () => combo('D') }, '↶ Deshacer (Centro + Der.)');
-    const botonIns = el('button', { type: 'button', onclick: () => combo('I') }, '＋ Insertar (Centro + Izq.)');
+    refs.joy = el('div', { class: 'tk-joy' }, el('img', { alt: 'Joystick de 3 botones', src: 'tracker/joystick.png', draggable: 'false' }), bJ('b1', 'I', 'Izquierda: turno anterior'), bJ('b2', 'C', 'Centro'), bJ('b3', 'D', 'Derecha: turno siguiente'));
+    const botonUndo = el('button', { type: 'button', onclick: () => combo('I') }, '↶ Deshacer (Centro + Izq.)');
+    const botonIns = el('button', { type: 'button', onclick: () => combo('D') }, '＋ Insertar (Centro + Der.)');
     const botonRst = el('button', { type: 'button', onclick: () => { Sv.simReiniciar(); toast('Simulador reiniciado'); } }, 'Reiniciar simulador');
     function combo(lado) { if (Sv.modo !== 'sim' || Sv.estado !== 'conectado') return; Sv.simBoton('C', true); setTimeout(() => { Sv.simBoton(lado, true); setTimeout(() => { Sv.simBoton(lado, false); Sv.simBoton('C', false); }, 120); }, 60); }
     refs.joyCard = el('div', { class: 'tarjeta' }, el('h3', null, 'Joystick ', el('small', null, 'también andan ← → y la barra espaciadora (simulador)')), refs.joy,
-      el('div', { class: 'tk-ayuda' }, el('div', null, '◀ Izq.', el('br'), 'turno siguiente'), el('div', null, 'Centro: estado', el('br'), 'mantené 2 s = caído / muerte'), el('div', null, 'Der. ▶', el('br'), 'turno anterior')),
+      el('div', { class: 'tk-ayuda' }, el('div', null, '◀ Izq.', el('br'), 'turno anterior'), el('div', null, 'Centro: estado', el('br'), 'mantené 2 s = caído / muerte'), el('div', null, 'Der. ▶', el('br'), 'turno siguiente')),
       el('div', { class: 'tk-barra' }, refs.barra), el('div', { class: 'fila tk-fila' }, botonUndo, botonIns, botonRst),
       el('p', { class: 'suave tk-nota' }, 'Armando: izquierda / derecha cambian la cantidad o el personaje; centro 2 s confirma la cantidad; centro corto confirma cada personaje. Los tres botones juntos 3 s reinician.'));
     // En pantalla ancha (escritorio) el tracker con su joystick va en la columna de la derecha, en el lugar de la maqueta del Macrodeck (lo monta Maqueta.montar).
@@ -330,8 +330,8 @@ window.MD = window.MD || {};
         let sig = k, n = 0; do { sig = sig % S.total + 1; n++; } while (S.muerto[sig] && n < 13);
         refs.tSig.textContent = S.muerto[sig] || sig === k ? '' : 'Sigue: ' + nombreFicha(S, sig);
         refs.fichaTurno.innerHTML = Trk.ficha(S.tipo[k], S.tipo[k] === 'E' ? Trk.numEnemigo(S, k) : 0);
-      } else { refs.tNom.textContent = hay ? (S.modo === 'Q' ? 'Eligiendo la cantidad' : 'Eligiendo los personajes') : '—'; refs.tCl.textContent = ''; refs.tSig.textContent = ''; refs.fichaTurno.innerHTML = ''; }
-      refs.modoTxt.textContent = hay ? (S.modo === 'Q' ? 'Cantidad: ' + S.total + ' · mantené el centro 2 s para confirmar' : (S.modo === 'C' ? 'Personaje ' + S.cfg + ' de ' + S.total : 'Combate · ' + S.total + ' lugares' + (S.ins ? ' · insertando' : ''))) : '';
+      } else { refs.tNom.textContent = hay ? (S.modo === 'F' ? 'Combate terminado' : (S.modo === 'Q' ? 'Eligiendo la cantidad' : 'Eligiendo los personajes')) : '—'; refs.tCl.textContent = ''; refs.tSig.textContent = ''; refs.fichaTurno.innerHTML = ''; }
+      refs.modoTxt.textContent = hay ? (S.modo === 'Q' ? 'Cantidad: ' + S.total + ' · mantené el centro 2 s para confirmar' : (S.modo === 'F' ? 'Combate terminado · tracker apagado (reinicio: los 3 botones 3 s)' : S.modo === 'C' ? 'Personaje ' + S.cfg + ' de ' + S.total : 'Combate · ' + S.total + ' lugares' + (S.ins ? ' · insertando' : ''))) : '';
       // estadisticas
       const st = Sv.stats, seg = st.t0 ? Math.floor((Date.now() - st.t0) / 1000) : 0;
       refs.s_ronda.textContent = S.modo === 'B' ? S.ronda : '–'; refs.s_muertes.textContent = st.muertes; refs.s_caidos.textContent = st.caidos; refs.s_turnos.textContent = st.turnos;
@@ -344,7 +344,7 @@ window.MD = window.MD || {};
       for (let i = 1; i <= 12; i++) {
         const sl = refs.slots[i - 1], q = S.modo === 'Q', k = q ? i : i - off;   // en cantidad el sketch prende por LED fisico (sin centrar)
         const en = hay && (q || (k >= 1 && k <= S.total));                       // lugar en uso; el resto son calaveras lisas apagadas (el aparato siempre tiene sus 12 fichas puestas)
-        const t = en && (S.modo === 'B' || (S.modo === 'C' && k <= S.cfg)) ? S.tipo[k] : '?', num = t === 'E' ? Trk.numEnemigo(S, k) : 0, firma = t + num;
+        const t = en && (S.modo === 'B' || S.modo === 'F' || (S.modo === 'C' && k <= S.cfg)) ? S.tipo[k] : '?', num = t === 'E' ? Trk.numEnemigo(S, k) : 0, firma = t + num;
         if (sl.firma !== firma) { sl.firma = firma; const html = Trk.ficha(t, num); sl.gl.innerHTML = html; sl.sh.innerHTML = html; sl.fd.innerHTML = html; }
         sl.g.style.display = '';
         const c = en ? (cols[i] || [0, 0, 0]) : [0, 0, 0], luz = c[0] + c[1] + c[2] > 12, fill = luz ? rgb(c) : '#2a2b31';

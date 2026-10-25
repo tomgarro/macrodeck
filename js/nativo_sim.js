@@ -109,7 +109,7 @@
       const t0 = performance.now();
       setTimeout(() => {                                   // el Uno tarda en arrancar (se reinicia al abrir el puerto)
         if (!trk.abierto) return;
-        trk.motor = new MD.Trk.Motor({ salida: (l) => trkEmit('linea', { texto: l }), restaurar: guardado, alGuardar: (x) => { try { if (x) localStorage.setItem('trk_nsim_guardado', JSON.stringify(x)); else localStorage.removeItem('trk_nsim_guardado'); } catch (e) {} } });
+        trk.motor = new MD.Trk.Motor({ invertir: true, salida: (l) => trkEmit('linea', { texto: l }), restaurar: guardado, alGuardar: (x) => { try { if (x) localStorage.setItem('trk_nsim_guardado', JSON.stringify(x)); else localStorage.removeItem('trk_nsim_guardado'); } catch (e) {} } });
         trk.timer = setInterval(() => { if (trk.motor) trk.motor.tick(Math.floor(performance.now() - t0)); }, 2);
       }, 1500);
       return { nombre: 'Arduino Uno (simulado)' };

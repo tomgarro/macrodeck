@@ -63,7 +63,7 @@ window.MD = window.MD || {};
       if (this.cola.length) { const x = this.cola.shift(); this.iniciar(x[0], x[1], x[2], ms); return; }
       if (ms - this.tFrame >= 25) {
         this.tFrame = ms; this.frames++;
-        if (this.S.modo === 'Q') this.rQ(); else if (this.S.modo === 'C') this.rC(); else this.rB(ms);
+        if (this.S.modo === 'Q') this.rQ(); else if (this.S.modo === 'C') this.rC(); else if (this.S.modo === 'F') this.apagar(); else this.rB(ms);
       }
     }
     // ----- renders (copia de renderConfigCantidad / renderConfigColor / renderCombate) -----
@@ -260,8 +260,8 @@ window.MD = window.MD || {};
       else if (id === 'KL') p.arrancar('fulminado', num(a[1]), null, ms);
       else if (id === 'QO') { S.modo = 'C'; S.cfg = 1; p.arrancar('flash', 0, null, ms); }
       else if (id === 'CG') S.modo = 'B';
-      else if (id === 'VI') p.arrancar('victoria', 0, null, ms);
-      else if (id === 'TK' || id === 'RS') { S.modo = 'Q'; p.arrancar('estrobo', 3, null, ms); }
+      else if (id === 'VI') { S.modo = 'F'; p.arrancar('victoria', 0, null, ms); }
+      else if (id === 'TK' || id === 'RS') { S.modo = id === 'TK' ? 'F' : 'Q'; p.arrancar('estrobo', 3, null, ms); }
       else if (id === 'ID') this.inactivo = true;
       else if (id === 'QU' || id === 'QD') S.total = num(a[0]) || S.total;
       else if (id === 'CN' || id === 'CP' || id === 'IT') { const k = num(a[1]); if (k >= 1 && k <= 12 && Trk.TIPOS[a[0]]) S.tipo[k] = a[0]; }

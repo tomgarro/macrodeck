@@ -10,10 +10,10 @@
     // opts: { salida(linea), restaurar: obj|null (combate guardado), alGuardar(obj|null), version, debug }
     constructor(opts) {
       opts = opts || {};
-      this.salida = opts.salida || (() => {}); this.alGuardar = opts.alGuardar || (() => {}); this.version = opts.version || '2.0';
-      this.umbral = opts.debug ? 15000 : Trk.UMBRAL_INACTIVO; this.debug = !!opts.debug;
+      this.salida = opts.salida || (() => {}); this.alGuardar = opts.alGuardar || (() => {}); this.version = opts.version || '2.1';
+      this.umbral = opts.debug ? 15000 : Trk.UMBRAL_INACTIVO; this.debug = !!opts.debug; this.inv = !!(opts.debug || opts.invertir);   // inv: botones como en MODO_DEBUG (izq = atrás, der = adelante)
       this.ms = 0; this.ultTx = 0; this.snapPend = false; this.holaPend = false; this.restauradoEnBoot = false;
-      this.modo = 0;                         // 0 cantidad · 1 colores · 2 combate
+      this.modo = 0;                         // 0 cantidad · 1 colores · 2 combate · 3 terminado (todo apagado)
       this.total = 4; this.turno = 1; this.ronda = 1; this.slotCfg = 1;
       this.tipo = Array(13).fill(ENEMIGO); this.alt = Array(13).fill(NORMAL); this.muerto = Array(13).fill(false);
       this.ins = false; this.slotIns = 0; this.hist = [];
@@ -41,7 +41,7 @@
     evTS(id, t, s) { this.ev(id, L[t], s); }
     pedirSnap() { this.snapPend = true; }
     foto() {
-      let s = '#' + 'QCB'[this.modo] + ',' + this.ronda + ',' + this.turno + ',' + this.total + ',' + this.slotCfg + ',' + (this.ins ? this.slotIns : 0) + ',';
+      let s = '#' + 'QCBF'[this.modo] + ',' + this.ronda + ',' + this.turno + ',' + this.total + ',' + this.slotCfg + ',' + (this.ins ? this.slotIns : 0) + ',';
       for (let i = 1; i <= this.total; i++) s += L[this.tipo[i]] + Trk.ALT_LETRAS[this.alt[i]] + (this.muerto[i] ? '0' : '1');
       return s;
     }
@@ -53,7 +53,7 @@
     // ---------- estado visible para la pantalla ----------
     sincronizar() {
       const S = this.S;
-      S.modo = 'QCB'[this.modo]; S.ronda = this.ronda; S.turno = this.turno; S.total = this.total; S.cfg = this.slotCfg; S.ins = this.ins ? this.slotIns : 0;
+      S.modo = 'QCBF'[this.modo]; S.ronda = this.ronda; S.turno = this.turno; S.total = this.total; S.cfg = this.slotCfg; S.ins = this.ins ? this.slotIns : 0;
       for (let i = 0; i <= 12; i++) { S.tipo[i] = L[this.tipo[i]]; S.alt[i] = this.alt[i]; S.muerto[i] = this.muerto[i]; }
     }
 
@@ -122,13 +122,16 @@
         return;
       } else this.contTriple = false;
 
+      // COMBATE TERMINADO: no responde a nada (solo al reinicio de 3 botones)
+      if (this.modo === 3) { this.cenPres = false; return; }
+
       let avanzar = false, retroceder = false, insertar = false, ctrlz = false;
       if (bCen) {
-        if (pushIzq) { if (this.debug) ctrlz = true; else insertar = true; this.accionCen = true; }
-        if (pushDer) { if (this.debug) insertar = true; else ctrlz = true; this.accionCen = true; }
+        if (pushIzq) { if (this.inv) ctrlz = true; else insertar = true; this.accionCen = true; }
+        if (pushDer) { if (this.inv) insertar = true; else ctrlz = true; this.accionCen = true; }
       } else {
-        if (pushIzq) { if (this.debug) retroceder = true; else avanzar = true; }
-        if (pushDer) { if (this.debug) avanzar = true; else retroceder = true; }
+        if (pushIzq) { if (this.inv) retroceder = true; else avanzar = true; }
+        if (pushDer) { if (this.inv) avanzar = true; else retroceder = true; }
       }
       if (ctrlz) this.ctrlZ();
       if (insertar) this.iniciarInsercion();
@@ -236,7 +239,7 @@
     verificarTPK() {
       let vivos = false; for (let i = 1; i <= this.total; i++) if (!this.muerto[i]) { vivos = true; break; }
       if (!vivos) {
-        this.ev('TK'); this.invalidarEE(); this.modo = 0; this.reiniciarMemoria(); this.pedirSnap();
+        this.ev('TK'); this.invalidarEE(); this.modo = 3; this.pedirSnap();
         this.sincronizar(); this.p.iniciar('estrobo', 3, null, this.ms); return true;
       }
       return false;
@@ -244,7 +247,7 @@
     continuarMuerte() {
       if (this.verificarTPK()) return;
       if (this.enemAntes > 0 && this.enemigosVivos() === 0) {
-        this.ev('VI'); this.combateGanado = true; this.invalidarEE(); this.sincronizar(); this.p.iniciar('victoria', 0, null, this.ms);
+        this.ev('VI'); this.combateGanado = true; this.invalidarEE(); this.modo = 3; this.pedirSnap(); this.sincronizar(); this.p.iniciar('victoria', 0, null, this.ms);
       }
     }
     // al terminar el destello de una muerte (POST_MUERTE_TRAS_FULMINADO) o la animacion de ronda que le sigue (POST_MUERTE_TRAS_RONDA)
