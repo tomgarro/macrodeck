@@ -410,7 +410,7 @@
       const dm = MDg.Drive.esDM();
       for (let intento = 0; intento < 3; intento++) {
         const r = await MDg.Drive.escenasLeer();
-        const remotoTodo = (r.config && r.config.escenas) || [], remotoLooks = (r.config && r.config.looks) || [], remotoListas = (r.config && r.config.listas) || [], remotoFavs = (r.config && r.config.favoritos) || [], remotoAj = (r.config && r.config.ajustes) || {}, base = MDg.Drive.baseEscenas();
+        const remotoTodo = (r.config && r.config.escenas) || [], remotoLooks = (r.config && r.config.looks) || [], remotoListas = (r.config && r.config.listas) || [], remotoFavs = (r.config && r.config.favoritos) || [], remotoAj = (r.config && r.config.ajustes) || {}, remotoTr = (r.config && r.config.tracker) || null, base = MDg.Drive.baseEscenas();
         const ocultas = dm ? [] : remotoTodo.filter(e => e && e.estado === 'borrador');
         const remoto = dm ? remotoTodo : remotoTodo.filter(e => !(e && e.estado === 'borrador'));
         const f = MDg.DriveEsc.fusionar(base && base.escenas, A.cfg.escenas, remoto, A.escElec, MDg.Config.MAX_ESCENAS);
@@ -434,34 +434,47 @@
         const nuevaLuz = !luzRemota ? luzLocal : (luzMia && (!luzRemotaCambio || dm) ? luzLocal : luzRemota);
         const cambioFavs = MDg.DriveEsc.estable(nuevosFavs.slice().sort()) !== MDg.DriveEsc.estable((A.cfg.favoritos || []).slice().sort());
         const cambioLuz = MDg.DriveEsc.estable(nuevaLuz) !== MDg.DriveEsc.estable(luzLocal);
+        // 2.0-dev5: configuracion del Initiative Tracker (sonidos y luces por evento). Entrada por entrada; si dos celus tocaron la misma, gana Frodo (el DM).
+        const Sv = MDg.Trk && MDg.Trk.Servicio, DE = MDg.DriveEsc;
+        let nuevoTrMapa = null, trRes = { traidas: 0, subidas: 0 }, cambioTr = false, trIgual = true;
+        if (Sv && Sv.cfgCargada) {
+          const remNorm = MDg.Trk.cfgNormalizar(remotoTr || {}), locTr = DE.aplanarTracker(Sv.cfg);
+          // si Drive todavia no tiene la parte del tracker (o la borro una app vieja que no la conoce) NO se interpreta como "borraron todo": se toma lo de este celu
+          const ft = DE.fusionarMapa(base && base.tracker, locTr, remotoTr ? DE.aplanarTracker(remNorm) : locTr, dm);
+          nuevoTrMapa = ft.mapa; trRes = ft.resumen;
+          cambioTr = DE.estable(nuevoTrMapa) !== DE.estable(locTr);
+          trIgual = !!remotoTr && DE.estable(nuevoTrMapa) === DE.estable(DE.aplanarTracker(remNorm));
+        }
         const nuevas = MDg.Config.normalizar({ escenas: f.escenas }).escenas;
         const nuevosLooks = MDg.Config.normalizar({ looks: fl.escenas }).looks;
         const cambioLocal = MDg.DriveEsc.estable(nuevas) !== MDg.DriveEsc.estable(A.cfg.escenas);
         const cambioLooks = MDg.DriveEsc.estable(nuevosLooks) !== MDg.DriveEsc.estable(A.cfg.looks || []);
         const cambioListas = MDg.DriveEsc.estable(nuevasListas) !== MDg.DriveEsc.estable(A.cfg.listas || []);
-        if (cambioLocal || cambioLooks || cambioListas || cambioFavs || cambioLuz) {
+        if (cambioLocal || cambioLooks || cambioListas || cambioFavs || cambioLuz || cambioTr) {
           if (cambioLocal) { A.cfg.escenas = nuevas; A.activa = Math.min(A.activa, nuevas.length - 1); A.edEsc = Math.min(A.edEsc, nuevas.length - 1); A.edTecla = null; }
           if (cambioLooks) A.cfg.looks = nuevosLooks;
           if (cambioListas) A.cfg.listas = nuevasListas;
           if (cambioFavs) A.cfg.favoritos = nuevosFavs;
           if (cambioLuz) { A.cfg.ajustes.luzBase = nuevaLuz; if (MDg.LucesDnd && MDg.LucesDnd.alCambiarReposo) MDg.LucesDnd.alCambiarReposo(); }
+          if (cambioTr) { const d = DE.desaplanarTracker(nuevoTrMapa); Sv.cfg.ev = d.ev; Sv.cfg.cl = d.cl; Sv.cfg = MDg.Trk.cfgNormalizar(Sv.cfg); Sv.guardarCfg(); }
           A.cambio(true); await A.guardarYa();
         }
         let version = r.version;
         const favsIguales = MDg.DriveEsc.estable(nuevosFavs.slice().sort()) === MDg.DriveEsc.estable((remotoFavs || []).slice().sort()), luzIgual = !!luzRemota && MDg.DriveEsc.estable(nuevaLuz) === MDg.DriveEsc.estable(luzRemota);
-        if (!f.igual || !fl.igual || !fli.igual || !favsIguales || !luzIgual) {
+        if (!f.igual || !fl.igual || !fli.igual || !favsIguales || !luzIgual || !trIgual) {
           // lo que Tom no ve (los borradores de Frodo) se conserva tal cual en Drive, en su mismo lugar
           const salida = nuevas.slice();
           ocultas.forEach(o => salida.splice(Math.min(remotoTodo.indexOf(o), salida.length), 0, o));
-          const g = await MDg.Drive.escenasGuardar(r.version, { escenas: salida, looks: nuevosLooks, listas: nuevasListas, favoritos: nuevosFavs, ajustes: { luzBase: nuevaLuz } });
+          const g = await MDg.Drive.escenasGuardar(r.version, { escenas: salida, looks: nuevosLooks, listas: nuevasListas, favoritos: nuevosFavs, ajustes: { luzBase: nuevaLuz }, tracker: nuevoTrMapa ? DE.desaplanarTracker(nuevoTrMapa) : (remotoTr || undefined) });
           if (g.conflicto) continue;                                   // alguien guardo justo en el medio: se vuelve a juntar
           version = g.version;
         }
-        MDg.Drive.fijarBaseEscenas(version, nuevas, nuevosLooks, nuevasListas, { favoritos: nuevosFavs, luzBase: nuevaLuz }); A.escElec = {}; A.ultimaSync = Date.now();
+        MDg.Drive.fijarBaseEscenas(version, nuevas, nuevosLooks, nuevasListas, { favoritos: nuevosFavs, luzBase: nuevaLuz, tracker: nuevoTrMapa || (base && base.tracker) || undefined }); A.escElec = {}; A.ultimaSync = Date.now();
         A.escEnPrep = ocultas.length;
         const faltan = new Set(); nuevas.forEach(e => e.teclas.forEach(t => t && t.sonidos.forEach(id => { if (!A.regs.has(id)) faltan.add(id); })));
         const x = f.resumen;
         A.escMsg = 'Escenas sincronizadas (' + (x.traidas ? x.traidas + ' traida(s) de Drive' : 'nada nuevo en Drive') + ', ' + (x.subidas ? x.subidas + ' subida(s)' : 'nada para subir') + (x.borradas ? ', ' + x.borradas + ' borrada(s)' : '') + ').'
+          + (nuevoTrMapa && (trRes.traidas || trRes.subidas) ? ' Tracker: ' + trRes.traidas + ' traida(s), ' + trRes.subidas + ' subida(s).' : '')
           + (ocultas.length ? ' Hay ' + ocultas.length + ' escena(s) en preparacion.' : '')
           + (faltan.size ? ' Ojo: faltan ' + faltan.size + ' sonido(s) en este celu; usa "Bajar lo nuevo".' : '');
         break;

@@ -36,6 +36,7 @@ window.MD = window.MD || {};
   };
   Sv.cargarCfg = async function () {
     try { Sv.cfg = Trk.cfgNormalizar(await MD.Almacen.leerConfigClave('tracker_cfg')); } catch (e) { Sv.cfg = Trk.cfgNueva(); }
+    Sv.cfgCargada = true;      // desde aca la configuracion del tracker viaja con "Sincronizar todo" (ver A.driveEscenas)
     Trk.Audio.volumen = Sv.cfg.vol; Trk.Audio.duck = Sv.cfg.duck;
     Trk.Audio.bibliotecaMeta = () => ((Sv.A && Sv.A.cfg && Sv.A.cfg.sonidos) || []);
   };

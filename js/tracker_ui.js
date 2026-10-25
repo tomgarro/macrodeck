@@ -271,7 +271,8 @@ window.MD = window.MD || {};
       chk('Bajar la música de otras apps mientras suena (ducking)', cfg().duck, (v) => { cfg().duck = v; Sv.guardarCfg(); }, 'Solo dentro de la APK.'),
       chk('Mover las luces de D&D con los movimientos', cfg().luces, (v) => { cfg().luces = v; Sv.guardarCfg(); }, 'Usa las lámparas de la pestaña Luces. Si están apagadas en este celu, no pasa nada.'),
       chk('Conectar solo el Arduino al enchufarlo', cfg().auto, (v) => { cfg().auto = v; Sv.guardarCfg(); }, 'También reconecta si se corta el cable.'),
-      el('label', null, 'Baudios (velocidad del puerto)'), baud));
+      el('label', null, 'Baudios (velocidad del puerto)'), baud,
+      el('p', { class: 'suave tk-nota' }, 'Qué suena y qué luz se prende en cada movimiento (incluidas las variantes por clase) viaja con «Sincronizar todo», así Tom y Frodo tienen lo mismo; si cambiaron lo mismo en los dos celus, gana lo de Frodo. El volumen, el ducking, el USB y los baudios son de cada celu y no se sincronizan.')));
 
     // ---------- monitor serie ----------
     let filtro = 'todo', pausa = false;

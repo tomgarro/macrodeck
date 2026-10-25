@@ -39,7 +39,8 @@ window.MD = window.MD || {};
       const E = MD.DriveEsc.estable, esc = (A.cfg.escenas || []).filter((e) => !(e && e.estado === 'borrador' && !MD.Drive.esDM()));
       return E(esc) !== E(b.escenas || []) || E(A.cfg.looks || []) !== E(b.looks || []) || E(A.cfg.listas || []) !== E(b.listas || [])
         || E((A.cfg.favoritos || []).slice().sort()) !== E((b.favoritos || []).slice().sort())
-        || E(MD.Config.normLuzBase(A.cfg.ajustes.luzBase)) !== E(MD.Config.normLuzBase(b.luzBase));
+        || E(MD.Config.normLuzBase(A.cfg.ajustes.luzBase)) !== E(MD.Config.normLuzBase(b.luzBase))
+        || (MD.Trk && MD.Trk.Servicio && MD.Trk.Servicio.cfgCargada && b.tracker !== undefined && E(MD.DriveEsc.aplanarTracker(MD.Trk.Servicio.cfg)) !== E(b.tracker));
     } catch (e) { return false; }
   }
 
@@ -86,7 +87,7 @@ window.MD = window.MD || {};
     const soltar = MD.Sostener ? MD.Sostener.tomar() : () => {};
     if (todo) marca(true);
     try {
-      S.fase = 'Escenas, looks, listas y favoritos…'; pintar();
+      S.fase = 'Escenas, looks, listas, favoritos y tracker…'; pintar();
       await A.driveEscenas();
       if (A.escConflictos && A.escConflictos.length) { S.resumen = 'Hay una escena cambiada en los dos lados: elegí con cuál quedarte (pestaña Drive).'; A.tab = 'drive'; A.render(); return; }
       if (/^No se pudo/.test(A.escMsg || '')) throw new Error(A.escMsg);

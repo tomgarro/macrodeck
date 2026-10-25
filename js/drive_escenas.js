@@ -58,5 +58,40 @@ window.MD = window.MD || {};
     });
     return out;
   }
-  MD.DriveEsc = { fusionar, estable, fusionarSet };
+  // 2.0-dev5: configuracion del Initiative Tracker (que suena y que se prende en cada evento, por evento y por clase).
+  // Se "aplana" a un mapa clave -> entrada para juntarlo entrada por entrada con la base de la ultima sync:
+  //   'ev|ID' (evento) · 'cl|T|ID' (evento de una clase). Lo que NO viaja (volumen, ducking, USB, baudios) es de cada equipo.
+  function aplanarTracker(c) {
+    const o = {};
+    Object.keys((c && c.ev) || {}).forEach((id) => { o['ev|' + id] = c.ev[id]; });
+    Object.keys((c && c.cl) || {}).forEach((t) => Object.keys(c.cl[t] || {}).forEach((id) => { o['cl|' + t + '|' + id] = c.cl[t][id]; }));
+    return o;
+  }
+  function desaplanarTracker(m) {
+    const ev = {}, cl = {};
+    Object.keys(m || {}).forEach((k) => {
+      const p = k.split('|');
+      if (p[0] === 'ev' && p.length === 2) ev[p[1]] = m[k];
+      else if (p[0] === 'cl' && p.length === 3) { (cl[p[1]] = cl[p[1]] || {})[p[2]] = m[k]; }
+    });
+    return { ev, cl };
+  }
+  // Tres vias por clave: si solo cambio de un lado gana ese lado (incluye "volver a fabrica" = borrar la entrada); si cambio de los dos, gana 'mia' o la de Drive segun ganaMia.
+  function fusionarMapa(base, local, remoto, ganaMia) {
+    const B = base || {}, L = local || {}, R = remoto || {}, out = {}, res = { traidas: 0, subidas: 0 };
+    const e = (v) => (v === undefined ? '\u2205' : estable(v));
+    const claves = new Set([...Object.keys(L), ...Object.keys(R)]);
+    claves.forEach((k) => {
+      const fl = e(L[k]), fr = e(R[k]), fb = e(B[k]);
+      let v;
+      if (fl === fr) v = L[k];
+      else if (fl === fb) { v = R[k]; res.traidas++; }
+      else if (fr === fb) { v = L[k]; res.subidas++; }
+      else if (ganaMia) { v = L[k]; res.subidas++; }
+      else { v = R[k]; res.traidas++; }
+      if (v !== undefined) out[k] = v;
+    });
+    return { mapa: out, resumen: res };
+  }
+  MD.DriveEsc = { fusionar, estable, fusionarSet, aplanarTracker, desaplanarTracker, fusionarMapa };
 })(window.MD);
