@@ -655,3 +655,20 @@ button.chico{min-height:36px;min-width:36px;padding:4px 10px;font-size:.85rem}
 .tk-resumen{font-size:.85rem;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .tk-resumen.ok{color:var(--ok)}.tk-resumen.warn{color:#e0b21f}.tk-resumen.mal{color:var(--mal,#e5484d)}
 .tk-conex[open]>summary{margin-bottom:10px}
+
+/* 2.0-dev5: insignias numeradas, linea de progreso y cartel de etapa en el tracker en vivo */
+.tk-prog{font-size:.88rem;margin:2px 0 8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:1.4em}
+.tk-prog b{color:var(--tk-oro,#e0b21f)}
+.tk-pips{display:inline-flex;gap:4px}
+.tk-pips i{width:12px;height:12px;border-radius:50%;border:2px solid #6b6d78;display:inline-block}
+.tk-pips i.h{background:var(--tk-oro,#e0b21f);border-color:var(--tk-oro,#e0b21f)}
+.tk-pips i.a{border-color:var(--tk-oro,#e0b21f);box-shadow:0 0 0 3px rgba(224,178,31,.35);animation:tk-pulso 1s ease-in-out infinite}
+.tk-bd circle{fill:#15161a;stroke:#6b6d78;stroke-width:6}
+.tk-bd text{font:700 52px system-ui,sans-serif;fill:#c9cad2}
+.tk-bd.hecho circle{fill:var(--tk-oro,#e0b21f);stroke:var(--tk-oro,#e0b21f)}
+.tk-bd.hecho text{fill:#15161a}
+.tk-bd.act circle{fill:#2a2208;stroke:var(--tk-oro,#e0b21f);stroke-width:8;animation:tk-pulso 1s ease-in-out infinite}
+.tk-bd.act text{fill:var(--tk-oro,#e0b21f)}
+@keyframes tk-pulso{0%,100%{opacity:1}50%{opacity:.45}}
+.tk-banner{position:absolute;left:50%;top:76%;transform:translate(-50%,-50%) scale(.9);padding:10px 22px;border-radius:12px;background:rgba(8,8,10,.88);border:2px solid var(--tk-oro,#e0b21f);color:#f4e7b4;font:700 clamp(1rem,3.4vw,1.7rem)/1.2 system-ui,sans-serif;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:3}
+.tk-banner.on{opacity:1;transform:translate(-50%,-50%) scale(1)}

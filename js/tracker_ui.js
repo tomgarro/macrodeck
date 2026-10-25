@@ -106,10 +106,19 @@ window.MD = window.MD || {};
       refs.slots.push({ g, gl: g.querySelector('.gl'), sh: g.querySelector('.sh'), fd: g.querySelector('.fd'), firma: '' });
     }
     refs.svgT.append(tapa);
+    // insignias numeradas arriba de cada lugar en uso (se ven al elegir la cantidad y al pintar los personajes)
+    refs.badges = [];
+    for (let i = 0; i < 12; i++) {
+      const bg = document.createElementNS(NS, 'g'); bg.setAttribute('class', 'tk-bd'); bg.style.display = 'none';
+      bg.innerHTML = '<circle cx="' + CX[i] + '" cy="42" r="40"></circle><text x="' + CX[i] + '" y="44" text-anchor="middle" dominant-baseline="central"></text>';
+      refs.svgT.append(bg); refs.badges.push({ g: bg, t: bg.querySelector('text'), est: '', txt: '' });
+    }
     refs.foto.append(refs.svgT);
+    refs.banner = el('div', { class: 'tk-banner' }); refs.foto.append(refs.banner);
     refs.sinSenal = el('div', { class: 'tk-vacio' }, 'Conectá el Arduino (o el simulador) para ver el tracker en vivo.');
     refs.foto.append(refs.sinSenal);
-    const cardFoto = (el('div', { class: 'tarjeta' }, el('h3', null, 'El tracker, en vivo'), refs.foto, el('p', { class: 'suave tk-nota' }, 'Las fichas se ponen según los personajes que armó Frodo en el Arduino y se iluminan con el mismo color que los LED del aparato. Al elegir la cantidad se prenden los LED de la 1 en adelante; al armar y en combate se acomodan al centro con la ficha de cada personaje.')));
+    refs.prog = el('div', { class: 'tk-prog' });
+    const cardFoto = (el('div', { class: 'tarjeta' }, el('h3', null, 'El tracker, en vivo'), refs.prog, refs.foto, el('p', { class: 'suave tk-nota' }, 'Las fichas se ponen según los personajes que armó Frodo en el Arduino y se iluminan con el mismo color que los LED del aparato. Al elegir la cantidad se prenden los LED de la 1 en adelante; al armar y en combate se acomodan al centro con la ficha de cada personaje.')));
 
     // ---------- joystick ----------
     refs.barra = el('i');
@@ -339,17 +348,37 @@ window.MD = window.MD || {};
       refs.s_tiempo.textContent = Math.floor(seg / 60) + ':' + pad2(seg % 60); refs.s_medio.textContent = st.turnos && seg ? Math.round(seg / st.turnos) + ' s' : '–';
     }
 
+    // cartel que aparece un momento sobre la foto cuando cambia la etapa (cantidad -> personajes -> combate -> fin)
+    function avisoFoto(txt) {
+      if (!txt) return; refs.banner.textContent = txt; refs.banner.classList.remove('on'); void refs.banner.offsetWidth; refs.banner.classList.add('on');
+      clearTimeout(refs.tBanner); refs.tBanner = setTimeout(() => refs.banner.classList.remove('on'), 2600);
+    }
     // ---------- dibujar el tracker (cada cuadro) ----------
     function dibujar(ms) {
       const S = E.S, cols = E.p.cols, hay = Sv.estado === 'conectado' && E.hay, off = E.p.off;
       for (let i = 1; i <= 12; i++) {
         const sl = refs.slots[i - 1], q = S.modo === 'Q', k = q ? i : i - off;   // en cantidad el sketch prende por LED fisico (sin centrar)
-        const en = hay && (q || (k >= 1 && k <= S.total));                       // lugar en uso; el resto son calaveras lisas apagadas (el aparato siempre tiene sus 12 fichas puestas)
+        const en = hay && k >= 1 && k <= S.total;                                // lugar que juega; los que no juegan NO se dibujan (ni sombra)
         const t = en && (S.modo === 'B' || S.modo === 'F' || (S.modo === 'C' && k <= S.cfg)) ? S.tipo[k] : '?', num = t === 'E' ? Trk.numEnemigo(S, k) : 0, firma = t + num;
         if (sl.firma !== firma) { sl.firma = firma; const html = Trk.ficha(t, num); sl.gl.innerHTML = html; sl.sh.innerHTML = html; sl.fd.innerHTML = html; }
-        sl.g.style.display = '';
+        sl.g.style.display = en ? '' : 'none';
+        const bd = refs.badges[i - 1];
+        { let est = '', txt = ''; if (en && S.modo === 'C') { txt = String(k); est = k < S.cfg ? 'hecho' : (k === S.cfg ? 'act' : 'pend'); } else if (en && q && k === S.total) { txt = String(S.total); est = 'act'; }
+          if (bd.est !== est || bd.txt !== txt) { bd.est = est; bd.txt = txt; bd.g.style.display = est ? '' : 'none'; bd.g.setAttribute('class', 'tk-bd ' + est); bd.t.textContent = txt; } }
         const c = en ? (cols[i] || [0, 0, 0]) : [0, 0, 0], luz = c[0] + c[1] + c[2] > 12, fill = luz ? rgb(c) : '#2a2b31';
         sl.gl.setAttribute('fill', fill); sl.gl.style.opacity = luz ? Math.min(0.8, 0.15 + Math.max(c[0], c[1], c[2]) / 255 * 0.55) : 0; sl.sh.setAttribute('fill', fill); sl.fd.style.display = luz ? '' : 'none';
+      }
+      { // linea de progreso y avisos de cambio de etapa
+        let h = '';
+        if (!hay) h = 'Sin conexión';
+        else if (S.modo === 'Q') h = 'Elegí cuántos juegan: <b>' + S.total + '</b> · mantené el centro 2 s para confirmar';
+        else if (S.modo === 'C') { let pips = ''; for (let k = 1; k <= S.total; k++) pips += '<i class="' + (k < S.cfg ? 'h' : (k === S.cfg ? 'a' : '')) + '"></i>'; h = '<span class="tk-pips">' + pips + '</span> Pintando el personaje <b>' + S.cfg + '</b> de <b>' + S.total + '</b> · ' + (S.cfg < S.total ? 'faltan ' + (S.total - S.cfg) + ' después de este' : 'es el último: al confirmarlo empieza el combate'); }
+        else if (S.modo === 'B') h = '⚔ Combate en curso';
+        else if (S.modo === 'F') h = 'Combate terminado · tracker apagado (para empezar de nuevo: los 3 botones 3 s)';
+        if (refs.prog._h !== h) { refs.prog._h = h; refs.prog.innerHTML = h; }
+        const ant = refs.modoAnt, ahora = hay ? S.modo : null;
+        if (ant && ahora && ant !== ahora) avisoFoto(ant === 'C' && ahora === 'B' ? '⚔ ¡Empieza el combate!' : (ahora === 'C' ? 'Ahora pintá a cada personaje' : (ahora === 'F' ? 'Combate terminado' : (ahora === 'Q' ? 'Elegí cuántos juegan' : ''))));
+        refs.modoAnt = ahora;
       }
       if (hay && S.modo === 'B') { const c = cols[S.turno + off] || [0, 0, 0], tc = Trk.TIPOS[S.tipo[S.turno]].c; refs.fichaTurno.style.fill = rgb(tc); }
       if (cDown) refs.barra.style.width = Math.min(100, (performance.now() - cDown) / 20) + '%';
