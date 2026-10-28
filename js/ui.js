@@ -46,6 +46,9 @@ window.MD = window.MD || {};
       fila('silenciar', 'gris', 'Gris punteado - Acciones', 'Silenciar todo y Fade-out.'),
       MD.Config.FUNC_INTENSIDAD ? fila('intensidad', 'gris', 'Gris con barras - Intensidad', 'regula el ultimo loop que prendiste (sonido y luces): cada toque sube un nivel.') : null,
       fila('ambiente', 'amarillo', 'Amarillo con ondas - Ambiente', 'prende un ambiente de Audios (taberna, lluvia...) con fundido; otro toque lo apaga.'),
+      fila('musica', 'amarillo', 'Amarillo con notas - Música', 'prende una lista de música de Audios (reemplaza la que suena, con fundido); otro toque la apaga.'),
+      fila('musica_sig', 'blanco', 'Blanco con flecha - Siguiente tema', 'salta al siguiente tema de la música.'),
+      fila('musica_pausa', 'gris', 'Gris con barras - Pausa de música', 'pausa y sigue la música sin perder el lugar.'),
       fila('luz_toggle', 'amarillo', 'Amarillo con sol/luna - Cambio de luz', 'cada toque pasa al siguiente estado de luz (dia, noche...) sin cambiar de escena.'),
       fila('ducking', 'amarillo', 'Marco doble + parlante con flecha - Ducking', 'mientras suena, baja la musica del celu (solo en la app Android).'));
   }
@@ -56,6 +59,7 @@ window.MD = window.MD || {};
     if (!t.nombre) out.push('La tecla no tiene nombre: en el Macrodeck se vera solo el icono.');
     if (['una_vez', 'loop', 'intro_loop', 'mantener', 'azar', 'secuencia'].includes(t.tipo) && t.sonidos.length < 1) out.push('Esta tecla no tiene sonido todavia.');
     if (t.tipo === 'ambiente' && !t.audio) out.push('Esta tecla no tiene ambiente elegido todavia.');
+    if (t.tipo === 'musica' && !t.lista) out.push('Esta tecla no tiene lista de musica elegida todavia.');
     if (t.tipo === 'intro_loop' && t.sonidos.length === 1) out.push('"Intro + Loop" con un solo sonido es igual que "Loop": agrega la intro ANTES del loop (el ultimo sonido es el que se repite).');
     if (t.tipo === 'azar' && t.sonidos.length === 1) out.push('"Al azar" con un solo sonido es igual que "Una vez".');
     t.sonidos.forEach(id => { if (!A.cfg.sonidos.some(s => s.id === id)) out.push('Falta un sonido que esta tecla usaba (se borro de la biblioteca).'); });
@@ -183,15 +187,14 @@ window.MD = window.MD || {};
   // Plegable y cerrado por defecto: un fader por tecla (0 a 150 %, el mismo "Volumen de la tecla" de Escenas) + el volumen de Ambientes de la escena.
   // Todo se guarda en la escena, asi que viaja a Drive y el dummy suena con los mismos niveles que en la Mac de Frodo.
   const VOL_MAX = 1.5;
-  const SIN_VOLUMEN = ['silenciar', 'fadeout', 'ambiente', 'luz_toggle', 'intensidad'];     // teclas que no son un sonido propio: no tienen fader
-  function mezclador(A, esc) {
-    const C = MD.Config, hayAmb = !!(MD.Au && MD.Au.carriles && MD.Au.carriles.ambiente);
-    const carrilAmb = () => MD.Au.carriles.ambiente;
-    const volAmb = () => (typeof esc.volAmbiente === 'number' ? esc.volAmbiente : carrilAmb().pr.vol);
-    const foto = () => ({ t: esc.teclas.map(t => (t ? t.volumen : null)), amb: typeof esc.volAmbiente === 'number' ? esc.volAmbiente : null });
+    function mezclador(A, esc) {
+    const C = MD.Config, SIN_VOLUMEN = (tipo) => C.sinSonido(tipo);       // las teclas que no son un sonido propio no tienen fader
+    const hayCarril = (n) => !!(MD.Au && MD.Au.carriles && MD.Au.carriles[n]);
+    const CAMPOS = [['ambiente', 'volAmbiente', 'Ambiente', 'var(--amarillo)'], ['musica', 'volMusica', 'Música', 'var(--acento)']];
+    const foto = () => ({ t: esc.teclas.map(t => (t ? t.volumen : null)), c: CAMPOS.map(([n, campo]) => ({ campo, esc: typeof esc[campo] === 'number' ? esc[campo] : null, dev: hayCarril(n) ? MD.Au.carriles[n].pr.vol : null })) });
     let orig = foto();
     const partes = esc.teclas.map((t, i) => {
-      const con = !!t && !SIN_VOLUMEN.includes(t.tipo);
+      const con = !!t && !SIN_VOLUMEN(t.tipo);
       const col = t ? C.colorModo(t.tipo) : 'gris';
       const tope = h('span', { class: 'mz-pc' });
       const rel = h('div', { class: 'mz-rel' }), cien = h('div', { class: 'mz-cien' });
@@ -221,27 +224,27 @@ window.MD = window.MD || {};
       return { col_, pintar, con };
     });
     const rejM = h('div', { class: 'rejilla mz-rej' }, partes.map(p => p.col_));
-    // Ambiente de la escena
-    let filaAmb = null, pcAmb = null, rangoAmb = null;
-    if (hayAmb) {
-      pcAmb = h('span', { class: 'mz-ambpc' }, Math.round(volAmb() * 100) + '%');
-      rangoAmb = h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(volAmb() * 100), 'aria-label': 'Volumen de Ambientes', oninput: (e) => {
-        const v = e.target.value / 100; esc.volAmbiente = v; carrilAmb().setVol(v); A.cambio(false); pcAmb.textContent = e.target.value + '%';
-      } });
-      filaAmb = h('div', { class: 'mz-amb' }, h('b', null, 'Ambiente'), rangoAmb, pcAmb);
-    }
-    const repintar = () => { partes.forEach(p => p.pintar()); if (hayAmb) { const v = Math.round(volAmb() * 100); rangoAmb.value = v; pcAmb.textContent = v + '%'; } };
+    // Volumen de los carriles de la escena (Ambiente y Música): se guarda en la escena y se aplica al entrar a ella
+    const carriles = CAMPOS.filter(([n]) => hayCarril(n)).map(([n, campo, titulo, color]) => {
+      const car = () => MD.Au.carriles[n], val = () => (typeof esc[campo] === 'number' ? esc[campo] : car().pr.vol);
+      const pc = h('span', { class: 'mz-ambpc' }, Math.round(val() * 100) + '%');
+      const rango = h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(val() * 100), 'aria-label': 'Volumen de ' + titulo, oninput: (e) => {
+        const v = e.target.value / 100; esc[campo] = v; car().setVol(v); A.cambio(false); pc.textContent = e.target.value + '%'; } });
+      rango.style.accentColor = color;
+      return { campo, car, val, pc, rango, fila: h('div', { class: 'mz-amb' }, h('b', null, titulo), rango, pc) };
+    });
+    const repintar = () => { partes.forEach(p => p.pintar()); carriles.forEach(c => { const v = Math.round(c.val() * 100); c.rango.value = v; c.pc.textContent = v + '%'; }); };
     const volver = () => {
-      orig.t.forEach((v, i) => { if (v != null && esc.teclas[i] && !SIN_VOLUMEN.includes(esc.teclas[i].tipo)) A.motor.fijarVolTecla(i, v); });
-      if (hayAmb && orig.amb != null) { esc.volAmbiente = orig.amb; carrilAmb().setVol(orig.amb); } else if (hayAmb) { delete esc.volAmbiente; }
+      orig.t.forEach((v, i) => { if (v != null && esc.teclas[i] && !SIN_VOLUMEN(esc.teclas[i].tipo)) A.motor.fijarVolTecla(i, v); });
+      carriles.forEach(c => { const o = orig.c.find(x => x.campo === c.campo); if (o.esc != null) { esc[c.campo] = o.esc; c.car().setVol(o.esc); } else { delete esc[c.campo]; if (o.dev != null) c.car().setVol(o.dev); } });
       A.cambio(false); repintar();
     };
-    const igualar = () => { esc.teclas.forEach((t, i) => { if (t && !SIN_VOLUMEN.includes(t.tipo)) A.motor.fijarVolTecla(i, 1); }); A.cambio(false); repintar(); };
+    const igualar = () => { esc.teclas.forEach((t, i) => { if (t && !SIN_VOLUMEN(t.tipo)) A.motor.fijarVolTecla(i, 1); }); A.cambio(false); repintar(); };
     return h('details', { class: 'tarjeta leyenda mezclador', id: 'mezclador', open: !!A.mezAbierto, ontoggle: (e) => { A.mezAbierto = e.target.open; if (A.mezAbierto) { orig = foto(); } } },
       h('summary', null, 'Mezclador de la escena'),
       h('div', { class: 'mz-cuerpo' },
-        h('p', { class: 'suave', style: 'margin:0 0 10px;font-size:.85rem' }, 'Arrastrá cada fader para nivelar esa tecla (se escucha al instante si está sonando). Doble toque = 100 %. Se guarda en la escena y viaja al dummy.'),
-        filaAmb, rejM,
+        h('p', { class: 'suave', style: 'margin:0 0 10px;font-size:.85rem' }, 'Arrastrá cada fader para nivelar esa tecla (se escucha al instante si está sonando). Doble toque = 100 %. Arriba, el volumen de Ambiente y de Música. Todo se guarda en la escena y viaja al dummy.'),
+        carriles.map(c => c.fila), rejM,
         h('div', { class: 'fila mz-pie' }, h('button', { type: 'button', onclick: volver }, '↺ Volver a como estaba'), h('button', { type: 'button', onclick: igualar }, 'Igualar todas a 100 %'))));
   }
 
@@ -367,6 +370,26 @@ window.MD = window.MD || {};
       d ? h('div', { class: 'fila', style: 'margin-top:6px' }, h('button', { type: 'button', onclick: () => Au.carril('ambiente').ambienteTecla(d, t.entrada > 0 ? t.entrada : 3) }, 'Probar'), h('button', { type: 'button', onclick: () => Au.carril('ambiente').apagarSuave(t.salida > 0 ? t.salida : 3) }, 'Parar')) : null,
       h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: !!t.sumar, onchange: (e) => { t.sumar = e.target.checked; A.cambio(true); } }), ' Sumar: que suene ENCIMA de los otros ambientes (si no, reemplaza al que suena)'),
       h('p', { class: 'suave' }, 'Un toque lo prende con fundido de entrada; otro toque lo apaga con fundido de salida. Su volumen se regula en Audios (carril Ambientes).'));
+  }
+  // 2.0-dev8: Tecla "Musica (de una lista)": elige una lista de la pestana Audios (las arma el DM) que suena en el carril de Musica
+  function musicaTecla(A, t) {
+    const Au = MD.Au, ls = Au ? Au.listas() : [];
+    const sel = h('select', { id: 'selListaTecla', 'aria-label': 'Lista de música', onchange: (e) => {
+      t.lista = e.target.value; const l = Au && Au.lista(t.lista); t.listaNombre = l ? l.nombre : '';
+      if (l && (!t.nombre || t.nombre === 'Nueva' || t.nombre === 'Música')) t.nombre = l.nombre.slice(0, 18);
+      A.cambio(true); A.render(); } },
+      h('option', { value: '' }, ls.length ? '(elegí una lista)' : '(todavía no hay listas: armalas en Audios > Listas)'),
+      ls.map(x => h('option', { value: x.id, selected: x.id === t.lista }, x.nombre + (x.auto ? ' (automática)' : ''))),
+      t.lista && !ls.some(x => x.id === t.lista) ? h('option', { value: t.lista, selected: true }, (t.listaNombre || 'lista') + ' (todavía no llegó a este celu)') : null);
+    const l = Au && t.lista && Au.lista(t.lista);
+    const num = (campo) => (e) => { t[campo] = Number(e.target.value); A.cambio(true); };
+    return h('div', null, h('label', null, 'Lista de música (de la pestaña Audios)'), sel,
+      l ? h('div', { class: 'fila', style: 'margin-top:6px' }, h('button', { type: 'button', onclick: () => Au.carril('musica').reproducirLista(l, { azar: !!t.azarLista, entrada: t.entrada > 0 ? t.entrada : 3 }) }, 'Probar'),
+        h('button', { type: 'button', onclick: () => Au.carril('musica').apagarSuave(2) }, 'Parar')) : null,
+      h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: !!t.azarLista, onchange: (e) => { t.azarLista = e.target.checked; A.cambio(true); } }), ' En orden al azar'),
+      h('div', { class: 'cols' }, h('div', null, h('label', null, 'Entrada (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.entrada, oninput: num('entrada') })),
+        h('div', null, h('label', null, 'Salida (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.salida, oninput: num('salida') }))),
+      h('p', { class: 'suave' }, 'Un toque arranca esta lista y reemplaza la música que suene (con fundido); otro toque la apaga. Se regula con el volumen de Música (Mezclador de la Mesa).'));
   }
   // Tecla "Cambio de luz (toggle)": hasta 4 estados que se van alternando
   function toggleTecla(A, t) {
@@ -563,6 +586,16 @@ window.MD = window.MD || {};
   }
 
   // ===================== ESCENAS (editor) =====================
+  // 2.0-dev8: bloque plegable (cerrado por defecto) para que la pantalla de Escenas no abrume. Recuerda abierto/cerrado mientras la app esta abierta.
+  function plegable(A, id, titulo, resumen, icono, ...nodos) {
+    A._plegEsc = A._plegEsc || {};
+    const abierta = !!A._plegEsc[id];
+    const cab = h('button', { type: 'button', class: 'sec-cab', 'aria-expanded': abierta ? 'true' : 'false', 'data-pleg': id },
+      h('span', { class: 'sec-ic' }, MD.IUI.svg(icono)), h('span', { class: 'sec-tx' }, h('b', null, titulo), h('small', null, resumen)), MD.IUI.svg('flecha', 'sec-ch'));
+    const caja = h('div', { class: 'sec plegable' + (abierta ? ' abierta' : '') }, cab, h('div', { class: 'sec-cuerpo' }, nodos));
+    cab.addEventListener('click', () => { const ab = !caja.classList.contains('abierta'); A._plegEsc[id] = ab; caja.classList.toggle('abierta', ab); cab.setAttribute('aria-expanded', ab ? 'true' : 'false'); });
+    return caja;
+  }
   function vistaEscenas(A, el) {
     const cfg = A.cfg;
     const desk = !!(MD.Maqueta && MD.Maqueta.activa());          // 1.3-dev35: en pantalla ancha, lista de escenas a la izquierda y editor a la derecha
@@ -595,13 +628,13 @@ window.MD = window.MD || {};
     der.append(h('div', { class: 'tarjeta' },
       estadoFila,
       h('label', { style: 'margin-top:0' }, 'Nombre de la escena (en el selector del Macrodeck se ven ~7 letras)'), nombre,
-      (() => { const lug = A.lugarMacrodeck(A.edEsc), tilde = esc.macrodeck !== false;
+      barraGuardar(A, true, false)));
+    der.append(plegable(A, 'opc', 'Opciones de la escena', 'Macrodeck, orden, duplicar y borrar', 'ajustes', h('div', null,       (() => { const lug = A.lugarMacrodeck(A.edEsc), tilde = esc.macrodeck !== false;
         return h('label', { class: 'chk', style: 'margin-top:10px' }, h('input', { type: 'checkbox', id: 'chkMacrodeck', checked: tilde, onchange: (e) => { if (e.target.checked) delete esc.macrodeck; else esc.macrodeck = false; A.cambio(true); A.render(); } }),
           ' Mostrar en el Macrodeck ', h('span', { class: 'suave' }, lug >= 0 ? '(lugar ' + NOM[lug] + ' del selector)' : (tilde ? '(no entra: ya hay ' + MD.Config.MAX_EN_MACRODECK + ' en el selector)' : '(solo en la app)'))); })(),
-      h('div', { class: 'fila', style: 'margin-top:10px' }, h('button', { type: 'button', onclick: () => mover(-1) }, '←'), h('button', { type: 'button', onclick: () => mover(1) }, '→'), dup, borrar),
-      barraGuardar(A, true, false)));
-    if (MD.LucesDnd) der.append(lucesEscena(A, esc));
-    if (MD.Audios && MD.Audios.tarjetaEscena) der.append(MD.Audios.tarjetaEscena(A, esc));        // 1.3-dev25: musica de fondo (lista de Audios) de la escena
+      h('div', { class: 'fila', style: 'margin-top:10px' }, h('button', { type: 'button', onclick: () => mover(-1) }, '←'), h('button', { type: 'button', onclick: () => mover(1) }, '→'), dup, borrar)))); 
+    if (MD.LucesDnd) { const nl = Object.keys(esc.luz || {}).length; der.append(plegable(A, 'luzEsc', 'Luz de ambiente de la escena', nl ? nl + (nl === 1 ? ' lámpara' : ' lámparas') : 'No cambia las luces', 'luz', lucesEscena(A, esc))); }
+    if (MD.Audios && MD.Audios.tarjetaEscena) der.append(plegable(A, 'audEsc', 'Música y ambiente de fondo', [esc.lista ? 'Música: ' + ((MD.Au && MD.Au.lista(esc.lista.id) || {}).nombre || 'lista') : '', esc.ambiente ? 'Ambiente' : ''].filter(Boolean).join(' · ') || 'Sin música ni ambiente de fondo', 'audios', MD.Audios.tarjetaEscena(A, esc)));        // 1.3-dev25 / 2.0-dev8
 
     const rej = h('div', { class: 'rejilla' });
     esc.teclas.forEach((t, i) => { const c = celda(t, i, { onclick: () => { A.edTecla = i; A.render(); } }); if (i === A.edTecla) c.classList.add('sel'); rej.append(c); });
@@ -623,6 +656,9 @@ window.MD = window.MD || {};
     }
     const cam = (campo, render) => (e) => { const v = (e.target.type === 'number' || e.target.type === 'range') ? Number(e.target.value) : e.target.value; t[campo] = v; if (campo === 'tipo' && !MD.Config.admiteDucking(v)) t.ducking = false;
       if (campo === 'tipo' && v === 'ambiente') { if (!(t.entrada > 0)) t.entrada = 3; if (!(t.salida > 0.4)) t.salida = 3; t.grupo = ''; }
+      if (campo === 'tipo' && v === 'musica') { if (!(t.entrada > 0)) t.entrada = 3; if (!(t.salida > 0.4)) t.salida = 3; t.grupo = ''; if (!t.nombre || t.nombre === 'Nueva') t.nombre = 'Música'; }
+      if (campo === 'tipo' && v === 'musica_sig' && (!t.nombre || t.nombre === 'Nueva')) t.nombre = 'Siguiente';
+      if (campo === 'tipo' && v === 'musica_pausa' && (!t.nombre || t.nombre === 'Nueva')) t.nombre = 'Pausa';
       if (campo === 'tipo' && v === 'luz_toggle') { t.estados = MD.Config.normEstadosToggle(t.estados); if (t.fundido == null) t.fundido = 4; if (!t.nombre || t.nombre === 'Nueva') t.nombre = 'Dia/Noche'; }
       if (campo === 'tipo' && v === 'intensidad') { if (!t.icono) t.icono = MD.Config.ICONO_INTENSIDAD; if (!t.nombre) t.nombre = 'Intensidad'; }
       A.cambio(true); if (render) A.render(); };
@@ -641,7 +677,7 @@ window.MD = window.MD || {};
       return { el: caja2, cuerpo };
     };
     const nSon = (t.sonidos || []).length;
-    const resSonido = t.tipo === 'ambiente' ? (t.audio ? 'Ambiente elegido' : 'Sin ambiente todavía') : (t.tipo === 'luz_toggle' ? 'Cambio de luz' : (nSon ? nSon + (nSon === 1 ? ' sonido' : ' sonidos') : 'Sin sonido todavía'));
+    const resSonido = t.tipo === 'ambiente' ? (t.audio ? 'Ambiente elegido' : 'Sin ambiente todavía') : (t.tipo === 'musica' ? (t.lista ? 'Lista: ' + (t.listaNombre || 'elegida') : 'Sin lista todavía') : (t.tipo === 'musica_sig' || t.tipo === 'musica_pausa') ? 'Controla la música' : (t.tipo === 'luz_toggle' ? 'Cambio de luz' : (nSon ? nSon + (nSon === 1 ? ' sonido' : ' sonidos') : 'Sin sonido todavía')));
     const secSonido = seccion('sonido', 'Sonido', 'sonidos', resSonido);
     const secLuces = seccion('luces', 'Luces', 'luz', (t.luces && t.luces.length) ? t.luces.length + (t.luces.length === 1 ? ' lámpara' : ' lámparas') : 'No toca las lámparas');
     const actIc = t.icono ? MD.Iconos.entradaDeHex(t.icono) : null;
@@ -661,8 +697,10 @@ window.MD = window.MD || {};
 
     dest = secSonido.cuerpo;
     if (t.tipo === 'ambiente') dest.append(ambienteTecla(A, t));
+    if (t.tipo === 'musica') dest.append(musicaTecla(A, t));
+    if (t.tipo === 'musica_sig' || t.tipo === 'musica_pausa') dest.append(h('p', { class: 'suave' }, 'Esta tecla no lleva sonido propio: maneja la música que esté sonando (carril de Música).'));
     if (t.tipo === 'luz_toggle') dest.append(toggleTecla(A, t));
-    if (!['silenciar', 'fadeout', 'intensidad', 'ambiente', 'luz_toggle'].includes(t.tipo)) {
+    if (!MD.Config.sinSonido(t.tipo)) {
       const introLoop = t.tipo === 'intro_loop';
       const multi = ['azar', 'secuencia', 'intro_loop'].includes(t.tipo);
       dest.append(h('label', null, introLoop ? 'Sonidos (en orden: primero la intro, al final el loop)' : (multi ? 'Sonidos (en orden)' : 'Sonido')));
@@ -699,7 +737,7 @@ window.MD = window.MD || {};
       dest.append(h('div', { class: 'cols' }, h('div', null, h('label', null, 'Entrada (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.entrada, oninput: cam('entrada') })),
         h('div', null, h('label', null, 'Salida (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.salida, oninput: cam('salida') }))));
     }
-    if (!['silenciar', 'intensidad', 'ambiente', 'luz_toggle'].includes(t.tipo)) {
+    if (!MD.Config.sinSonido(t.tipo) || t.tipo === 'fadeout') {
       const etVol = h('label', null, 'Volumen de la tecla (' + Math.round(t.volumen * 100) + '%)');
       dest.append(h('div', { class: 'cols' },
         h('div', null, etVol, h('input', { type: 'range', min: 0, max: 1.5, step: 0.05, value: t.volumen, oninput: (e) => { t.volumen = +e.target.value; A.cambio(false); etVol.textContent = 'Volumen de la tecla (' + Math.round(t.volumen * 100) + '%)'; } })),

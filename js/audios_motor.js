@@ -228,7 +228,7 @@ window.MD = window.MD || {};
       else if ((azar != null ? azar : pr.azar)) d = Au.dePorId(buenos[Math.floor(Math.random() * buenos.length)]);
       else d = Au.dePorId(buenos[0]);
       P.ctx.pos = ids.indexOf(d.id);
-      return empezar(d, 0, P.id ? Math.min(4, lista.fundido || 4) : 0);
+      return empezar(d, 0, P.id ? Math.min(4, lista.fundido || 4) : 0, opc.entrada);        // 2.0-dev8: 'entrada' = fundido de entrada si no sonaba nada (tecla de Musica)
     };
     api.siguiente = async (manual) => {
       const sig = tomarSiguiente();
@@ -331,6 +331,7 @@ window.MD = window.MD || {};
   // Al entrar a una escena: la musica de fondo (lista) va al carril de Musica y el ambiente de fondo (un audio de tipo Ambiente) al de Ambientes.
   Au.alEscena = (esc) => {
     if (!esc) return;
+    if (typeof esc.volMusica === 'number' && carriles.musica) { try { carriles.musica.setVol(esc.volMusica); } catch (e) {} }          // 2.0-dev8: volumen de Musica guardado en la escena (Mezclador)
     if (typeof esc.volAmbiente === 'number' && carriles.ambiente) { try { carriles.ambiente.setVol(esc.volAmbiente); } catch (e) {} }     // 2.0-dev7: volumen de Ambientes guardado en la escena (Mezclador)
     if (esc.lista) {
       const l = Au.lista(esc.lista.id);

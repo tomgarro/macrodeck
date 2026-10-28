@@ -11,6 +11,10 @@ window.MD = window.MD || {};
     { id: 'silenciar', nombre: 'Silenciar todo', ayuda: 'Corta TODO el sonido de la app (otra vez lo devuelve). No afecta a la musica de otras apps.' },
     { id: 'fadeout',   nombre: 'Fade-out total', ayuda: 'Apaga con un fundido todos los loops y sonidos largos.' },
     { id: 'ambiente',  nombre: 'Ambiente (de Audios)', ayuda: 'Prende un audio de tipo Ambiente de la pestana Audios (una taberna, la lluvia, un bosque) como un loop con fundido de entrada y de salida. Otro toque lo apaga. Suena en el carril de Ambientes, con su propio volumen.' },
+    // 2.0-dev8: teclas de MUSICA (el carril de Musica de la pestana Audios, con listas armadas por el DM).
+    { id: 'musica',    nombre: 'Música (de una lista)', ayuda: 'Prende una lista de la pestana Audios (combate, taberna, tension...) y reemplaza la musica que suena, con fundido. Otro toque la apaga. Asi se cambia la musica con una tecla, sin tocar la escena.' },
+    { id: 'musica_sig', nombre: 'Música: siguiente tema', ayuda: 'Salta al siguiente tema de la musica que esta sonando (con fundido).' },
+    { id: 'musica_pausa', nombre: 'Música: pausa / seguir', ayuda: 'Pausa la musica sin perder el lugar; otro toque sigue. No toca los ambientes ni los efectos.' },
     { id: 'luz_toggle', nombre: 'Cambio de luz (toggle)', ayuda: 'Cada toque pasa al siguiente estado de luz (por ejemplo Dia / Noche) SIN cambiar de escena ni cortar los sonidos. Podes poner de 2 a 4 estados.' },
     // 1.3-dev31: la tecla Intensidad queda en PENDIENTES (Tom, 21/10): no se ofrece al crear teclas nuevas, pero todo su codigo sigue (si una tecla ya la usa, anda igual).
     // Para volver a ofrecerla: FUNC_INTENSIDAD = true.
@@ -21,11 +25,14 @@ window.MD = window.MD || {};
   // v1.3: la categoria (Ambiente/Combate/...) se elimino. El color del marco en el mapa del Macrodeck lo decide el COMPORTAMIENTO:
   //   Loop e Intro + Loop amarillo | Constante (mantener) rojo | Unico, Al azar y Secuencia blanco | Silenciar y Fade-out gris.
   // El DUCKING (baja la musica del celu mientras suena) se marca con marco doble + parlante con flecha.
-  const MODO_COLOR = { loop: 'amarillo', intro_loop: 'amarillo', ambiente: 'amarillo', luz_toggle: 'amarillo', mantener: 'rojo', silenciar: 'gris', fadeout: 'gris', intensidad: 'gris' };
+  const MODO_COLOR = { loop: 'amarillo', intro_loop: 'amarillo', ambiente: 'amarillo', musica: 'amarillo', musica_pausa: 'gris', luz_toggle: 'amarillo', mantener: 'rojo', silenciar: 'gris', fadeout: 'gris', intensidad: 'gris' };
   const colorModo = (tipo) => MODO_COLOR[tipo] || 'blanco';
   const COLOR_HEX = { amarillo: '#e0b21f', rojo: '#d4342c', blanco: '#e6e6e6', gris: '#808080' };
   const esLoop = (tipo) => tipo === 'loop' || tipo === 'intro_loop' || tipo === 'ambiente';       // las teclas que se prenden y se apagan con otro toque
-  const admiteDucking = (tipo) => !['silenciar', 'fadeout', 'intensidad', 'ambiente', 'luz_toggle'].includes(tipo);
+  // 2.0-dev8: teclas que NO son un sonido propio (no llevan sonidos, ni ducking, ni fader en el Mezclador)
+  const SIN_SONIDO = ['silenciar', 'fadeout', 'intensidad', 'ambiente', 'luz_toggle', 'musica', 'musica_sig', 'musica_pausa'];
+  const sinSonido = (tipo) => SIN_SONIDO.includes(tipo);
+  const admiteDucking = (tipo) => !sinSonido(tipo);
   // 1.3-dev20: icono por defecto de la tecla Intensidad (cinco barras que suben, 24 x 24). El firmware todavia no tiene un glifo propio para este tipo.
   const ICONO_INTENSIDAD = '0000000000000000380000380000380000380003b80003b80003b80003b8003bb8003bb8003bb8003bb803bbb803bbb803bbb803bbb83bbbb83bbbb83bbbb83bbbb8000000000000';
   // Dibujitos de 1 color (arte en texto, igual que en el firmware: programa_dnd.cpp). '#' = punto prendido.
@@ -40,6 +47,9 @@ window.MD = window.MD || {};
     fadeout:   ["#..........", "###........", "####.......", "######.....", "########...", "#########..", "###########"],
     intensidad: ["........#", "........#", "......#.#", "....#.#.#", "..#.#.#.#", "#.#.#.#.#", "#.#.#.#.#"],
     ambiente:  ["..#.#.#..", ".#.#.#.#.", "#########", ".#.#.#.#.", "..#.#.#..", "....#....", "....#...."],
+    musica:    ["..#######", "..#.....#", "..#.....#", "..#.....#", ".##....##", "###...###", ".##....##"],
+    musica_sig: ["#.....#", "##....#", "###...#", "####..#", "###...#", "##....#", "#.....#"],
+    musica_pausa: ["###...###", "###...###", "###...###", "###...###", "###...###", "###...###", "###...###"],
     luz_toggle: ["...#...#...", ".#..#.#..#.", "..#.###.#..", "#...#####..#", "..#.###.#..", ".#..#.#..#.", "...#...#..."],
     ducking:   ["...#...#..", "..##...#..", "####...#..", "####.#####", "####..###.", "..##...#..", "...#......"],
   };
@@ -126,6 +136,7 @@ window.MD = window.MD || {};
       const esc = { id: String(e.id || nuevoId('e')), nombre: String(e.nombre || 'Escena').slice(0, 30), teclas: [] };
       if (e.estado === 'borrador') esc.estado = 'borrador';            // (sin campo = confirmada)
       if (e.macrodeck === false) esc.macrodeck = false;                // 1.3-dev31: (sin campo = se muestra en el selector del Macrodeck)
+      if (e.volMusica != null && isFinite(+e.volMusica)) esc.volMusica = num(e.volMusica, 1, 0, 1);   // 2.0-dev8: volumen del carril de Musica que lleva esta escena
       if (e.volAmbiente != null && isFinite(+e.volAmbiente)) esc.volAmbiente = num(e.volAmbiente, 1, 0, 1);   // 2.0-dev7: volumen del carril de Ambientes que lleva esta escena (viaja con ella)
       if (e.ambiente && typeof e.ambiente === 'object' && typeof e.ambiente.id === 'string' && e.ambiente.id) esc.ambiente = { id: e.ambiente.id.slice(0, 80), arranca: e.ambiente.arranca !== false };   // 1.3-dev31: ambiente de fondo de la escena (audio de tipo Ambiente)
       if (LZ) { const lz = LZ.normLuzEscena(e.luz); if (Object.keys(lz).length) esc.luz = lz; }
@@ -148,6 +159,9 @@ window.MD = window.MD || {};
         if (x.tipo === 'ambiente') {                           // 1.3-dev31: un audio de la biblioteca (Audios) que suena como loop en el carril de Ambientes
           x.audio = typeof x.audio === 'string' ? x.audio.slice(0, 80) : ''; x.audioTitulo = String(x.audioTitulo || '').slice(0, 60); x.sumar = !!x.sumar; x.sonidos = [];
         } else { delete x.audio; delete x.audioTitulo; delete x.sumar; }
+        if (x.tipo === 'musica') { x.lista = String(x.lista || '').slice(0, 40); x.listaNombre = String(x.listaNombre || '').slice(0, 40); x.azarLista = !!x.azarLista; x.sonidos = []; x.grupo = ''; }   // 2.0-dev8: una lista de Audios que suena en el carril de Musica
+        else { delete x.lista; delete x.listaNombre; delete x.azarLista; }
+        if (x.tipo === 'musica_sig' || x.tipo === 'musica_pausa') { x.sonidos = []; x.grupo = ''; }
         if (x.tipo === 'luz_toggle') { x.estados = normEstadosToggle(x.estados); x.fundido = num(x.fundido, 4, 0, 60); x.sonidos = []; delete x.luces; } else { delete x.estados; delete x.fundido; }
         if (LZ) { const lt = LZ.normLucesTecla(x.luces); if (lt.length) x.luces = lt; else delete x.luces; }
         esc.teclas.push(x);
@@ -157,5 +171,5 @@ window.MD = window.MD || {};
     if (!out.escenas.length) out.escenas.push(escenaNueva('Escena 1'));
     return out;
   }
-  MD.Config = { TIPOS, tiposVisibles, FUNC_INTENSIDAD, MAX_ESCENAS, MAX_EN_MACRODECK, normLuzBase, normEstadosToggle, RETOQUES, colorModo, esLoop, COLOR_HEX, admiteDucking, ICONO_INTENSIDAD, ARTE, pintarArte, canvasArte, nuevoId, teclaNueva, escenaNueva, configNueva, normalizar, normListas };
+  MD.Config = { TIPOS, tiposVisibles, FUNC_INTENSIDAD, MAX_ESCENAS, MAX_EN_MACRODECK, normLuzBase, normEstadosToggle, RETOQUES, colorModo, esLoop, COLOR_HEX, admiteDucking, sinSonido, ICONO_INTENSIDAD, ARTE, pintarArte, canvasArte, nuevoId, teclaNueva, escenaNueva, configNueva, normalizar, normListas };
 })(window.MD);

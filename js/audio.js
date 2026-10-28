@@ -217,6 +217,9 @@ window.MD = window.MD || {};
         case 'intensidad': e.flashHasta = performance.now() + 300; this.ciclarIntensidad(); break;
         // 1.3-dev31: 'ambiente' = un audio de tipo Ambiente de la pestana Audios, como loop con fundidos (lo maneja ambientes.js). 'luz_toggle' = cambio de luz (luces_dnd.js).
         case 'ambiente': if (MD.Ambientes) await MD.Ambientes.tecla(this, i, t, e); break;
+        case 'musica': if (MD.Ambientes) await MD.Ambientes.musicaTecla(this, i, t, e); break;          // 2.0-dev8
+        case 'musica_sig':
+        case 'musica_pausa': e.flashHasta = performance.now() + 250; if (MD.Ambientes) MD.Ambientes.musicaControl(t.tipo); break;
         case 'luz_toggle': e.flashHasta = performance.now() + 250; if (MD.LucesDnd && MD.LucesDnd.alToggle) MD.LucesDnd.alToggle(i, t, e); break;
         case 'intro_loop':
         case 'loop': await this._loop(i, t, e); break;
@@ -370,6 +373,8 @@ window.MD = window.MD || {};
         const e = this.estadoTecla[i];
         if (e.flashHasta > ahora) return 3;
         if (t.tipo === 'silenciar') return this.silenciado ? 1 : 0;
+        if (t.tipo === 'musica') return MD.Ambientes && MD.Ambientes.musicaActiva(t) ? 2 : 0;                  // 2.0-dev8: prendida = su lista esta sonando
+        if (t.tipo === 'musica_pausa') return MD.Ambientes && MD.Ambientes.musicaPausada() ? 2 : 0;           // prendida = la musica esta en pausa
         if (t.tipo === 'luz_toggle') return e.tg > 0 ? 2 : 0;                  // prendida = esta en un estado que no es el primero
         if (MD.Config.esLoop(t.tipo)) return e.loop ? 2 : 0;
         if (e.voces.size) return (t.tipo === 'azar' && e.azarHasta > ahora) ? 4 : 1;

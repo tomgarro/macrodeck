@@ -63,6 +63,30 @@ window.MD = window.MD || {};
       }
       marcar();
     },
+    // ---- 2.0-dev8: teclas de MUSICA (carril de Musica de Audios). El estado se lee directo del carril: no hace falta anotar nada. ----
+    musicaActiva(t) {
+      const c = MD.Au && MD.Au.carriles && MD.Au.carriles.musica, l = c && t && t.lista && MD.Au.lista(t.lista);
+      return !!(c && l && c.P.id && !c.P.apagando && c.P.ctx && c.P.ctx.listaId === l.id);
+    },
+    musicaPausada() { const c = MD.Au && MD.Au.carriles && MD.Au.carriles.musica; return !!(c && c.P.id && !c.P.apagando && c.estado().sonando === false); },
+    // Un toque: arranca su lista (reemplaza la musica que suene, con fundido). Otro toque con esa lista sonando: la apaga con fundido de salida.
+    async musicaTecla(m, i, t, e) {
+      motorRef = m;
+      const Au = MD.Au, c = Au && Au.carriles && Au.carriles.musica;
+      if (!Au || !c) return;
+      const l = t.lista && Au.lista(t.lista);
+      if (!l) { aviso(t.lista ? 'La lista de esta tecla no está en este celu todavía (sincronizá en Drive).' : 'La tecla no tiene lista elegida.'); return; }
+      if (Amb.musicaActiva(t)) { c.apagarSuave(t.salida > 0 ? t.salida : 3); return; }
+      await m.iniciar();
+      await c.reproducirLista(l, { azar: !!t.azarLista, entrada: t.entrada > 0 ? t.entrada : 3 });
+    },
+    // 'musica_sig' = siguiente tema, 'musica_pausa' = pausa / seguir.
+    musicaControl(tipo) {
+      const Au = MD.Au, c = Au && Au.carriles && Au.carriles.musica;
+      if (!c) return;
+      if (!c.P.id) { aviso('No hay música sonando.'); return; }
+      if (tipo === 'musica_sig') c.siguiente(true); else c.pausaSeguir();
+    },
     // Apaga con fundido todo lo que prendieron las teclas (pausa general / "apagar todo").
     apagarDeTeclas(seg) {
       seg = seg > 0 ? seg : 0.05;

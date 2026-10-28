@@ -694,3 +694,7 @@ button.chico{min-height:36px;min-width:36px;padding:4px 10px;font-size:.85rem}
 @keyframes mzlat{from{opacity:.55}to{opacity:1}}
 .mz-nom{font-size:.62rem;text-align:center;line-height:1.1;color:var(--tx2);min-height:2.2em;overflow-wrap:anywhere}
 .mz-pie{margin-top:14px;gap:8px}.mz-pie button{flex:1;font-size:.8rem}
+
+/* 2.0-dev8: bloques plegables de la pantalla Escenas (reusan .sec) */
+.sec.plegable{background:var(--panel);margin:0 0 14px}
+.mz-ambpc{min-width:38px}
