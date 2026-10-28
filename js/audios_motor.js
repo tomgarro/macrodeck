@@ -331,6 +331,7 @@ window.MD = window.MD || {};
   // Al entrar a una escena: la musica de fondo (lista) va al carril de Musica y el ambiente de fondo (un audio de tipo Ambiente) al de Ambientes.
   Au.alEscena = (esc) => {
     if (!esc) return;
+    if (typeof esc.volAmbiente === 'number' && carriles.ambiente) { try { carriles.ambiente.setVol(esc.volAmbiente); } catch (e) {} }     // 2.0-dev7: volumen de Ambientes guardado en la escena (Mezclador)
     if (esc.lista) {
       const l = Au.lista(esc.lista.id);
       if (!l) { Au.aviso('La lista de esta escena no está en este celu todavía (sincronizá en Drive).'); }

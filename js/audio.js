@@ -326,6 +326,25 @@ window.MD = window.MD || {};
       this.onCambio();
       return true;
     }
+    // 2.0-dev7: Mezclador de la Mesa. Cambia el volumen de UNA tecla (0 a 1,5): queda en la tecla (viaja con la escena) y, si esa tecla esta sonando,
+    // sus voces suben o bajan al instante con un fundido corto (sin clicks). Respeta el volumen del sonido y el nivel de Intensidad.
+    fijarVolTecla(i, v) {
+      const t = this.teclas[i], e = this.estadoTecla[i];
+      if (!t) return false;
+      v = Math.min(1.5, Math.max(0, +v || 0)); t.volumen = v;
+      if (!this.ctx || !e) return true;
+      const ahora = this.ctx.currentTime, f = e.nivel ? this.factorNivel(e.nivel) : 1;
+      for (const voz of e.voces) {
+        if (voz.fin || voz.apagando) continue;
+        const meta = this.sonidos.get(voz.sonidoId);
+        voz.volBase = v * (meta ? meta.volumen : 1); voz.vol = voz.volBase * f;
+        const g = voz.gain.gain;
+        g.cancelScheduledValues(ahora);
+        g.setValueAtTime(Math.max(g.value, 0.0001), ahora);
+        g.linearRampToValueAtTime(Math.max(voz.vol, 0.0001), ahora + 0.08);
+      }
+      return true;
+    }
     // La tecla "Intensidad": cada toque sube un nivel del ULTIMO loop prendido (del 5 vuelve al 1)
     ciclarIntensidad() {
       const j = this.ultimoLoop();

@@ -236,6 +236,7 @@
     filas.forEach((t, k) => { const x = P.ascii(t).slice(0, 10); if (conectado() && (forzar || x !== A.ultFilas[k])) A.tr.send(P.enc.oled(k, x)); A.ultFilas[k] = x; });
     if (A.tab === 'mesa' && A.mesaCeldas.length) {
       A.mesaCeldas.forEach((c, i) => { if (c.dataset.led !== String(leds[i])) c.dataset.led = String(leds[i]); });
+      if (A.mesaFaders) A.mesaFaders.forEach((f, i) => { if (f) f.classList.toggle('suena', leds[i] > 0); });
       if (A.mesaSonando) A.mesaSonando.textContent = (avN ? avN.texto + (sonando.length ? ' — ' : '') : '') + (sonando.length ? 'Sonando: ' + sonando.join(' · ') : (m.silenciado ? 'Silenciado' : ''));
     }
     pintarPills();
@@ -663,7 +664,7 @@
   };
   A.render = function () {
     const sc = vista.scrollTop;
-    vista.innerHTML = ''; A.mesaCeldas = []; A.mesaVol = A.mesaSonando = null;
+    vista.innerHTML = ''; A.mesaCeldas = []; A.mesaFaders = []; A.mesaVol = A.mesaSonando = null;
     if (EN_MAS.includes(A.tab)) vista.append(h('button', { type: 'button', class: 'atras', onclick: () => A.irATab('mas') }, MDg.IUI.svg('atras'), 'Más'));
     ({ mesa: MDg.UI.vistaMesa, mas: MDg.UI.vistaMas, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, tracker: MDg.Trk.vista, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     A.pintarTabs();

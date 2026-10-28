@@ -672,3 +672,25 @@ button.chico{min-height:36px;min-width:36px;padding:4px 10px;font-size:.85rem}
 @keyframes tk-pulso{0%,100%{opacity:1}50%{opacity:.45}}
 .tk-banner{position:absolute;left:50%;top:76%;transform:translate(-50%,-50%) scale(.9);padding:10px 22px;border-radius:12px;background:rgba(8,8,10,.88);border:2px solid var(--tk-oro,#e0b21f);color:#f4e7b4;font:700 clamp(1rem,3.4vw,1.7rem)/1.2 system-ui,sans-serif;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:3}
 .tk-banner.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+/* 2.0-dev7: Mezclador de la Mesa (plegable; reusa el estilo de .leyenda) */
+.mezclador>.mz-cuerpo{padding:0 16px 16px}
+.mz-amb{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:10px;padding:8px 12px;margin-bottom:12px}
+.mz-amb b{font-size:.8rem;white-space:nowrap}
+.mz-amb input{flex:1;accent-color:var(--amarillo)}
+.mz-ambpc{font-size:.8rem;width:38px;text-align:right;font-variant-numeric:tabular-nums}
+.mz-rej{row-gap:12px}
+.mezclador .rejilla + *{margin-top:0}
+.mz-col{--mc:var(--gris);display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.mz-col.mamarillo{--mc:var(--amarillo)}.mz-col.mrojo{--mc:var(--rojo)}.mz-col.mblanco{--mc:var(--blanco)}
+.mz-pc{font-size:.66rem;font-variant-numeric:tabular-nums;min-height:1em}
+.mz-fader{position:relative;width:100%;height:118px;background:var(--panel2);border-radius:10px;touch-action:none;overflow:hidden;cursor:ns-resize;border:2px solid transparent;user-select:none}
+.mz-fader.off{opacity:.35;cursor:default;pointer-events:none}
+.mz-rel{position:absolute;left:0;right:0;bottom:0;background:var(--mc);opacity:.75}
+.mz-cien{position:absolute;left:0;right:0;border-top:1px dashed var(--tx2);opacity:.7}
+.mz-cien::after{content:"100";position:absolute;right:3px;top:-12px;font-size:.5rem;color:var(--tx2)}
+.mz-fader.suena{border-color:var(--mc)}
+.mz-fader.suena .mz-rel{animation:mzlat .9s ease-in-out infinite alternate}
+@keyframes mzlat{from{opacity:.55}to{opacity:1}}
+.mz-nom{font-size:.62rem;text-align:center;line-height:1.1;color:var(--tx2);min-height:2.2em;overflow-wrap:anywhere}
+.mz-pie{margin-top:14px;gap:8px}.mz-pie button{flex:1;font-size:.8rem}

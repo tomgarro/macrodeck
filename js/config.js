@@ -126,6 +126,7 @@ window.MD = window.MD || {};
       const esc = { id: String(e.id || nuevoId('e')), nombre: String(e.nombre || 'Escena').slice(0, 30), teclas: [] };
       if (e.estado === 'borrador') esc.estado = 'borrador';            // (sin campo = confirmada)
       if (e.macrodeck === false) esc.macrodeck = false;                // 1.3-dev31: (sin campo = se muestra en el selector del Macrodeck)
+      if (e.volAmbiente != null && isFinite(+e.volAmbiente)) esc.volAmbiente = num(e.volAmbiente, 1, 0, 1);   // 2.0-dev7: volumen del carril de Ambientes que lleva esta escena (viaja con ella)
       if (e.ambiente && typeof e.ambiente === 'object' && typeof e.ambiente.id === 'string' && e.ambiente.id) esc.ambiente = { id: e.ambiente.id.slice(0, 80), arranca: e.ambiente.arranca !== false };   // 1.3-dev31: ambiente de fondo de la escena (audio de tipo Ambiente)
       if (LZ) { const lz = LZ.normLuzEscena(e.luz); if (Object.keys(lz).length) esc.luz = lz; }
       if (e.lista && typeof e.lista === 'object' && typeof e.lista.id === 'string' && e.lista.id) esc.lista = { id: e.lista.id.slice(0, 40), arranca: e.lista.arranca !== false, azar: !!e.lista.azar };   // dev25: musica de fondo de la escena
