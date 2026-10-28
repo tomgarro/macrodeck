@@ -162,6 +162,9 @@ window.MD = window.MD || {};
             h('button', { type: 'button', class: 'au-gordo', 'aria-label': e.sonando ? 'Pausa' : 'Seguir', onclick: () => Au.pausaSeguir() }, ic(e.sonando ? 'pausa' : 'play', 32)),
             btn('sig', 'Siguiente', () => Au.siguiente(true), 'au-ib', 30), rep),
           h('div', { class: 'au-caja' },
+            // 2.0-dev10: interruptor claro para repetir el audio sin parar (antes solo estaba el icono de repetir). Las listas ya dan la vuelta solas.
+            h('label', { class: 'au-sw', id: 'swRepetirUno' }, h('span', { class: 'crece' }, 'Repetir este audio sin parar', h('small', { class: 'suave' }, c && c.listaId ? ' las listas ya dan la vuelta solas' : ' cuando termina vuelve a empezar: no queda en silencio')),
+              h('input', { type: 'checkbox', checked: prefs.repetir === 'uno' || !!(c && c.listaId), disabled: !!(c && c.listaId), onchange: (x) => { prefs.repetir = x.target.checked ? 'uno' : 'no'; Au.guardarPrefs(); render(); } })),
             h('label', { class: 'au-sw' }, h('span', { class: 'crece' }, 'Aleatorio inteligente', h('small', { class: 'suave' }, ' cuando se acaba, sigue con uno del mismo bioma y lugar')),
               h('input', { type: 'checkbox', checked: prefs.inteligente, onchange: (x) => Au.seguirConParecido(x.target.checked) })),
             h('div', { class: 'au-fila2' }, h('span', { class: 'crece' }, 'Pase entre audios'), h('span', { class: 'suave' }, (c ? c.fundido : prefs.fundido) ? 'fundido de ' + (c ? c.fundido : prefs.fundido) + ' s · entra desde 0:' + String(c ? c.intro : prefs.intro).padStart(2, '0') : 'sin fundido')),
