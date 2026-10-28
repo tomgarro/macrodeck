@@ -42,11 +42,15 @@ window.MD = window.MD || {};
     // La salida del carril (su volumen propio) -> volumen general del Macrodeck. Tambien la usan los ambientes "sumados" de ambientes.js.
     async function salida() {
       const m = Au.app().motor; await m.iniciar();
-      if (!P.salida) { P.salida = m.ctx.createGain(); P.salida.gain.value = pr.vol; P.salida.connect(m.master); }
+      if (!P.salida) { P.salida = m.ctx.createGain(); P.salida.gain.value = pr.vol * api.factor; P.salida.connect(m.master); }
       return P.salida;
     }
     api.salida = salida;
-    api.setVol = (v) => { pr.vol = Math.min(1, Math.max(0, v)); if (P.salida) P.salida.gain.value = pr.vol; Au.guardarPrefs(); };
+    // 2.0-dev9: volumen de salida = volumen del carril (Audios) x 'factor' del origen que esta sonando (el fader de la tecla o el del fondo de la escena en el Mezclador).
+    api.factor = 1;
+    function aplicarSalida() { if (!P.salida) return; const t = P.salida.context.currentTime, g = P.salida.gain; g.cancelScheduledValues(t); g.setTargetAtTime(Math.max(0, pr.vol * api.factor), t, 0.04); }
+    api.setFactor = (f) => { api.factor = Math.min(2, Math.max(0, Number(f))); if (!isFinite(api.factor)) api.factor = 1; aplicarSalida(); };
+    api.setVol = (v) => { pr.vol = Math.min(1, Math.max(0, v)); aplicarSalida(); Au.guardarPrefs(); };
 
     async function cargar(r, d, desde) {
       const reg = await MD.Almacen.leerAudio(d.id);
@@ -67,7 +71,15 @@ window.MD = window.MD || {};
       const v = P.ranuras[P.trans.vieja]; if (v && P.ranuras.indexOf(v) !== P.activa) { fijarGanancia(v, 1); soltar(v); }
       P.trans = null;
     }
-    function alTerminar(r, d) { r.el.onended = () => { if (P.id === d.id && P.ranuras[P.activa] === r && !P.trans) terminoNatural(); }; }
+    // 2.0-dev9: si el tema termina en medio de un cruce (pase) se espera a que el cruce cierre y recien ahi sigue: nunca queda el carril mudo.
+    function alTerminar(r, d) {
+      r.el.onended = () => {
+        if (!(P.id === d.id && P.ranuras[P.activa] === r)) return;
+        if (!P.trans) { terminoNatural(); return; }
+        let n = 0; const esperar = () => { if (!(P.id === d.id && P.ranuras[P.activa] === r && r.el.ended)) return; if (!P.trans) terminoNatural(); else if (++n < 60) setTimeout(esperar, 500); };
+        setTimeout(esperar, 500);
+      };
+    }
     function mediaSesion(d) {
       if (!('mediaSession' in navigator)) return;
       try {
@@ -157,6 +169,7 @@ window.MD = window.MD || {};
           }
         }
       }
+      if (c && c.ids.length && repetirDe(c) === 'lista') { const b = c.ids.find((id) => Au.bajado(id)); if (b) { c.pos = c.ids.indexOf(b); return Au.dePorId(b); } }     // 2.0-dev9: si no hay otro, vuelve a empezar (aunque sea el mismo)
       return pr.inteligente || (c && c.parecido) ? parecido() : null;
     }
     // El que SIGUE (sin consumirlo), para mostrarlo en pantalla.
@@ -204,7 +217,7 @@ window.MD = window.MD || {};
     };
 
     // ---------------- acciones ----------------
-    function contexto(nombre, ids, pos, extra) { P.ctx = Object.assign({ nombre, ids, pos, listaId: null, fundido: pr.fundido, intro: pr.intro }, extra || {}); P.jugados = new Set(); }
+    function contexto(nombre, ids, pos, extra) { P.ctx = Object.assign({ nombre, ids, pos, listaId: null, fundido: pr.fundido, intro: pr.intro, origen: 'audios' }, extra || {}); P.jugados = new Set(); api.factor = P.ctx.factor != null && isFinite(P.ctx.factor) ? P.ctx.factor : 1; aplicarSalida(); }     // 2.0-dev9: 'origen' = 'audios' | 'tecla' | 'escena' y su 'factor' de volumen
     // Un audio de la biblioteca: la "lista" para seguir es lo que se ve en pantalla (solo lo bajado).
     api.reproducirUno = async (d, idsVisibles) => {
       const ids = (idsVisibles || [d.id]).filter((id) => Au.bajado(id)), pos = Math.max(0, ids.indexOf(d.id));
@@ -212,8 +225,9 @@ window.MD = window.MD || {};
       return empezar(d, 0, P.id ? 2 : 0);
     };
     // Un ambiente que se prende desde una TECLA: se repite solo (pase consigo mismo) y entra con fundido desde el silencio.
-    api.ambienteTecla = async (d, entrada) => {
-      contexto('Ambiente', [d.id], 0, { repetir: 'uno', intro: 0, fundido: Math.min(pr.fundido || 10, 10) || 10, deTecla: true });
+    api.ambienteTecla = async (d, entrada, opc) => {
+      opc = opc || {};
+      contexto('Ambiente', [d.id], 0, { repetir: 'uno', intro: 0, fundido: Math.min(pr.fundido || 10, 10) || 10, deTecla: true, origen: opc.origen || 'audios', factor: opc.factor });
       return empezar(d, 0, P.id ? Math.max(1, entrada || 1) : 0, entrada);
     };
     api.reproducirLista = async (lista, opc) => {
@@ -222,7 +236,8 @@ window.MD = window.MD || {};
       if (!ids.length) { Au.aviso('La lista «' + lista.nombre + '» está vacía.'); return false; }
       if (!buenos.length) { Au.aviso('Ningún audio de «' + lista.nombre + '» está bajado todavía.'); return false; }
       const azar = opc.azar != null ? !!opc.azar : null;
-      contexto(lista.nombre, ids, 0, { listaId: lista.id, fundido: lista.fundido, intro: lista.intro, azar });
+      // 2.0-dev9: una lista SIEMPRE da la vuelta (loop infinito): la musica no puede parar y dejar la mesa muda.
+      contexto(lista.nombre, ids, 0, { listaId: lista.id, fundido: lista.fundido, intro: lista.intro, azar, repetir: 'lista', origen: opc.origen || 'audios', factor: opc.factor });
       let d;
       if (opc.desde != null && Au.bajado(ids[opc.desde])) d = Au.dePorId(ids[opc.desde]);
       else if ((azar != null ? azar : pr.azar)) d = Au.dePorId(buenos[Math.floor(Math.random() * buenos.length)]);
@@ -329,22 +344,25 @@ window.MD = window.MD || {};
   Au.detenerTodo = () => todos().forEach((c) => c.detener());
 
   // Al entrar a una escena: la musica de fondo (lista) va al carril de Musica y el ambiente de fondo (un audio de tipo Ambiente) al de Ambientes.
+  // 2.0-dev9: 'fondoVol' = el fader de "Fondo" del Mezclador mueve el volumen de lo que arranco la ESCENA (no toca lo que prendio una tecla).
+  Au.fondoVol = (n, v) => { const c = carriles[n]; if (c && c.P.ctx && c.P.ctx.origen === 'escena') c.setFactor(v); };
   Au.alEscena = (esc) => {
     if (!esc) return;
-    if (typeof esc.volMusica === 'number' && carriles.musica) { try { carriles.musica.setVol(esc.volMusica); } catch (e) {} }          // 2.0-dev8: volumen de Musica guardado en la escena (Mezclador)
-    if (typeof esc.volAmbiente === 'number' && carriles.ambiente) { try { carriles.ambiente.setVol(esc.volAmbiente); } catch (e) {} }     // 2.0-dev7: volumen de Ambientes guardado en la escena (Mezclador)
+    const fm = typeof esc.volMusica === 'number' ? esc.volMusica : 1, fa = typeof esc.volAmbiente === 'number' ? esc.volAmbiente : 1;
     if (esc.lista) {
       const l = Au.lista(esc.lista.id);
       if (!l) { Au.aviso('La lista de esta escena no está en este celu todavía (sincronizá en Drive).'); }
       else if (esc.lista.arranca === false) { carriles.musica.P.listaLista = l.id; emitir(); }
-      else if (!(carriles.musica.P.ctx && carriles.musica.P.ctx.listaId === l.id && carriles.musica.P.id)) carriles.musica.reproducirLista(l, { azar: esc.lista.azar });     // si ya suena esa lista, no se reinicia
+      else if (!(carriles.musica.P.ctx && carriles.musica.P.ctx.listaId === l.id && carriles.musica.P.id)) carriles.musica.reproducirLista(l, { azar: esc.lista.azar, origen: 'escena', factor: fm });     // si ya suena esa lista, no se reinicia
+      else { carriles.musica.P.ctx.origen = 'escena'; carriles.musica.P.ctx.factor = fm; carriles.musica.setFactor(fm); }
     }
     if (esc.ambiente && esc.ambiente.id) {
       const d = Au.dePorId(esc.ambiente.id);
       if (!d) Au.aviso('El ambiente de esta escena no está en el catálogo de este celu todavía (sincronizá).');
       else if (esc.ambiente.arranca === false) { /* queda listo: se prende con la tecla o desde Audios */ }
       else if (!Au.bajado(d.id)) Au.aviso('«' + d.titulo + '» (ambiente de la escena) no está bajado todavía.');
-      else if (!(carriles.ambiente.P.id === d.id && !carriles.ambiente.P.apagando)) carriles.ambiente.ambienteTecla(d, 4);
+      else if (!(carriles.ambiente.P.id === d.id && !carriles.ambiente.P.apagando)) carriles.ambiente.ambienteTecla(d, 4, { origen: 'escena', factor: fa });
+      else { carriles.ambiente.P.ctx.origen = 'escena'; carriles.ambiente.P.ctx.factor = fa; carriles.ambiente.setFactor(fa); }
     }
   };
   function enganchar(A) {

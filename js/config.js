@@ -32,6 +32,9 @@ window.MD = window.MD || {};
   // 2.0-dev8: teclas que NO son un sonido propio (no llevan sonidos, ni ducking, ni fader en el Mezclador)
   const SIN_SONIDO = ['silenciar', 'fadeout', 'intensidad', 'ambiente', 'luz_toggle', 'musica', 'musica_sig', 'musica_pausa'];
   const sinSonido = (tipo) => SIN_SONIDO.includes(tipo);
+  // 2.0-dev9: las teclas que tienen un audio (sonido, ambiente o lista de musica) tienen fader en el Mezclador; las que son solo acciones, no.
+  const SIN_FADER = ['silenciar', 'fadeout', 'intensidad', 'luz_toggle', 'musica_sig', 'musica_pausa'];
+  const conVolumen = (tipo) => !SIN_FADER.includes(tipo);
   const admiteDucking = (tipo) => !sinSonido(tipo);
   // 1.3-dev20: icono por defecto de la tecla Intensidad (cinco barras que suben, 24 x 24). El firmware todavia no tiene un glifo propio para este tipo.
   const ICONO_INTENSIDAD = '0000000000000000380000380000380000380003b80003b80003b80003b8003bb8003bb8003bb8003bb803bbb803bbb803bbb803bbb83bbbb83bbbb83bbbb83bbbb8000000000000';
@@ -136,8 +139,8 @@ window.MD = window.MD || {};
       const esc = { id: String(e.id || nuevoId('e')), nombre: String(e.nombre || 'Escena').slice(0, 30), teclas: [] };
       if (e.estado === 'borrador') esc.estado = 'borrador';            // (sin campo = confirmada)
       if (e.macrodeck === false) esc.macrodeck = false;                // 1.3-dev31: (sin campo = se muestra en el selector del Macrodeck)
-      if (e.volMusica != null && isFinite(+e.volMusica)) esc.volMusica = num(e.volMusica, 1, 0, 1);   // 2.0-dev8: volumen del carril de Musica que lleva esta escena
-      if (e.volAmbiente != null && isFinite(+e.volAmbiente)) esc.volAmbiente = num(e.volAmbiente, 1, 0, 1);   // 2.0-dev7: volumen del carril de Ambientes que lleva esta escena (viaja con ella)
+      if (e.volMusica != null && isFinite(+e.volMusica)) esc.volMusica = num(e.volMusica, 1, 0, 1.5);   // 2.0-dev8: volumen del carril de Musica que lleva esta escena
+      if (e.volAmbiente != null && isFinite(+e.volAmbiente)) esc.volAmbiente = num(e.volAmbiente, 1, 0, 1.5);   // 2.0-dev7: volumen del carril de Ambientes que lleva esta escena (viaja con ella)
       if (e.ambiente && typeof e.ambiente === 'object' && typeof e.ambiente.id === 'string' && e.ambiente.id) esc.ambiente = { id: e.ambiente.id.slice(0, 80), arranca: e.ambiente.arranca !== false };   // 1.3-dev31: ambiente de fondo de la escena (audio de tipo Ambiente)
       if (LZ) { const lz = LZ.normLuzEscena(e.luz); if (Object.keys(lz).length) esc.luz = lz; }
       if (e.lista && typeof e.lista === 'object' && typeof e.lista.id === 'string' && e.lista.id) esc.lista = { id: e.lista.id.slice(0, 40), arranca: e.lista.arranca !== false, azar: !!e.lista.azar };   // dev25: musica de fondo de la escena
@@ -171,5 +174,5 @@ window.MD = window.MD || {};
     if (!out.escenas.length) out.escenas.push(escenaNueva('Escena 1'));
     return out;
   }
-  MD.Config = { TIPOS, tiposVisibles, FUNC_INTENSIDAD, MAX_ESCENAS, MAX_EN_MACRODECK, normLuzBase, normEstadosToggle, RETOQUES, colorModo, esLoop, COLOR_HEX, admiteDucking, sinSonido, ICONO_INTENSIDAD, ARTE, pintarArte, canvasArte, nuevoId, teclaNueva, escenaNueva, configNueva, normalizar, normListas };
+  MD.Config = { TIPOS, tiposVisibles, FUNC_INTENSIDAD, MAX_ESCENAS, MAX_EN_MACRODECK, normLuzBase, normEstadosToggle, RETOQUES, colorModo, esLoop, COLOR_HEX, admiteDucking, sinSonido, conVolumen, ICONO_INTENSIDAD, ARTE, pintarArte, canvasArte, nuevoId, teclaNueva, escenaNueva, configNueva, normalizar, normListas };
 })(window.MD);

@@ -335,6 +335,7 @@ window.MD = window.MD || {};
       const t = this.teclas[i], e = this.estadoTecla[i];
       if (!t) return false;
       v = Math.min(1.5, Math.max(0, +v || 0)); t.volumen = v;
+      if (MD.Ambientes && (t.tipo === 'ambiente' || t.tipo === 'musica')) { try { MD.Ambientes.volTecla(i, t, v); } catch (x) {} }     // 2.0-dev9: ambientes y listas de musica tambien tienen fader
       if (!this.ctx || !e) return true;
       const ahora = this.ctx.currentTime, f = e.nivel ? this.factorNivel(e.nivel) : 1;
       for (const voz of e.voces) {

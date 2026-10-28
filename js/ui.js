@@ -183,68 +183,73 @@ window.MD = window.MD || {};
   }
   MD.dialogoEscenasMacrodeck = dialogoMacrodeck;
 
-  // ===================== MEZCLADOR DE LA MESA (2.0-dev7) =====================
-  // Plegable y cerrado por defecto: un fader por tecla (0 a 150 %, el mismo "Volumen de la tecla" de Escenas) + el volumen de Ambientes de la escena.
-  // Todo se guarda en la escena, asi que viaja a Drive y el dummy suena con los mismos niveles que en la Mac de Frodo.
+  // ===================== MEZCLADOR DE LA MESA (2.0-dev7, dev9) =====================
+  // Plegable y cerrado por defecto. Un fader vertical por tecla con audio (sonido, ambiente o lista de musica): 0 a 150 %, el mismo "Volumen de la tecla" de Escenas.
+  // Aparte, los faders de "Fondo": el volumen de la musica y del ambiente de fondo que arrancan con la escena. Todo se guarda en la escena (viaja a Drive):
+  // el dummy suena con los mismos niveles que en la Mac de Frodo.
   const VOL_MAX = 1.5;
-    function mezclador(A, esc) {
-    const C = MD.Config, SIN_VOLUMEN = (tipo) => C.sinSonido(tipo);       // las teclas que no son un sonido propio no tienen fader
-    const hayCarril = (n) => !!(MD.Au && MD.Au.carriles && MD.Au.carriles[n]);
-    const CAMPOS = [['ambiente', 'volAmbiente', 'Ambiente', 'var(--amarillo)'], ['musica', 'volMusica', 'Música', 'var(--acento)']];
-    const foto = () => ({ t: esc.teclas.map(t => (t ? t.volumen : null)), c: CAMPOS.map(([n, campo]) => ({ campo, esc: typeof esc[campo] === 'number' ? esc[campo] : null, dev: hayCarril(n) ? MD.Au.carriles[n].pr.vol : null })) });
+  function mezclador(A, esc) {
+    const C = MD.Config, conFader = (t) => !!t && C.conVolumen(t.tipo);
+    const foto = () => ({ t: esc.teclas.map(t => (t ? t.volumen : null)), m: typeof esc.volMusica === 'number' ? esc.volMusica : null, a: typeof esc.volAmbiente === 'number' ? esc.volAmbiente : null });
     let orig = foto();
-    const partes = esc.teclas.map((t, i) => {
-      const con = !!t && !SIN_VOLUMEN(t.tipo);
-      const col = t ? C.colorModo(t.tipo) : 'gris';
-      const tope = h('span', { class: 'mz-pc' });
-      const rel = h('div', { class: 'mz-rel' }), cien = h('div', { class: 'mz-cien' });
-      const f = h('div', { class: 'mz-fader' + (con ? '' : ' off'), role: 'slider', 'aria-label': 'Volumen de ' + (t ? t.nombre || NOM[i] : NOM[i]) }, cien, rel);
-      const col_ = h('div', { class: 'mz-col m' + col }, tope, f,
-        h('span', { class: 'mz-nom' }, t ? (con ? (t.nombre || '(sin nombre)') : (t.nombre || '') + ' · sin fader') : NOM[i] + ' vacía'));
+    const fondoVol = (n, v) => { if (MD.Au && MD.Au.fondoVol) MD.Au.fondoVol(n, v); };
+    // Un fader vertical. o = { val(), poner(v), activo, nombre, col, etiqueta, vacia }
+    function fader(o) {
+      const tope = h('span', { class: 'mz-pc' }), rel = h('div', { class: 'mz-rel' }), cien = h('div', { class: 'mz-cien' });
+      const f = h('div', { class: 'mz-fader' + (o.activo ? '' : ' off'), role: 'slider', 'aria-label': 'Volumen de ' + o.nombre }, cien, rel);
+      const col = h('div', { class: 'mz-col m' + o.col }, tope, f, h('span', { class: 'mz-nom' }, o.etiqueta));
       const pintar = () => {
-        if (!con) { tope.textContent = t ? '—' : ''; return; }
-        tope.textContent = Math.round(t.volumen * 100) + '%';
-        rel.style.height = (t.volumen / VOL_MAX * 100) + '%'; cien.style.bottom = (1 / VOL_MAX * 100) + '%';
-        f.setAttribute('aria-valuenow', Math.round(t.volumen * 100));
+        if (!o.activo) { tope.textContent = o.vacia ? '' : '—'; return; }
+        const v = o.val();
+        tope.textContent = Math.round(v * 100) + '%'; rel.style.height = (v / VOL_MAX * 100) + '%'; cien.style.bottom = (1 / VOL_MAX * 100) + '%';
+        f.setAttribute('aria-valuenow', Math.round(v * 100));
       };
-      if (con) {
+      if (o.activo) {
+        const poner = (v) => { o.poner(v); A.cambio(false); pintar(); };
         const mover = (e) => {
           const r = f.getBoundingClientRect(); let p = 1 - (e.clientY - r.top) / r.height; p = Math.min(1, Math.max(0, p));
           const v = Math.round(p * VOL_MAX * 20) / 20;
-          if (v === t.volumen) return;
-          A.motor.fijarVolTecla(i, v); A.cambio(false); pintar();
+          if (v !== o.val()) poner(v);
         };
         f.addEventListener('pointerdown', (e) => { e.preventDefault(); try { f.setPointerCapture(e.pointerId); } catch (x) {} mover(e); f.onpointermove = mover; });
         const suelta = () => { f.onpointermove = null; };
         f.addEventListener('pointerup', suelta); f.addEventListener('pointercancel', suelta);
-        f.addEventListener('dblclick', () => { A.motor.fijarVolTecla(i, 1); A.cambio(false); pintar(); });        // doble toque: volver a 100 %
+        f.addEventListener('dblclick', () => poner(1));                                  // doble toque: volver a 100 %
       }
       pintar();
-      A.mesaFaders[i] = con ? f : null;
-      return { col_, pintar, con };
+      return { col, f, pintar };
+    }
+    const partes = esc.teclas.map((t, i) => {
+      const act = conFader(t);
+      const F = fader({ val: () => t.volumen, poner: (v) => A.motor.fijarVolTecla(i, v), activo: act, nombre: t ? (t.nombre || NOM[i]) : NOM[i], col: t ? C.colorModo(t.tipo) : 'gris', vacia: !t,
+        etiqueta: t ? (act ? (t.nombre || '(sin nombre)') : (t.nombre || '') + ' · sin fader') : NOM[i] + ' vacía' });
+      A.mesaFaders[i] = act ? F.f : null;
+      return F;
     });
-    const rejM = h('div', { class: 'rejilla mz-rej' }, partes.map(p => p.col_));
-    // Volumen de los carriles de la escena (Ambiente y Música): se guarda en la escena y se aplica al entrar a ella
-    const carriles = CAMPOS.filter(([n]) => hayCarril(n)).map(([n, campo, titulo, color]) => {
-      const car = () => MD.Au.carriles[n], val = () => (typeof esc[campo] === 'number' ? esc[campo] : car().pr.vol);
-      const pc = h('span', { class: 'mz-ambpc' }, Math.round(val() * 100) + '%');
-      const rango = h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(val() * 100), 'aria-label': 'Volumen de ' + titulo, oninput: (e) => {
-        const v = e.target.value / 100; esc[campo] = v; car().setVol(v); A.cambio(false); pc.textContent = e.target.value + '%'; } });
-      rango.style.accentColor = color;
-      return { campo, car, val, pc, rango, fila: h('div', { class: 'mz-amb' }, h('b', null, titulo), rango, pc) };
-    });
-    const repintar = () => { partes.forEach(p => p.pintar()); carriles.forEach(c => { const v = Math.round(c.val() * 100); c.rango.value = v; c.pc.textContent = v + '%'; }); };
+    const rejM = h('div', { class: 'rejilla mz-rej' }, partes.map(p => p.col));
+    // Fondo de la escena: la musica (lista) y el ambiente que arrancan solos al entrar a la escena
+    const fondos = [];
+    if (esc.lista) fondos.push(fader({ val: () => (typeof esc.volMusica === 'number' ? esc.volMusica : 1), poner: (v) => { esc.volMusica = v; fondoVol('musica', v); }, activo: true, nombre: 'la música de fondo', col: 'blanco', etiqueta: 'Fondo: música' }));
+    if (esc.ambiente && esc.ambiente.id) fondos.push(fader({ val: () => (typeof esc.volAmbiente === 'number' ? esc.volAmbiente : 1), poner: (v) => { esc.volAmbiente = v; fondoVol('ambiente', v); }, activo: true, nombre: 'el ambiente de fondo', col: 'amarillo', etiqueta: 'Fondo: ambiente' }));
+    const repintar = () => { partes.concat(fondos).forEach(p => p.pintar()); };
     const volver = () => {
-      orig.t.forEach((v, i) => { if (v != null && esc.teclas[i] && !SIN_VOLUMEN(esc.teclas[i].tipo)) A.motor.fijarVolTecla(i, v); });
-      carriles.forEach(c => { const o = orig.c.find(x => x.campo === c.campo); if (o.esc != null) { esc[c.campo] = o.esc; c.car().setVol(o.esc); } else { delete esc[c.campo]; if (o.dev != null) c.car().setVol(o.dev); } });
+      orig.t.forEach((v, i) => { if (v != null && conFader(esc.teclas[i])) A.motor.fijarVolTecla(i, v); });
+      if (orig.m != null) esc.volMusica = orig.m; else delete esc.volMusica; fondoVol('musica', orig.m != null ? orig.m : 1);
+      if (orig.a != null) esc.volAmbiente = orig.a; else delete esc.volAmbiente; fondoVol('ambiente', orig.a != null ? orig.a : 1);
       A.cambio(false); repintar();
     };
-    const igualar = () => { esc.teclas.forEach((t, i) => { if (t && !SIN_VOLUMEN(t.tipo)) A.motor.fijarVolTecla(i, 1); }); A.cambio(false); repintar(); };
+    const igualar = () => {
+      esc.teclas.forEach((t, i) => { if (conFader(t)) A.motor.fijarVolTecla(i, 1); });
+      if (esc.lista) { esc.volMusica = 1; fondoVol('musica', 1); }
+      if (esc.ambiente && esc.ambiente.id) { esc.volAmbiente = 1; fondoVol('ambiente', 1); }
+      A.cambio(false); repintar();
+    };
     return h('details', { class: 'tarjeta leyenda mezclador', id: 'mezclador', open: !!A.mezAbierto, ontoggle: (e) => { A.mezAbierto = e.target.open; if (A.mezAbierto) { orig = foto(); } } },
       h('summary', null, 'Mezclador de la escena'),
       h('div', { class: 'mz-cuerpo' },
-        h('p', { class: 'suave', style: 'margin:0 0 10px;font-size:.85rem' }, 'Arrastrá cada fader para nivelar esa tecla (se escucha al instante si está sonando). Doble toque = 100 %. Arriba, el volumen de Ambiente y de Música. Todo se guarda en la escena y viaja al dummy.'),
-        carriles.map(c => c.fila), rejM,
+        h('p', { class: 'suave', style: 'margin:0 0 10px;font-size:.85rem' }, 'Un fader por tecla con audio (sonido, ambiente o música): se escucha al instante si está sonando. Doble toque = 100 %. Todo se guarda en la escena y viaja al dummy.'),
+        rejM,
+        fondos.length ? h('div', { class: 'mz-fondo' }, h('p', { class: 'suave', style: 'margin:14px 0 6px;font-size:.8rem' }, 'Fondo de la escena (lo que arranca solo al entrar):'), h('div', { class: 'rejilla mz-rej' }, fondos.map(p => p.col))) : null,
         h('div', { class: 'fila mz-pie' }, h('button', { type: 'button', onclick: volver }, '↺ Volver a como estaba'), h('button', { type: 'button', onclick: igualar }, 'Igualar todas a 100 %'))));
   }
 

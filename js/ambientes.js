@@ -29,16 +29,17 @@ window.MD = window.MD || {};
     if (!reg) { aviso('«' + d.titulo + '» no está bajado todavía.'); return false; }
     const el = new Audio(); el.loop = true; el.preload = 'auto';
     const url = URL.createObjectURL(reg.blob); el.src = url;
-    const g = m.ctx.createGain(); m.ctx.createMediaElementSource(el).connect(g); g.connect(salida);
+    const g = m.ctx.createGain(), gk = m.ctx.createGain(); gk.gain.value = t.volumen == null ? 1 : t.volumen;      // 2.0-dev9: 'gk' = fader de la tecla en el Mezclador
+    m.ctx.createMediaElementSource(el).connect(g); g.connect(gk); gk.connect(salida);
     const now = m.ctx.currentTime; g.gain.setValueAtTime(0, now); if (entrada > 0) g.gain.setValueCurveAtTime(curva(true), now, entrada); else g.gain.setValueAtTime(1, now);
     try { await el.play(); } catch (e) { aviso('No se pudo reproducir: ' + (e.message || e)); URL.revokeObjectURL(url); return false; }
-    sumados.set(i, { el, g, url, id: d.id });
+    sumados.set(i, { el, g, gk, url, id: d.id });
     return true;
   }
   function soltarSumado(i, seg) {
     const x = sumados.get(i); if (!x) return;
     sumados.delete(i);
-    const fin = () => { try { x.el.pause(); x.el.removeAttribute('src'); x.el.load(); } catch (e) {} URL.revokeObjectURL(x.url); marcar(); };
+    const fin = () => { try { x.el.pause(); x.el.removeAttribute('src'); x.el.load(); } catch (e) {} URL.revokeObjectURL(x.url); try { x.gk.disconnect(); } catch (e) {} marcar(); };
     if (seg > 0.05) { const now = x.g.context.currentTime; x.g.gain.cancelScheduledValues(now); x.g.gain.setValueAtTime(x.g.gain.value, now); x.g.gain.linearRampToValueAtTime(0, now + seg); setTimeout(fin, seg * 1000 + 80); } else fin();
   }
 
@@ -58,7 +59,7 @@ window.MD = window.MD || {};
       if (t.sumar) { if (await sumar(m, i, t, d, entrada)) e.loop = true; }
       else {
         const viejo = dueno; dueno = i;
-        if (await c.ambienteTecla(d, entrada)) { e.loop = true; if (viejo != null && viejo !== i && m.estadoTecla[viejo]) m.estadoTecla[viejo].loop = false; }
+        if (await c.ambienteTecla(d, entrada, { origen: 'tecla', factor: t.volumen == null ? 1 : t.volumen })) { e.loop = true; if (viejo != null && viejo !== i && m.estadoTecla[viejo]) m.estadoTecla[viejo].loop = false; }
         else dueno = viejo;
       }
       marcar();
@@ -78,7 +79,16 @@ window.MD = window.MD || {};
       if (!l) { aviso(t.lista ? 'La lista de esta tecla no está en este celu todavía (sincronizá en Drive).' : 'La tecla no tiene lista elegida.'); return; }
       if (Amb.musicaActiva(t)) { c.apagarSuave(t.salida > 0 ? t.salida : 3); return; }
       await m.iniciar();
-      await c.reproducirLista(l, { azar: !!t.azarLista, entrada: t.entrada > 0 ? t.entrada : 3 });
+      await c.reproducirLista(l, { azar: !!t.azarLista, entrada: t.entrada > 0 ? t.entrada : 3, origen: 'tecla', factor: t.volumen == null ? 1 : t.volumen });
+    },
+    // 2.0-dev9: el fader de una tecla Ambiente o Musica mueve, en vivo, el volumen de LO QUE ESA TECLA prendio.
+    volTecla(i, t, v) {
+      const Au = MD.Au; if (!Au || !Au.carriles) return;
+      if (t.tipo === 'ambiente') {
+        const x = sumados.get(i);
+        if (x) { const n = x.gk.context.currentTime; x.gk.gain.cancelScheduledValues(n); x.gk.gain.setTargetAtTime(v, n, 0.04); }
+        else if (dueno === i && Au.carriles.ambiente.P.id) Au.carriles.ambiente.setFactor(v);
+      } else if (t.tipo === 'musica' && Amb.musicaActiva(t)) Au.carriles.musica.setFactor(v);
     },
     // 'musica_sig' = siguiente tema, 'musica_pausa' = pausa / seguir.
     musicaControl(tipo) {
