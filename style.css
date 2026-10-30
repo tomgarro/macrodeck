@@ -706,3 +706,30 @@ button.chico{min-height:36px;min-width:36px;padding:4px 10px;font-size:.85rem}
 .rejilla > .trk-reservada,.rejilla > .trk-fija{position:relative;box-shadow:inset 0 0 0 2px var(--amarillo)}
 .rejilla > .trk-reservada::after,.rejilla > .trk-fija::after{content:"IT";position:absolute;top:3px;right:4px;font-size:.62rem;font-weight:700;color:var(--amarillo);letter-spacing:.04em}
 .rejilla > .trk-fija{opacity:.8;cursor:default}
+
+/* 2.0-dev13: pestana Tracker IT (taller de colores, combates guardados, lamparas del turno) */
+.it-filas{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.it-fila{display:flex;align-items:center;gap:10px}
+.it-fila.it-sep{margin-top:8px;padding-top:8px;border-top:1px solid var(--borde,rgba(255,255,255,.08))}
+.it-fila input[type=color]{width:44px;height:36px;padding:0;border:0;border-radius:8px;background:none;flex:none}
+.it-fila input[type=text]{width:100%;min-width:0}
+.it-fila .crece{flex:1;min-width:0}
+.it-nom small{font-size:.75rem}
+.it-en{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--tx2);white-space:nowrap}
+.it-brillo input[type=range]{width:100%}
+.it-hist{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.it-hi{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;text-align:left;padding:10px 12px;border-radius:10px;border:0;background:var(--panel2,rgba(255,255,255,.05));color:inherit;font:inherit;cursor:pointer}
+.it-hi .it-res{font-weight:600}
+.it-hi.victoria .it-res{color:#5fd38a}.it-hi.tpk .it-res{color:#ff6b6b}.it-hi.reinicio .it-res{color:var(--tx2)}
+.it-mon{position:fixed;inset:0;z-index:1000;overflow:auto;padding:20px 16px 32px;background:var(--bg,#111);color:var(--tx,#eee)}
+.it-mon .x{position:absolute;top:12px;right:12px}
+.it-mon h2{margin:8px 0 16px}
+.it-big{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:18px}
+.it-big div{background:var(--panel,rgba(255,255,255,.06));border-radius:12px;padding:12px;text-align:center}
+.it-big b{display:block;font-size:2rem;line-height:1.1}.it-big span{font-size:.8rem;color:var(--tx2)}
+.it-clases{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.it-cl{display:grid;grid-template-columns:14px 110px 1fr;gap:8px;align-items:center}
+.it-cl i{width:14px;height:14px;border-radius:50%}
+.it-cl .bar{height:10px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden}
+.it-cl .bar em{display:block;height:100%}
+.it-cl .v{grid-column:2 / 4;font-size:.8rem;color:var(--tx2)}

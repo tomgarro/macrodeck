@@ -21,7 +21,16 @@ window.MD = window.MD || {};
     X: { n: 'Narxira', cl: 'Monje', c: [255, 40, 0] },
     L: { n: 'Eclipso', cl: 'Pícaro', c: [60, 0, 90] },
     I: { n: 'Invitado', cl: 'Invitado', c: [0, 255, 127] },
+    // 3.0: cuatro invitados con color propio (apagados de fabrica; se prenden en el Taller de colores). Mismos colores que COL_FABRICA del firmware del ESP32.
+    a: { n: 'Invitado A', cl: 'Color A', c: [200, 0, 255] },
+    b: { n: 'Invitado B', cl: 'Color B', c: [0, 255, 255] },
+    c: { n: 'Invitado C', cl: 'Color C', c: [255, 220, 0] },
+    d: { n: 'Invitado D', cl: 'Color D', c: [255, 255, 255] },
   };
+  Trk.LETRAS_TODAS = 'EDRNXLIabcd';      // el orden es el del enum del firmware 3.0 (los 7 de siempre + los 4 invitados con color)
+  Trk.MASCARA_FABRICA = 0x7F;            // E D R N X L I (como el Uno); a-d apagados
+  Trk.BRILLO_FABRICA = 35;
+  Trk.coloresFabrica = () => { const o = {}; for (const t of Trk.LETRAS_TODAS) o[t] = Trk.TIPOS[t].c.slice(); return o; };
   Trk.ALT_LETRAS = 'NCJI';
   Trk.ALT_N = ['normal', 'concentración', 'comodín', 'inconsciente'];
   Trk.ALT_C = [[0, 0, 0], [255, 0, 180], [173, 255, 47], [0, 0, 0]];
@@ -49,6 +58,7 @@ window.MD = window.MD || {};
       this.S = S; this.cols = Array.from({ length: 13 }, () => [0, 0, 0]);
       this.frames = 0; this.tFrame = 0; this.anim = null; this.inactivoFn = inactivoFn || (() => false); this.cola = [];
     }
+    colorDe(t) { return (this.colores && this.colores[t]) || Trk.TIPOS[t].c; }       // 3.0: los colores pueden ser los configurados en el tracker (Taller de colores)
     led(i, r, g, b) { if (i < 1 || i > 12) return; const c = (v) => (v < 0 ? 0 : (v > 255 ? 255 : v | 0)); this.cols[i] = [c(r), c(g), c(b)]; }
     apagar() { for (let i = 1; i <= 12; i++) this.cols[i] = [0, 0, 0]; }
     get off() { return trunc((12 - this.S.total) / 2); }
@@ -80,7 +90,7 @@ window.MD = window.MD || {};
       for (let i = 1; i <= 12; i++) {
         const k = i - off;
         if (k >= 1 && k <= S.total) {
-          const c = Trk.TIPOS[S.tipo[k]].c;
+          const c = this.colorDe(S.tipo[k]);
           if (k < S.cfg) this.led(i, c[0], c[1], c[2]);
           else if (k === S.cfg) this.led(i, trunc(fr(c[0] * p)), trunc(fr(c[1] * p)), trunc(fr(c[2] * p)));
           else this.led(i, 255, 255, 255);
@@ -100,7 +110,7 @@ window.MD = window.MD || {};
         const k = i - off;
         if (k < 1 || k > S.total) { this.led(i, 0, 0, 0); continue; }
         if (S.muerto[k]) { this.led(i, 0, 0, 0); continue; }
-        const b = Trk.TIPOS[S.tipo[k]].c;
+        const b = this.colorDe(S.tipo[k]);
         if (S.ins && k === S.ins) { this.led(i, M(b[0], pIns), M(b[1], pIns), M(b[2], pIns)); continue; }
         const est = S.alt[k], alt = est !== 0;
         const a = (alt && est !== 3) ? Trk.ALT_C[est] : [0, 0, 0];
@@ -187,7 +197,7 @@ window.MD = window.MD || {};
               if (ms - a.t0 < 35) return; a.t0 = ms;
               for (let i = 1; i <= S.total; i++) {
                 if (S.tipo[i] !== 'E' && !S.muerto[i]) {
-                  const c = Trk.TIPOS[S.tipo[i]].c;
+                  const c = this.colorDe(S.tipo[i]);
                   this.led(i + off, trunc((c[0] * a.brillo) / 255), trunc((c[1] * a.brillo) / 255), trunc((c[2] * a.brillo) / 255));
                 }
               }
@@ -219,6 +229,12 @@ window.MD = window.MD || {};
       }
       return { k: 'snap', S };
     }
+    if (l.startsWith('!CFG,')) {                          // 3.0: !CFG,mascara,brillo,<11 colores en rrggbb>
+      const p = l.slice(5).split(','), hex = (p[2] || '');
+      if (hex.length < 66) return { k: 'otro', txt: l };
+      const colores = {}; Trk.LETRAS_TODAS.split('').forEach((t, i) => { colores[t] = [0, 1, 2].map((j) => parseInt(hex.substr(i * 6 + j * 2, 2), 16) || 0); });
+      return { k: 'cfg', mascara: (+p[0] || 0) | 1, brillo: Math.max(5, Math.min(100, +p[1] || Trk.BRILLO_FABRICA)), colores };
+    }
     if (c === '!') { const p = l.slice(1).split(','); return { k: 'hola', ver: p[1] || '?', restaurado: p[2] === '1' }; }
     return { k: 'otro', txt: l };
   };
@@ -232,7 +248,7 @@ window.MD = window.MD || {};
       this.S = Trk.estadoVacio(); this.hay = false; this.t0 = performance.now(); this.inactivo = false;
       this.p = new Pantalla(this.S, () => this.inactivo); this.onEvento = null; this.onCambio = null; this.hola = null; this.ultSnap = 0;
     }
-    reiniciar() { this.S = Trk.estadoVacio(); this.p.S = this.S; this.hay = false; this.p.anim = null; this.p.cola.length = 0; this.inactivo = false; }
+    reiniciar() { this.S = Trk.estadoVacio(); this.p.S = this.S; this.p.colores = null; this.cfgTracker = null; this.hay = false; this.p.anim = null; this.p.cola.length = 0; this.inactivo = false; }
     ahora() { return performance.now() - this.t0; }
     linea(txt) {
       const x = Trk.parsear(txt); if (!x) return null;
@@ -247,6 +263,8 @@ window.MD = window.MD || {};
         if (this.onEvento) this.onEvento(x.id, x.a, x);
       } else if (x.k === 'hola') {
         this.hola = x;
+      } else if (x.k === 'cfg') {
+        this.p.colores = x.colores; this.cfgTracker = x;            // los colores del tracker real: el espejo pinta con ellos
       }
       return x;
     }

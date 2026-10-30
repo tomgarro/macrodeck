@@ -51,12 +51,28 @@ window.MD = window.MD || {};
   // ---------- configuracion (solo cambios) ----------
   // entrada = { s?: ['f:cmbMove1' | 's:<idDeLaBiblioteca>', ...] ([] = silencio), vol?: 0..1, l?: { look, seg, lamp:'dnd'|'dnd-1'|'dnd-2' } | null (= sin luz) }
   // "undefined" en s o l = no se tocó: vale lo de más abajo (clase -> evento -> fábrica).
-  Trk.cfgNueva = function () { return { v: 1, vol: 1, duck: true, luces: true, auto: true, baud: 115200, ev: {}, cl: {} }; };
+  Trk.cfgNueva = function () { return { v: 1, vol: 1, duck: true, luces: true, auto: true, baud: 115200, ev: {}, cl: {}, taller: null, luzTurno: { on: false, seg: 4, lamp: 'dnd', efecto: 'respirar', brillo: 80 } }; };
+  // Taller de colores (3.0): lo que Frodo eligio para el tracker. mask = personajes que se pueden elegir (bits E D R N X L I a b c d; el enemigo siempre), brillo 5..100, col = color por letra, nom = nombre de los invitados a-d.
+  Trk.tallerNormalizar = function (t) {
+    if (!t || typeof t !== 'object') return null;
+    const n = (v, d, a, z) => { v = Number(v); return isFinite(v) ? Math.min(z, Math.max(a, Math.round(v))) : d; };
+    const o = { mask: (n(t.mask, Trk.MASCARA_FABRICA, 0, 2047) | 1), brillo: n(t.brillo, Trk.BRILLO_FABRICA, 5, 100), col: {}, nom: {} };
+    for (const k of Trk.LETRAS_TODAS) {
+      const c = t.col && t.col[k]; o.col[k] = Array.isArray(c) && c.length === 3 ? c.map((v) => n(v, 0, 0, 255)) : Trk.TIPOS[k].c.slice();
+    }
+    for (const k of 'abcd') { const s = t.nom && typeof t.nom[k] === 'string' ? t.nom[k].replace(/[^\x20-\x7e]/g, '').trim().slice(0, 9) : ''; if (s) o.nom[k] = s; }
+    return o;
+  };
   Trk.cfgNormalizar = function (c) {
     const b = Trk.cfgNueva(); if (!c || typeof c !== 'object') return b;
     const n = (v, d, a, z) => { v = Number(v); return isFinite(v) ? Math.min(z, Math.max(a, v)) : d; };
     b.vol = n(c.vol, 1, 0, 1); b.duck = c.duck !== false; b.luces = c.luces !== false; b.auto = c.auto !== false;
     b.baud = [9600, 19200, 38400, 57600, 115200].indexOf(c.baud) >= 0 ? c.baud : 115200;
+    b.taller = Trk.tallerNormalizar(c.taller);
+    if (c.luzTurno && typeof c.luzTurno === 'object') {
+      const z = c.luzTurno;
+      b.luzTurno = { on: z.on === true, seg: n(z.seg, 4, 1, 30), lamp: ['dnd', 'dnd-1', 'dnd-2'].indexOf(z.lamp) >= 0 ? z.lamp : 'dnd', efecto: ['fijo', 'respirar', 'magia'].indexOf(z.efecto) >= 0 ? z.efecto : 'respirar', brillo: n(z.brillo, 80, 10, 100) };
+    }
     const ent = (x) => {
       const o = {}; if (!x || typeof x !== 'object') return o;
       if (Array.isArray(x.s)) o.s = x.s.filter((r) => typeof r === 'string' && /^[fs]:.+/.test(r)).slice(0, 12);

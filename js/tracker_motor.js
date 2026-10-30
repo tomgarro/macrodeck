@@ -3,11 +3,11 @@
 // La app lo trata igual que a un Arduino real conectado por USB: el espejo (tracker_nucleo.js) lee esas lineas y dibuja.
 // Se prueba contra el sketch compilado en la compu (herramientas/tracker/prueba_diferencial.js).
 (function (MD) {
-  const Trk = MD.Trk, L = Trk.LETRAS, LATIDO_MS = 2500, DEBOUNCE_CEN = 20;
+  const Trk = MD.Trk, L = Trk.LETRAS_TODAS, N_TIPOS = 11, LATIDO_MS = 2500, DEBOUNCE_CEN = 20;
   const ENEMIGO = 0, INVITADO = 6, NORMAL = 0, CONCENTRACION = 1, COMODIN = 2, INCONSCIENTE = 3;
 
   class Motor {
-    // opts: { salida(linea), restaurar: obj|null (combate guardado), alGuardar(obj|null), version, debug }
+    // opts: { salida(linea), restaurar: obj|null (combate guardado), alGuardar(obj|null), version, debug, cfg: obj|null (configuracion guardada), alCfg(obj) }
     constructor(opts) {
       opts = opts || {};
       this.salida = opts.salida || (() => {}); this.alGuardar = opts.alGuardar || (() => {}); this.version = opts.version || '2.1';
@@ -24,16 +24,60 @@
       this.cenPres = false; this.tPresCen = 0; this.accionCen = false; this.cmdInc = false; this.cmdMuerte = false;
       this.postAcc = 0; this.slotMuriendo = 0; this.enemAntes = 0; this.combateGanado = false;
       this.eeSucio = false; this.eeT = 0;
+      this.rx = ''; this.alCfg = opts.alCfg || (() => {});
+      this.cfgFabrica(); if (opts.cfg) this.cfgDe(opts.cfg);      // 3.0: personajes habilitados, brillo y colores (como el firmware, se guardan aparte del combate)
       this.S = Trk.estadoVacio();
       this.p = new Trk.Pantalla(this.S, (ms) => ms - this.tInicioTurno > this.umbral);
-      this.p.apagar();
+      this.p.colores = this.colMapa; this.p.apagar();
       if (opts.restaurar) this.restaurarDe(opts.restaurar);
       this.holaPend = true; this.snapPend = true;
     }
 
     // ---------- botones (abajo = true) ----------
     boton(lado, abajo) { this.pul[lado] = !!abajo; }
-    entrada(txt) { for (const c of String(txt)) if (c === '?') { this.holaPend = true; this.snapPend = true; } }
+    // ---------- ordenes por el puerto (una por linea; el '?' suelto tambien vale) ----------
+    entrada(txt) {
+      for (const c of String(txt)) {
+        if (c === '\n' || c === '\r') { if (this.rx) { this.orden(this.rx); this.rx = ''; } }
+        else if (c === '?' && this.rx === '') { this.holaPend = true; this.snapPend = true; }
+        else if (this.rx.length < 47) this.rx += c; else this.rx = '';
+      }
+    }
+    orden(s) {
+      if (s[0] === '?') { this.holaPend = true; this.snapPend = true; return; }
+      let m;
+      if ((m = /^B,([ICD]),([01])$/.exec(s))) { this.boton(m[1], m[2] === '1'); return; }
+      if ((m = /^COL,([A-Za-z]),(-?\d+),(-?\d+),(-?\d+)/.exec(s))) {
+        const t = L.indexOf(m[1]); if (t < 0) return;
+        this.col[t] = [m[2], m[3], m[4]].map((v) => Math.max(0, Math.min(255, +v)));
+        this.cfgCambio(); this.pedirSnap(); return;
+      }
+      if ((m = /^HAB,(-?\d+)/.exec(s))) { this.mask = ((+m[1]) & ((1 << N_TIPOS) - 1)) | 1; this.cfgCambio(); return; }       // el enemigo siempre
+      if ((m = /^BRI,(-?\d+)/.exec(s))) { this.brillo = Math.max(5, Math.min(100, +m[1])); this.cfgCambio(); return; }
+      if (s === 'CFG') { this.enviarCfg(); return; }
+      if (s === 'DEF') { this.cfgFabrica(); this.cfgCambio(); this.pedirSnap(); this.enviarCfg(); }
+    }
+    // ---------- configuracion (3.0) ----------
+    cfgFabrica() {
+      this.mask = Trk.MASCARA_FABRICA; this.brillo = Trk.BRILLO_FABRICA;
+      this.col = L.split('').map((t) => Trk.TIPOS[t].c.slice());
+      this.colMapa = this.colMapa || {}; this.cfgMapa();
+    }
+    cfgMapa() { L.split('').forEach((t, i) => { this.colMapa[t] = this.col[i]; }); }      // el mapa es el MISMO objeto que ve la pantalla
+    cfgDe(o) {
+      try {
+        if (typeof o.mask === 'number') this.mask = (o.mask & ((1 << N_TIPOS) - 1)) | 1;
+        if (typeof o.brillo === 'number' && o.brillo >= 5 && o.brillo <= 100) this.brillo = o.brillo;
+        if (Array.isArray(o.col) && o.col.length === N_TIPOS) this.col = o.col.map((c) => [0, 1, 2].map((j) => Math.max(0, Math.min(255, c[j] | 0))));
+        this.cfgMapa();
+      } catch (e) { /* configuracion rota: queda la de fabrica */ }
+    }
+    cfgCambio() { this.cfgMapa(); this.alCfg({ mask: this.mask, brillo: this.brillo, col: this.col.map((c) => c.slice()) }); }
+    enviarCfg() {
+      const h = (v) => (v < 16 ? '0' : '') + v.toString(16);
+      this.tx('!CFG,' + this.mask + ',' + this.brillo + ',' + this.col.map((c) => h(c[0]) + h(c[1]) + h(c[2])).join(''));
+    }
+    habilitado(t) { return t === ENEMIGO || (t < N_TIPOS && ((this.mask >> t) & 1) === 1); }
 
     // ---------- serie ----------
     tx(linea) { this.salida(linea); this.ultTx = this.ms; }
@@ -70,6 +114,7 @@
     restaurarDe(o) {
       try {
         if (!(o.total >= 1 && o.total <= 12 && o.turno >= 1 && o.turno <= o.total)) return;
+        for (let i = 0; i <= 12; i++) if ((o.tipo[i] | 0) >= N_TIPOS) return;       // un tipo que no existe: el guardado esta roto (se ignora)
         this.total = o.total; this.turno = o.turno; this.ronda = Math.max(1, o.ronda | 0);
         for (let i = 0; i <= 12; i++) { this.tipo[i] = o.tipo[i] | 0; this.alt[i] = o.alt[i] | 0; this.muerto[i] = !!o.muerto[i]; }
         this.modo = 2; this.slotCfg = this.total; this.hist = []; this.combateGanado = false; this.restauradoEnBoot = true; this.marcarTurno();
@@ -91,13 +136,13 @@
 
     // ---------- logica de clases ----------
     disponible(t, slot) {
-      if (t === ENEMIGO || t === INVITADO) return true;
+      if (t === ENEMIGO || t >= INVITADO) return true;      // el enemigo y todos los invitados se pueden repetir
       for (let i = 1; i <= this.total; i++) { if (i === slot) continue; if (this.tipo[i] === t) return false; }
       return true;
     }
     cambiarTipoConfig(dir, slot) {
       let a = this.tipo[slot], n = 0;
-      do { a = (a + dir + 7) % 7; this.tipo[slot] = a; n++; if (n > 7) break; } while (!this.disponible(this.tipo[slot], slot));
+      do { a = (a + dir + N_TIPOS) % N_TIPOS; this.tipo[slot] = a; n++; if (n > N_TIPOS) break; } while (!this.habilitado(a) || !this.disponible(this.tipo[slot], slot));
     }
     enemigosVivos() { let c = 0; for (let i = 1; i <= this.total; i++) if (this.tipo[i] === ENEMIGO && !this.muerto[i]) c++; return c; }
 
@@ -163,7 +208,7 @@
               this.guardarHist(); this.alt[this.turno] = INCONSCIENTE; this.evTS('SI', t, this.turno); this.pedirSnap(); this.marcarCambio();
             }
           }
-          if (dur >= 4000 && !this.cmdMuerte && t === INVITADO) {
+          if (dur >= 4000 && !this.cmdMuerte && t >= INVITADO) {
             this.cmdMuerte = true; this.enemAntes = this.enemigosVivos(); this.guardarHist(); this.slotMuriendo = this.turno;
             this.evTS('KL', t, this.turno); this.sincronizar(); this.p.iniciar('fulminado', this.turno, () => this.accionPost(), ms); this.postAcc = 1;
           }

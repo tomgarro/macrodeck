@@ -55,7 +55,8 @@ window.MD = window.MD || {};
   }
 
   // ============================================================================================================
-  Trk.vista = function (A, vista) {
+  Trk.vista = function (A, vista, opts) {
+    const IT = !!(opts && opts.it);                   // 2.0-dev13: la pestana nueva «Tracker IT» (la vieja se llama igual pero sin opts: no cambia nada)
     const E = Sv.espejo;
     const root = el('div', { class: 'tk' });
     vista.append(root);
@@ -70,7 +71,7 @@ window.MD = window.MD || {};
     const sop = Sv.soporte();
     refs.modos = {};
     const segm = el('div', { class: 'tk-seg', role: 'tablist' });
-    [['usb', 'USB (Arduino)', sop.usb, 'Solo dentro de la APK, con el cable OTG'], ['web', 'Compu (Web Serial)', sop.web, 'Chrome o Edge en la compu'], ['sim', 'Simulador', true, '']].forEach(([m, n, ok, tip]) => {
+    [['usb', 'USB (Arduino)', sop.usb, 'Solo dentro de la APK, con el cable OTG'], ['web', 'Compu (Web Serial)', sop.web, 'Chrome o Edge en la compu'], ['sim', 'Simulador', true, '']].concat(IT ? [['md', 'Por el Macrodeck', Sv.soporte().md, 'Hace falta el Macrodeck conectado por Bluetooth']] : []).forEach(([m, n, ok, tip]) => {
       const b = el('button', { type: 'button', title: ok ? '' : tip, disabled: !ok, onclick: () => { Sv.modo = m; Sv.avisar('modo'); } }, n); refs.modos[m] = b; segm.append(b);
     });
     refs.cBtn = el('button', { type: 'button', class: 'primario', onclick: () => { if (Sv.estado === 'conectado' || Sv.estado === 'conectando') Sv.desconectar(); else Sv.conectar(Sv.modo || undefined); } }, 'Conectar');
@@ -121,18 +122,20 @@ window.MD = window.MD || {};
     const cardFoto = (el('div', { class: 'tarjeta' }, el('h3', null, 'El tracker, en vivo'), refs.prog, refs.foto, el('p', { class: 'suave tk-nota' }, 'Las fichas se ponen según los personajes que armó Frodo en el Arduino y se iluminan con el mismo color que los LED del aparato. Al elegir la cantidad se prenden los LED de la 1 en adelante; al armar y en combate se acomodan al centro con la ficha de cada personaje.')));
 
     // ---------- joystick ----------
+    const bt = (l, a) => (IT ? Sv.boton(l, a) : Sv.simBoton(l, a));                                  // la pestana nueva maneja tambien el tracker real; la vieja, solo el simulador
+    const joyOk = () => (IT ? Sv.puedeBoton() : (Sv.modo === 'sim' && Sv.estado === 'conectado'));
     refs.barra = el('i');
     const bJ = (cls, lado, etiqueta) => {
       const b = el('button', { type: 'button', class: 'tk-jb ' + cls, 'aria-label': etiqueta });
       let abajo = false;
       const arriba = () => {
-        if (!abajo) return; abajo = false; b.classList.remove('p'); Sv.simBoton(lado, false);
+        if (!abajo) return; abajo = false; b.classList.remove('p'); bt(lado, false);
         if (lado === 'C') {
           const dur = cDown ? performance.now() - cDown : 0; cDown = 0; refs.barra.style.width = '0';
           if (dur && dur < 500 && E && E.S && E.S.modo === 'Q') toast('Para confirmar la cantidad hay que mantener el botón del medio 2 segundos');
         }
       };
-      b.addEventListener('pointerdown', (ev) => { ev.preventDefault(); if (Sv.modo !== 'sim' || Sv.estado !== 'conectado') { toast('El joystick de la pantalla maneja el simulador. En el aparato real, usá el joystick de Frodo.'); return; } abajo = true; try { b.setPointerCapture(ev.pointerId); } catch (e) {} b.classList.add('p'); Sv.simBoton(lado, true); if (lado === 'C') cDown = performance.now(); });
+      b.addEventListener('pointerdown', (ev) => { ev.preventDefault(); if (!joyOk()) { toast('El joystick de la pantalla maneja el simulador. En el aparato real, usá el joystick de Frodo.'); return; } abajo = true; try { b.setPointerCapture(ev.pointerId); } catch (e) {} b.classList.add('p'); bt(lado, true); if (lado === 'C') cDown = performance.now(); });
       ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((k) => b.addEventListener(k, arriba));   // con captura: aunque el mouse se corra un poco, el boton sigue apretado hasta soltar
       return b;
     };
@@ -141,7 +144,7 @@ window.MD = window.MD || {};
     const botonUndo = el('button', { type: 'button', onclick: () => combo('I') }, '↶ Deshacer (Centro + Izq.)');
     const botonIns = el('button', { type: 'button', onclick: () => combo('D') }, '＋ Insertar (Centro + Der.)');
     const botonRst = el('button', { type: 'button', onclick: () => { Sv.simReiniciar(); toast('Simulador reiniciado'); } }, 'Reiniciar simulador');
-    function combo(lado) { if (Sv.modo !== 'sim' || Sv.estado !== 'conectado') return; Sv.simBoton('C', true); setTimeout(() => { Sv.simBoton(lado, true); setTimeout(() => { Sv.simBoton(lado, false); Sv.simBoton('C', false); }, 120); }, 60); }
+    function combo(lado) { if (!joyOk()) return; bt('C', true); setTimeout(() => { bt(lado, true); setTimeout(() => { bt(lado, false); bt('C', false); }, 120); }, 60); }
     refs.joyCard = el('div', { class: 'tarjeta' }, el('h3', null, 'Joystick ', el('small', null, 'también andan ← → y la barra espaciadora (simulador)')), refs.joy,
       el('div', { class: 'tk-ayuda' }, el('div', null, '◀ Izq.', el('br'), 'turno anterior'), el('div', null, 'Centro: estado', el('br'), 'mantené 2 s = caído / muerte'), el('div', null, 'Der. ▶', el('br'), 'turno siguiente')),
       el('div', { class: 'tk-barra' }, refs.barra), el('div', { class: 'fila tk-fila' }, botonUndo, botonIns, botonRst),
@@ -320,7 +323,7 @@ window.MD = window.MD || {};
     // ---------- actualizar lo que cambia poco ----------
     function actualizar() {
       const S = E.S, est = Sv.estado, c = est === 'conectado', ocup = est === 'conectando';
-      Object.keys(refs.modos).forEach((m) => { refs.modos[m].className = Sv.modo === m ? 'on' : ''; refs.modos[m].disabled = (c || ocup) || (m === 'usb' && !sop.usb) || (m === 'web' && !sop.web); });
+      Object.keys(refs.modos).forEach((m) => { refs.modos[m].className = Sv.modo === m ? 'on' : ''; refs.modos[m].disabled = (c || ocup) || (m === 'usb' && !sop.usb) || (m === 'web' && !sop.web) || (m === 'md' && !Sv.soporte().md); });
       refs.cBtn.textContent = c || ocup ? 'Desconectar' : 'Conectar'; refs.cBtn.disabled = !c && !ocup && !Sv.modo;
       const p = Sv.pill();
       refs.cTxt.textContent = c ? (Sv.sinSenal() ? '⚠ Conectado, pero no llega nada del Arduino' : '● Conectado' + (Sv.modo === 'sim' ? ' (simulador)' : '') + (Sv.hola ? ' · firmware ' + Sv.hola.ver : '')) : (ocup ? '… ' + Sv.detalle : (est === 'error' ? '✖ ' + Sv.detalle : 'Sin conexión'));
@@ -328,9 +331,9 @@ window.MD = window.MD || {};
       refs.cResumen.textContent = refs.cTxt.textContent; refs.cResumen.className = 'tk-resumen ' + (c ? (Sv.sinSenal() ? 'warn' : 'ok') : (est === 'error' ? 'mal' : ''));
       if (refs.conex._c !== c) { const primera = refs.conex._c === undefined; refs.conex._c = c; let el2 = null; try { el2 = localStorage.getItem('tk_conex'); } catch (e) {}
         if (!el2 && !(primera && c)) { refs.conex._auto = true; refs.conex.open = !c; setTimeout(() => { refs.conex._auto = false; }, 50); } }
-      refs.cAyuda.textContent = Sv.modo === 'usb' ? 'Enchufá el Arduino al celu con un cable OTG; Android te pide permiso la primera vez. Si el Uno se reinicia al conectar, es normal: retoma el combate guardado.' : (Sv.modo === 'web' ? 'Chrome o Edge en la compu: te deja elegir el puerto del Arduino.' : (Sv.modo === 'sim' ? 'El simulador es un Arduino virtual con la misma lógica que el sketch: probá todo sin el aparato.' : (sop.usb ? 'Elegí cómo conectar.' : 'Sin el APK no hay USB: probá con el simulador, o con Web Serial desde Chrome en la compu.')));
+      refs.cAyuda.textContent = Sv.modo === 'md' ? 'Prendé el tracker: el Macrodeck lo encuentra por la radio (ESP-NOW) y le pasa todo a la app por Bluetooth. No hace falta WiFi ni hotspot.' : Sv.modo === 'usb' ? 'Enchufá el Arduino al celu con un cable OTG; Android te pide permiso la primera vez. Si el Uno se reinicia al conectar, es normal: retoma el combate guardado.' : (Sv.modo === 'web' ? 'Chrome o Edge en la compu: te deja elegir el puerto del Arduino.' : (Sv.modo === 'sim' ? 'El simulador es un Arduino virtual con la misma lógica que el sketch: probá todo sin el aparato.' : (sop.usb ? 'Elegí cómo conectar.' : 'Sin el APK no hay USB: probá con el simulador, o con Web Serial desde Chrome en la compu.')));
       refs.pill.className = 'tk-pill ' + (p ? p.clase : 'off'); refs.pill.textContent = p ? p.texto : 'Sin conexión';
-      refs.joyCard.classList.toggle('inactivo', !(Sv.modo === 'sim' && c));
+      refs.joyCard.classList.toggle('inactivo', !joyOk());
       const hay = c && E.hay;
       refs.sinSenal.style.display = hay ? 'none' : 'flex';
       refs.sinSenal.textContent = c ? 'Esperando el estado del Arduino…' : 'Conectá el Arduino (o el simulador) para ver el tracker en vivo.';
@@ -397,11 +400,12 @@ window.MD = window.MD || {};
       rafId = requestAnimationFrame(lazo);
     }
     // teclado del simulador
-    const teclas = (ev) => { if (ev.repeat || Sv.modo !== 'sim' || Sv.estado !== 'conectado' || /INPUT|TEXTAREA|SELECT/.test((ev.target || {}).tagName || '')) return;
-      if (ev.key === 'ArrowLeft') { Sv.simBoton('I', true); ev.preventDefault(); } else if (ev.key === 'ArrowRight') { Sv.simBoton('D', true); ev.preventDefault(); } else if (ev.code === 'Space') { Sv.simBoton('C', true); cDown = performance.now(); ev.preventDefault(); } };
-    const teclasArriba = (ev) => { if (ev.key === 'ArrowLeft') Sv.simBoton('I', false); else if (ev.key === 'ArrowRight') Sv.simBoton('D', false); else if (ev.code === 'Space') { Sv.simBoton('C', false); cDown = 0; refs.barra.style.width = '0'; } };
+    const teclas = (ev) => { if (ev.repeat || !joyOk() || /INPUT|TEXTAREA|SELECT/.test((ev.target || {}).tagName || '')) return;
+      if (ev.key === 'ArrowLeft') { bt('I', true); ev.preventDefault(); } else if (ev.key === 'ArrowRight') { bt('D', true); ev.preventDefault(); } else if (ev.code === 'Space') { bt('C', true); cDown = performance.now(); ev.preventDefault(); } };
+    const teclasArriba = (ev) => { if (ev.key === 'ArrowLeft') bt('I', false); else if (ev.key === 'ArrowRight') bt('D', false); else if (ev.code === 'Space') { bt('C', false); cDown = 0; refs.barra.style.width = '0'; } };
     document.addEventListener('keydown', teclas); document.addEventListener('keyup', teclasArriba);
     if (!Sv.modo) Sv.modo = sop.usb ? 'usb' : 'sim';
+    if (IT && MD.ITui) MD.ITui.agregar({ root, refs, A, Sv, E, el, toast, hora, pad2, antes: sesCard, tilde: svgIcono });   // 2.0-dev13: taller de colores, combates guardados, lamparas del turno
     pintarLista(); pintarMonitor(); actualizar();
     rafId = requestAnimationFrame(lazo);
   };

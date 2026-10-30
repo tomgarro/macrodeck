@@ -8,8 +8,11 @@
 //     TODOS los gestos del joystick de 3 botones (insertar = centro + izquierda, deshacer = centro + derecha, reiniciar = los tres 3 s).
 //     A1 y B1 con D2 mantenida quedan reservadas para macros futuras.
 //   - En el mapa de la e-Paper esas 3 teclas muestran los controles del tracker (flecha, circulo, flecha) mientras haya tracker.
-//   - Quien "es" el tracker se enchufa con MD.IT.usar({ nombre, presente(), boton(lado, abajo) }). Hoy: el simulador del tracker de la pestana
-//     Initiative Tracker. (El tracker nuevo con ESP32 se enchufa aca mismo, sin tocar nada mas.)
+//   - Quien "es" el tracker se enchufa con MD.IT.usar({ nombre, presente(), boton(lado, abajo) }). Son TRES casos (2.0-dev13):
+//       sim : el tracker simulado de la app. Los botones llegan como trama 'T' y se los pasa a Sv.simBoton.
+//       usb : el tracker ESP32 real por cable (USB-OTG o Web Serial). Los botones llegan como 'T' y salen por el cable como la orden "B,I,1".
+//       md  : el tracker ESP32 real por la RADIO del Macrodeck (ESP-NOW). El Macrodeck manda los botones por la radio el mismo (no manda 'T'); la app solo
+//             recibe las lineas del tracker ('L') y avisa de su presencia ('N'). Si la app necesita mandarle algo, lo hace con 'u'.
 //   - El firmware (programa_dnd.cpp) y el Macrodeck simulado (simulador.js) hacen LO MISMO con las teclas: si cambia uno, cambia el otro.
 window.MD = window.MD || {};
 (function (MD) {
@@ -69,14 +72,27 @@ window.MD = window.MD || {};
     if (MD.Diag) MD.Diag.anotar('tracker: ' + ['izquierda', 'centro', 'derecha'][b] + (abajo ? ' abajo' : ' arriba'));
   };
 
+  // ---------- tracker real por la radio del Macrodeck (tramas 'L' y 'N') ----------
+  IT.alLinea = function (d) { const Sv = MD.Trk && MD.Trk.Servicio; if (Sv) Sv.mdLinea(d.fin, d.txt); };
+  IT.alPresente = function (p) {
+    const Sv = MD.Trk && MD.Trk.Servicio; if (!Sv) return;
+    if (MD.Diag) MD.Diag.anotar('tracker por radio: ' + (p ? 'presente' : 'fuera de alcance'));
+    Sv.mdPresencia(p);
+  };
+
   // ---------- arranque (lo llama app.js) ----------
   IT.iniciar = function (A) {
     IT.A = A;
     const Trk = MD.Trk, Sv = Trk && Trk.Servicio;
     if (Sv) {
       // Hoy el "tracker" que se puede controlar es el simulado de la pestana Initiative Tracker (el Arduino real tiene su joystick de verdad).
-      IT.usar({ nombre: 'simulador', presente: () => Sv.estado === 'conectado' && Sv.modo === 'sim', boton: (lado, abajo) => Sv.simBoton(lado, abajo) });
-      Sv.alCambio((que) => { if (que === 'estado') IT.revisar(); });
+      // El tracker "es" lo que este conectado en el servicio: el simulado, el real por cable (si su firmware es el 3.x, que entiende los botones por serie) o el real por la radio.
+      IT.usar({
+        nombre: 'tracker',
+        presente: () => Sv.estado === 'conectado' && (Sv.modo === 'sim' || Sv.modo === 'md' || Sv.firmwareNuevo()),
+        boton: (lado, abajo) => { if (Sv.modo !== 'md') Sv.boton(lado, abajo); },       // por la radio los botones los manda el Macrodeck solo
+      });
+      Sv.alCambio((que) => { if (que === 'estado' || que === 'hola') IT.revisar(); });
     }
   };
 })(window.MD);

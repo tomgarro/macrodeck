@@ -25,7 +25,7 @@ window.MD = window.MD || {};
   Trk.ficha = function (t, num) {
     let d;
     if (t === 'E') d = CALAVERAS[num >= 1 && num <= 5 ? num : 0];
-    else d = FICHAS[t] || CALAVERAS[0];                                   // '?' (pintando la cantidad) = calavera lisa, la que trae el aparato
+    else d = FICHAS[t] || (t && 'abcd'.indexOf(t) >= 0 ? FICHAS.I : CALAVERAS[0]);   // los invitados con color (a-d) usan el guardabosques                                   // '?' (pintando la cantidad) = calavera lisa, la que trae el aparato
     return '<path fill-rule="evenodd" d="' + d + '"/>';
   };
   Trk.fichaBlanca = function () { return Trk.ficha('?'); };

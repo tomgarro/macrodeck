@@ -33,6 +33,12 @@ window.MD = window.MD || {};
     tituloParte: (i, texto) => u8([0x79, i].concat(bytesTexto(texto, 18))),
     // 2.0-dev12: avisa si hay un Initiative Tracker (real o simulado). 1 = C2/D2/E2 pasan a ser sus botones (izquierda, centro, derecha); 0 = vuelven a ser teclas
     tracker: (presente) => u8([0x74, presente ? 1 : 0]),
+    // 2.0-dev13: una LINEA para el tracker real ('u'), en pedazos de hasta 18 letras (fin = 1 en el ultimo). El Macrodeck la manda por la radio (ESP-NOW).
+    lineaTracker: (texto) => {
+      const t = ascii(String(texto).replace(/[\r\n]+/g, '')).slice(0, 60), out = [];
+      for (let o = 0; o < Math.max(1, t.length); o += 18) out.push(u8([0x75, o + 18 >= t.length ? 1 : 0].concat(Array.from(t.slice(o, o + 18)).map((c) => c.charCodeAt(0)))));
+      return out;
+    },
   };
 
   // Del Macrodeck a la app
@@ -46,6 +52,8 @@ window.MD = window.MD || {};
       case 0x57: return { t: 'hola', ver: f[1] };
       case 0x52: return { t: 'reenviar' };
       case 0x51: return { t: 'volCelu', v: Math.min(100, f[1] | 0) };         // v1.3-dev14: la perilla (en modo CEL) pide ese volumen de Android
+      case 0x4c: return { t: 'trkLinea', fin: !!f[1], txt: String.fromCharCode.apply(null, Array.from(f.slice(2, 20)).filter((c) => c >= 32 && c <= 126)) };   // 2.0-dev13: pedazo de una linea que mando el tracker real
+      case 0x4e: return { t: 'trkPresente', p: !!f[1] };                      // 2.0-dev13: el tracker real esta (1) o dejo de estar (0) al alcance de la radio del Macrodeck
       case 0x54: return { t: 'trkBoton', b: f[1] | 0, abajo: !!f[2] };         // 2.0-dev12: boton del Tracker apretado/soltado (0 izquierda, 1 centro, 2 derecha)
     }
     return null;

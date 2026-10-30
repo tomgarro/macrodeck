@@ -856,6 +856,7 @@ window.MD = window.MD || {};
       h('div', { class: 'lista-mas' },
         fila('sonidos', 'Sonidos', n ? n + ' sonidos en este celu' : 'Tu biblioteca de sonidos', 'sonidos'),
         fila('drive', 'Drive', 'Sincronizar, subir y bajar sonidos y escenas', 'drive', A.drivePend),
+        fila('tracker', 'Initiative Tracker clásico', 'El tracker con Arduino (hasta que el nuevo esté andando)', 'tracker'),
         fila('herramientas', 'Herramientas', 'Packs, logos, apariencia, diagnóstico y ayuda', 'herramientas')),
       (MD.Panel && MD.Panel.opcionesPantalla) ? h('div', { class: 'tarjeta', id: 'masPantalla' }, h('h3', { style: 'margin:0 0 8px' }, 'Pantalla'), MD.Panel.opcionesPantalla()) : null);
   }

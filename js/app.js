@@ -9,8 +9,8 @@
   const vista = document.getElementById('vista'), tabsEl = document.getElementById('tabs');
   const estadoCab = document.getElementById('estadoCab'), estadoTxt = document.getElementById('estadoTxt');
   // v1.3-dev33: 5 pestanas. "Mas" junta Sonidos, Drive y Herramientas (siguen siendo las mismas pantallas, solo que un toque mas adentro).
-  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['audios', 'Audios', 'audios'], ['luces', 'Luces', 'luz'], ['tracker', 'Initiative Tracker', 'tracker', 'Tracker'], ['mas', 'Más', 'mas']];
-  const EN_MAS = ['sonidos', 'drive', 'herramientas'];
+  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['audios', 'Audios', 'audios'], ['luces', 'Luces', 'luz'], ['it', 'Tracker IT', 'tracker', 'IT'], ['mas', 'Más', 'mas']];     // 2.0-dev13: la pestana nueva ocupa el lugar; la clasica (Arduino) paso a Más hasta que el IT nuevo este andando
+  const EN_MAS = ['sonidos', 'drive', 'herramientas', 'tracker'];
 
   // ---------- guardar ----------
   // v1.3-dev18: el guardado ya no es mudo. Cada cambio se guarda solo a los 0,4 s; ademas se guarda YA al ocultar la app, al cambiar de
@@ -210,7 +210,9 @@
       case 'escena': { const real = A.escenasMacrodeck()[d.i]; if (real != null) A.activar(real); break; }       // d.i = lugar en el selector del Macrodeck
       case 'hola': if (conectado()) A.tr.send(P.enc.hola()); break;
       case 'reenviar': A.enviarTodo(); break;
-      case 'trkBoton': if (MD.IT) MD.IT.boton(d.b, d.abajo); break;                 // 2.0-dev12: C2/D2/E2 (los botones del Initiative Tracker)
+      case 'trkBoton': if (MD.IT) MD.IT.boton(d.b, d.abajo); break;
+      case 'trkLinea': if (MD.IT) MD.IT.alLinea(d); break;                          // 2.0-dev13: una linea del tracker real (llega por la radio del Macrodeck)
+      case 'trkPresente': if (MD.IT) MD.IT.alPresente(d.p); break;                  // 2.0-dev13: el tracker real aparecio / salio del alcance                 // 2.0-dev12: C2/D2/E2 (los botones del Initiative Tracker)
       case 'volCelu': break;                                          // 1.3-dev31: el volumen del celu (CEL) se saco: se regula desde la app     // v1.3-dev14: la perilla del Macrodeck (modo CEL) pide ese volumen de Android
     }
   };
@@ -670,7 +672,7 @@
     const sc = vista.scrollTop;
     vista.innerHTML = ''; A.mesaCeldas = []; A.mesaFaders = []; A.mesaVol = A.mesaSonando = null;
     if (EN_MAS.includes(A.tab)) vista.append(h('button', { type: 'button', class: 'atras', onclick: () => A.irATab('mas') }, MDg.IUI.svg('atras'), 'Más'));
-    ({ mesa: MDg.UI.vistaMesa, mas: MDg.UI.vistaMas, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, tracker: MDg.Trk.vista, drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
+    ({ mesa: MDg.UI.vistaMesa, mas: MDg.UI.vistaMas, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, tracker: MDg.Trk.vista, it: (A2, v2) => MDg.Trk.vista(A2, v2, { it: true }), drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     A.pintarTabs();
     if (MDg.Sync) MDg.Sync.montar();                          // 1.3-dev31: boton grande "Sincronizar todo" arriba, en todas las pestanas
     if (MDg.Maqueta) MDg.Maqueta.montar(A);                    // 1.3-dev22: version de escritorio
