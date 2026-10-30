@@ -287,8 +287,10 @@ window.MD = window.MD || {};
     const esc = A.cfg.escenas[A.activa];
     A.mesaCeldas = esc.teclas.map((t, i) => {
       const c = celda(t, i, {});
-      const dn = (e) => { e.preventDefault(); A.audioPrimero(); A.motor.tecla(i, true); };
-      const up = (e) => { e.preventDefault(); A.motor.tecla(i, false); };
+      const itFija = !!(MD.IT && MD.IT.esFija(i) && MD.IT.presente());       // 2.0-dev12: con un Initiative Tracker conectado, C2/D2/E2 son SUS botones
+      if (itFija) { c.classList.add('trk-fija'); c.title = 'Control del Initiative Tracker'; }
+      const dn = (e) => { e.preventDefault(); if (itFija) return; A.audioPrimero(); A.motor.tecla(i, true); };
+      const up = (e) => { e.preventDefault(); if (itFija) return; A.motor.tecla(i, false); };
       c.addEventListener('pointerdown', dn); c.addEventListener('pointerup', up); c.addEventListener('pointerleave', up); c.addEventListener('pointercancel', up);
       rej.append(c); return c;
     });
@@ -657,7 +659,7 @@ window.MD = window.MD || {};
     if (MD.Audios && MD.Audios.tarjetaEscena) der.append(plegable(A, 'audEsc', 'Música y ambiente de fondo', [esc.lista ? 'Música: ' + ((MD.Au && MD.Au.lista(esc.lista.id) || {}).nombre || 'lista') : '', esc.ambiente ? 'Ambiente' : ''].filter(Boolean).join(' · ') || 'Sin música ni ambiente de fondo', 'audios', MD.Audios.tarjetaEscena(A, esc)));        // 1.3-dev25 / 2.0-dev8
 
     const rej = h('div', { class: 'rejilla' });
-    esc.teclas.forEach((t, i) => { const c = celda(t, i, { onclick: () => { A.edTecla = i; A.render(); } }); if (i === A.edTecla) c.classList.add('sel'); rej.append(c); });
+    esc.teclas.forEach((t, i) => { const c = celda(t, i, { onclick: () => { A.edTecla = i; A.render(); } }); if (i === A.edTecla) c.classList.add('sel'); if (MD.IT && MD.IT.esFija(i)) { c.classList.add('trk-reservada'); c.title = 'La usa el Initiative Tracker cuando está conectado'; } rej.append(c); });
     der.append(h('div', { class: 'tarjeta' }, h('p', { class: 'suave', style: 'margin-top:0' }, 'Toca una tecla para editarla. Estan en el mismo orden que en el Macrodeck (arriba A1–E1, abajo A2–E2).'), rej));
     der.append(leyenda());
 
@@ -668,6 +670,7 @@ window.MD = window.MD || {};
     const cfg = A.cfg; const t = esc.teclas[i];
     const caja = h('div', { class: 'tarjeta', id: 'editorTecla' });
     caja.append(h('h3', null, 'Tecla ' + NOM[i]));
+    if (MD.IT && MD.IT.esFija(i)) caja.append(h('p', { class: 'aviso', id: 'avisoTrkTecla' }, 'Ojo: ' + NOM[i] + ' es una de las 3 teclas del Initiative Tracker (C2 = turno siguiente, D2 = centro / estado, E2 = turno anterior). Mientras el tracker esté conectado esta tecla NO suena y la e-Paper muestra el control del tracker. Cuando se desconecta, vuelve a ser la que armaste acá.'));
     if (!t) {
       caja.append(vacio('mesa', 'Esta tecla está vacía', 'Creala y elegí qué suena, cómo se llama y con qué icono se ve en la e-Paper.'));
       const fila = h('div', { class: 'fila' }, h('button', { class: 'primario', type: 'button', id: 'btnCrearTecla', onclick: () => { esc.teclas[i] = MD.Config.teclaNueva({ nombre: 'Nueva' }); A.cambio(true); A.render(); } }, 'Crear tecla'));

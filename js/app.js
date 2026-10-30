@@ -77,11 +77,12 @@
     if (!conectado()) return;
     const esc = A.cfg.escenas[A.activa]; if (!esc) return;
     const teclas = esc.teclas.map(t => t ? Object.assign({}, t, { icono: MDg.Iconos.deHex(t.icono) }) : null);
-    A.tr.sendVarias(P.tramasMapa(teclas));
+    A.tr.sendVarias(P.tramasMapa(MDg.IT ? MDg.IT.teclasMapa(teclas) : teclas));      // 2.0-dev12: con un Initiative Tracker conectado, C2/D2/E2 muestran sus controles
   };
   A.enviarTodo = function () {
     if (!conectado()) return;
     A.ultLeds = ''; A.ultFilas = ['', '', '', ''];
+    if (MDg.IT) A.tr.send(P.enc.tracker(MDg.IT.presente()));         // 2.0-dev12: el Macrodeck tiene que saber si C2/D2/E2 son del tracker ANTES de recibir el mapa
     A.enviarEscenas(); A.enviarMapa(); A.actualizarEstado(true);
     if (MDg.Celu) MDg.Celu.reiniciar();
   };
@@ -209,6 +210,7 @@
       case 'escena': { const real = A.escenasMacrodeck()[d.i]; if (real != null) A.activar(real); break; }       // d.i = lugar en el selector del Macrodeck
       case 'hola': if (conectado()) A.tr.send(P.enc.hola()); break;
       case 'reenviar': A.enviarTodo(); break;
+      case 'trkBoton': if (MD.IT) MD.IT.boton(d.b, d.abajo); break;                 // 2.0-dev12: C2/D2/E2 (los botones del Initiative Tracker)
       case 'volCelu': break;                                          // 1.3-dev31: el volumen del celu (CEL) se saco: se regula desde la app     // v1.3-dev14: la perilla del Macrodeck (modo CEL) pide ese volumen de Android
     }
   };
@@ -227,7 +229,7 @@
   // ---------- estado vivo (LEDs, OLED, pantalla Mesa) ----------
   A.actualizarEstado = function (forzar) {
     const m = A.motor;
-    const leds = m.ledsEstado(), clave = leds.join('');
+    const leds = MDg.IT ? MDg.IT.ajustarLeds(m.ledsEstado()) : m.ledsEstado(), clave = leds.join('');
     if (conectado() && (forzar || clave !== A.ultLeds)) { A.tr.send(P.enc.leds(leds)); }
     A.ultLeds = clave;
     const sonando = m.sonando();
@@ -682,6 +684,7 @@
     if (MDg.Audios) await MDg.Audios.iniciar(A);          // dev23: pestana Audios (catalogo guardado y audios bajados)
     if (MDg.Audios && MDg.Audios.enganchar) MDg.Audios.enganchar(A);   // dev25: la musica de fondo de cada escena (envuelve A.activar)
     if (MDg.LucesDnd) MDg.LucesDnd.enganchar(A);         // 1.3-dev16: luces de D&D (envuelve motor.tecla y A.activar)
+    if (MDg.IT) MDg.IT.iniciar(A);          // 2.0-dev12: ANTES que el Tracker, asi escucha sus cambios
     if (MDg.Trk && MDg.Trk.iniciar) { try { await MDg.Trk.iniciar(A); } catch (e) { if (MDg.Diag) MDg.Diag.anotar('Initiative Tracker: ' + e); } }   // 2.0-dev4: pestaña Initiative Tracker (conexion, sonidos y luces por movimiento)
     A.render();
     if (MDg.Drive.configurado() && navigator.onLine) A.driveActualizar();     // mira en silencio si hay sonidos nuevos (aparece el numero en la pestana Drive)

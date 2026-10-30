@@ -31,6 +31,8 @@ window.MD = window.MD || {};
     // v1.3-dev14: estado del celu para la OLED. bat 0..100 (255 = no se sabe); flags: 1 cargando, 2 suena algo, 4 hay sesion de medios, 8 acceso a medios; vol 0..100 (255 = no se sabe)
     celu: (bat, flags, vol) => u8([0x7a, bat & 255, flags & 255, vol & 255]),
     tituloParte: (i, texto) => u8([0x79, i].concat(bytesTexto(texto, 18))),
+    // 2.0-dev12: avisa si hay un Initiative Tracker (real o simulado). 1 = C2/D2/E2 pasan a ser sus botones (izquierda, centro, derecha); 0 = vuelven a ser teclas
+    tracker: (presente) => u8([0x74, presente ? 1 : 0]),
   };
 
   // Del Macrodeck a la app
@@ -44,6 +46,7 @@ window.MD = window.MD || {};
       case 0x57: return { t: 'hola', ver: f[1] };
       case 0x52: return { t: 'reenviar' };
       case 0x51: return { t: 'volCelu', v: Math.min(100, f[1] | 0) };         // v1.3-dev14: la perilla (en modo CEL) pide ese volumen de Android
+      case 0x54: return { t: 'trkBoton', b: f[1] | 0, abajo: !!f[2] };         // 2.0-dev12: boton del Tracker apretado/soltado (0 izquierda, 1 centro, 2 derecha)
     }
     return null;
   }

@@ -21,6 +21,7 @@ window.MD = window.MD || {};
       this.celu = { bat: 255, flags: 0, vol: 255, rx: 0, titulo: '' };
       this.volDestino = 0; this.agarrado = true; this.potAlCambiar = 50; this.objAgarre = -2; this.ladoAgarre = 0; this.sfxEnv = 50; this.celEnv = -1; this.celEnvEn = 0; this.homeAbajo = false;
       this.agarrePct = 3;
+      this.trkPresente = false; this.trkMasc = new Array(10).fill(0); this.trkCons = new Array(10).fill(false); this.trkEnv = 0;      // 2.0-dev12: control del Initiative Tracker (igual que programa_dnd.cpp)
       this._construir();
       this._ultimoVol = 0;
     }
@@ -31,7 +32,7 @@ window.MD = window.MD || {};
       this._estado('conectado');
       setTimeout(() => { this.onFrame(Uint8Array.of(0x57, 1)); this.onFrame(Uint8Array.of(0x52)); this.onConectado(); }, 50);
     }
-    desconectar() { this._estado('desconectado'); this.leds.fill(0); this.filas = ['', '', '', '']; this.mapaListo = false; this.celu = { bat: 255, flags: 0, vol: 255, rx: 0, titulo: '' }; this._dibujar(); }
+    desconectar() { this._trkSoltarTodo(); this.trkPresente = false; this._estado('desconectado'); this.leds.fill(0); this.filas = ['', '', '', '']; this.mapaListo = false; this.celu = { bat: 255, flags: 0, vol: 255, rx: 0, titulo: '' }; this._dibujar(); }
     get _potPct() { return Math.round(this.vol * 100 / 255); }
     get _celFresco() { return this.celu.rx && Date.now() - this.celu.rx < 15000; }
     get _celPct() { return this._celFresco && this.celu.vol <= 100 ? this.celu.vol : -1; }
@@ -53,6 +54,7 @@ window.MD = window.MD || {};
       if (!this.conectado || !f || !f.length) return;
       this.log.push(Array.from(f));
       switch (f[0]) {
+        case 0x74: this.trkPresente = !!f[1]; if (!this.trkPresente) this._trkSoltarTodo(); break;      // 2.0-dev12: hay un Initiative Tracker
         case 0x6c: for (let i = 0; i < 10; i++) this.leds[i] = f[1 + i] & 7; break;
         case 0x6f: if (f[1] < 4) this.filas[f[1]] = txt(f, 2, f.length); break;
         case 0x61: { const t = this.teclas[f[1]]; if (t) { t.glifo = f[3]; t.hayIcono = !!(f[4] & 1); t.ducking = !!(f[4] & 2); if (!(f[4] & 1)) t.icono = new Uint8Array(72); t.nombre = ''; } break; }
@@ -78,8 +80,30 @@ window.MD = window.MD || {};
         if (abajo && this.escenas[i] != null) { this.selector = false; this.onFrame(Uint8Array.of(0x53, i)); this._dibujar(); }
         return;
       }
+      if (this._trkTecla(i, abajo)) return;
       this.onFrame(Uint8Array.of(0x4b, i, abajo ? 1 : 0));
     }
+    // ---- 2.0-dev12: control del Initiative Tracker (IGUAL que trkTecla() de programa_dnd.cpp) ----
+    // Con tracker: C2 / D2 / E2 (7, 8, 9) = izquierda / centro / derecha. Con D2 mantenida: C1 = izquierda, E1 = derecha, D1 = izquierda + derecha; A1 y B1 reservadas.
+    // Devuelve true si la tecla se la queda el tracker (no se manda como tecla).
+    _trkTecla(i, abajo) {
+      if (!this.trkPresente) return false;
+      if (abajo) {
+        if (i >= 7 && i <= 9) this.trkMasc[i] = 1 << (i - 7);
+        else if (this.abajo.has(8) && i <= 4) this.trkMasc[i] = i === 2 ? 1 : (i === 4 ? 4 : (i === 3 ? 5 : 0));
+        else return false;
+        this.trkCons[i] = true; this._trkActualizar(); return true;
+      }
+      if (this.trkCons[i]) { this.trkCons[i] = false; this.trkMasc[i] = 0; this._trkActualizar(); return true; }
+      return false;
+    }
+    _trkActualizar() {
+      let g = 0; for (let k = 0; k < 10; k++) g |= this.trkMasc[k];
+      if (g === this.trkEnv) return;
+      for (let b = 0; b < 3; b++) { const m = 1 << b; if ((g ^ this.trkEnv) & m) this.onFrame(Uint8Array.of(0x54, b, (g & m) ? 1 : 0)); }
+      this.trkEnv = g;
+    }
+    _trkSoltarTodo() { this.trkMasc.fill(0); this.trkCons.fill(false); if (this.trkEnv) this._trkActualizar(); }
     _perilla(v) {
       this.vol = v;
       if (this.volDestino === 0) {
@@ -123,7 +147,7 @@ window.MD = window.MD || {};
       r.querySelector('.sim-homeb1').addEventListener('click', () => { if (this.conectado && !this.selector) this._cambiarDestino(); });
       r.querySelector('.sim-dest').addEventListener('change', () => { this._destinoInicial(); this._dibujar(); });
       this._anim = setInterval(() => { if (this.conectado && this.raiz.offsetParent !== null) this._oled(); }, 100);   // para que corra el titulo
-      r.querySelector('.sim-home').addEventListener('click', () => { if (this.conectado) { this.selector = !this.selector; this._dibujar(); } });
+      r.querySelector('.sim-home').addEventListener('click', () => { if (this.conectado) { this.selector = !this.selector; if (this.selector) this._trkSoltarTodo(); this._dibujar(); } });
       this._kd = (e) => { if (/INPUT|TEXTAREA|SELECT/.test((e.target.tagName || '')) || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return; const i = TECLADO[e.key.toLowerCase()]; if (i != null && r.offsetParent !== null) { this.btn[i].classList.add('abajo'); this._tecla(i, true); } };
       this._ku = (e) => { const i = TECLADO[e.key.toLowerCase()]; if (i != null && this.btn[i].classList.contains('abajo')) { this.btn[i].classList.remove('abajo'); this._tecla(i, false); } };
       window.addEventListener('keydown', this._kd); window.addEventListener('keyup', this._ku);
