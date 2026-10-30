@@ -51,7 +51,7 @@ window.MD = window.MD || {};
         this.duckTimer = setTimeout(() => { this.duckTimer = null; if (this.duckN === 0 && this.duckActivo) { this.duckActivo = false; try { this.onDuck(false); } catch (e) {} } }, this._duck().cola);
       }
     }
-    _estadoNuevo() { return { voces: new Set(), loop: false, abajo: false, sec: 0, bolsa: [], ultimo: -1, flashHasta: 0, azarHasta: 0, nivel: 0, seq: 0, tg: 0 }; }
+    _estadoNuevo() { return { voces: new Set(), loop: false, abajo: false, sec: 0, bolsa: [], ultimo: -1, flashHasta: 0, flashModo: 0, azarHasta: 0, nivel: 0, seq: 0, tg: 0 }; }
 
     async iniciar() {
       if (!this.ctx) {
@@ -116,6 +116,7 @@ window.MD = window.MD || {};
     fijarTeclas(teclas) {
       // al cambiar de escena: todo lo que sonaba se apaga con un fundido
       this.fadeoutTotal(1.2);
+      if (MD.Gestos) MD.Gestos.reset();
       this.teclas = teclas;
       this.estadoTecla = Array.from({ length: 10 }, () => this._estadoNuevo());
       this.onCambio();
@@ -200,6 +201,8 @@ window.MD = window.MD || {};
       if (!this.ctx) await this.iniciar();
       const e = this.estadoTecla[i];
       e.abajo = abajo;
+      // 2.0-dev11: las teclas Ambiente y Musica se manejan con GESTOS (1 toque play/pausa, 2 siguiente, 3 anterior, mantener = volumen con la perilla)
+      if ((t.tipo === 'ambiente' || t.tipo === 'musica') && MD.Gestos) { MD.Gestos.tecla(this, i, t, e, abajo); this.onCambio(); return; }
       if (!abajo) { this._soltar(i, t, e); return; }
       this.log.push('tecla ' + i + ' ' + t.tipo);
       // v1.3-dev8: si la tecla tiene ducking y la musica todavia esta arriba, se pide el ducking ANTES y el sonido arranca unos ms despues.
@@ -212,7 +215,7 @@ window.MD = window.MD || {};
       }
       try {
       switch (t.tipo) {
-        case 'silenciar': this.alternarSilencio(); e.flashHasta = performance.now() + 400; break;
+        case 'silenciar': this.alternarSilencio(); e.flashHasta = performance.now() + 400; e.flashModo = 0; break;
         case 'fadeout': this.fadeoutTotal(Math.max(0.5, t.salida || 2)); e.flashHasta = performance.now() + 500; break;
         case 'intensidad': e.flashHasta = performance.now() + 300; this.ciclarIntensidad(); break;
         // 1.3-dev31: 'ambiente' = un audio de tipo Ambiente de la pestana Audios, como loop con fundidos (lo maneja ambientes.js). 'luz_toggle' = cambio de luz (luces_dnd.js).
@@ -372,9 +375,12 @@ window.MD = window.MD || {};
       return this.teclas.map((t, i) => {
         if (!t) return 0;
         const e = this.estadoTecla[i];
-        if (e.flashHasta > ahora) return 3;
+        // 2.0-dev11: EL IDIOMA DE LOS LEDs (igual para todos los tipos): apagado = en reposo · respira = suena algo continuo (loop, ambiente, musica)
+        // · tenue = en pausa · fijo = suena un sonido corto (o se esta ajustando el volumen) · destello = accion hecha (siguiente) · doble destello = anterior / no hay
+        if (MD.Gestos && MD.Gestos.enVol(i)) return MD.Gestos.LED.volumen;
+        if (e.flashHasta > ahora) return e.flashModo || 3;
         if (t.tipo === 'silenciar') return this.silenciado ? 1 : 0;
-        if (t.tipo === 'musica') return MD.Ambientes && MD.Ambientes.musicaActiva(t) ? 2 : 0;                  // 2.0-dev8: prendida = su lista esta sonando
+        if ((t.tipo === 'musica' || t.tipo === 'ambiente') && MD.Ambientes && MD.Ambientes.estadoKey) { const k = MD.Ambientes.estadoKey(i, t); return k === 'sonando' ? 2 : (k === 'pausa' ? 5 : 0); }
         if (t.tipo === 'musica_pausa') return MD.Ambientes && MD.Ambientes.musicaPausada() ? 2 : 0;           // prendida = la musica esta en pausa
         if (t.tipo === 'luz_toggle') return e.tg > 0 ? 2 : 0;                  // prendida = esta en un estado que no es el primero
         if (MD.Config.esLoop(t.tipo)) return e.loop ? 2 : 0;

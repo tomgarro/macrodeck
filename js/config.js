@@ -10,9 +10,9 @@ window.MD = window.MD || {};
     { id: 'secuencia', nombre: 'Secuencia',      ayuda: 'Cada toque suena el siguiente de la lista.' },
     { id: 'silenciar', nombre: 'Silenciar todo', ayuda: 'Corta TODO el sonido de la app (otra vez lo devuelve). No afecta a la musica de otras apps.' },
     { id: 'fadeout',   nombre: 'Fade-out total', ayuda: 'Apaga con un fundido todos los loops y sonidos largos.' },
-    { id: 'ambiente',  nombre: 'Ambiente (de Audios)', ayuda: 'Prende un audio de tipo Ambiente de la pestana Audios (una taberna, la lluvia, un bosque) como un loop con fundido de entrada y de salida. Otro toque lo apaga. Suena en el carril de Ambientes, con su propio volumen.' },
+    { id: 'ambiente',  nombre: 'Ambiente (de Audios)', ayuda: 'Prende un audio de tipo Ambiente de la pestana Audios (una taberna, la lluvia, un bosque) como un loop con fundido de entrada y de salida. Con el Macrodeck: 1 toque play / pausa, 2 toques siguiente (si elegís una lista), 3 anterior, mantener + perilla = volumen. Suena en el carril de Ambientes.' },
     // 2.0-dev8: teclas de MUSICA (el carril de Musica de la pestana Audios, con listas armadas por el DM).
-    { id: 'musica',    nombre: 'Música (de una lista)', ayuda: 'Prende una lista de la pestana Audios (combate, taberna, tension...) y reemplaza la musica que suena, con fundido. Otro toque la apaga. Asi se cambia la musica con una tecla, sin tocar la escena.' },
+    { id: 'musica',    nombre: 'Música (de una lista)', ayuda: 'Prende una lista de la pestana Audios (combate, taberna, tension...) y reemplaza la musica que suena, con fundido. Con el Macrodeck: 1 toque play / pausa, 2 toques siguiente tema, 3 anterior, mantener + perilla = volumen de la tecla.' },
     { id: 'musica_sig', nombre: 'Música: siguiente tema', ayuda: 'Salta al siguiente tema de la musica que esta sonando (con fundido).' },
     { id: 'musica_pausa', nombre: 'Música: pausa / seguir', ayuda: 'Pausa la musica sin perder el lugar; otro toque sigue. No toca los ambientes ni los efectos.' },
     { id: 'luz_toggle', nombre: 'Cambio de luz (toggle)', ayuda: 'Cada toque pasa al siguiente estado de luz (por ejemplo Dia / Noche) SIN cambiar de escena ni cortar los sonidos. Podes poner de 2 a 4 estados.' },
@@ -162,8 +162,11 @@ window.MD = window.MD || {};
         if (x.tipo === 'ambiente') {                           // 1.3-dev31: un audio de la biblioteca (Audios) que suena como loop en el carril de Ambientes
           x.audio = typeof x.audio === 'string' ? x.audio.slice(0, 80) : ''; x.audioTitulo = String(x.audioTitulo || '').slice(0, 60); x.sumar = !!x.sumar; x.sonidos = [];
         } else { delete x.audio; delete x.audioTitulo; delete x.sumar; }
-        if (x.tipo === 'musica') { x.lista = String(x.lista || '').slice(0, 40); x.listaNombre = String(x.listaNombre || '').slice(0, 40); x.azarLista = !!x.azarLista; x.sonidos = []; x.grupo = ''; }   // 2.0-dev8: una lista de Audios que suena en el carril de Musica
-        else { delete x.lista; delete x.listaNombre; delete x.azarLista; }
+        // 2.0-dev8: una lista de Audios que suena en el carril de Musica. 2.0-dev11: una tecla Ambiente tambien puede traer una LISTA (de ambientes) en vez de un solo audio.
+        if (x.tipo === 'musica' || x.tipo === 'ambiente') {
+          x.lista = String(x.lista || '').slice(0, 40); x.listaNombre = String(x.listaNombre || '').slice(0, 40); x.azarLista = !!x.azarLista;
+          if (x.tipo === 'musica') { x.sonidos = []; x.grupo = ''; } else if (x.lista) x.sumar = false;
+        } else { delete x.lista; delete x.listaNombre; delete x.azarLista; }
         if (x.tipo === 'musica_sig' || x.tipo === 'musica_pausa') { x.sonidos = []; x.grupo = ''; }
         if (x.tipo === 'luz_toggle') { x.estados = normEstadosToggle(x.estados); x.fundido = num(x.fundido, 4, 0, 60); x.sonidos = []; delete x.luces; } else { delete x.estados; delete x.fundido; }
         if (LZ) { const lt = LZ.normLucesTecla(x.luces); if (lt.length) x.luces = lt; else delete x.luces; }

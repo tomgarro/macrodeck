@@ -94,6 +94,7 @@ window.MD = window.MD || {};
     async function empezar(d, desde, seg, entrada) {
       cerrarPase();
       P.apagando = false;
+      if (P.pausandoSuave) { P.pausandoSuave = false; clearTimeout(P.pausaT); const r0 = P.ranuras[P.activa]; if (r0) { try { r0.el.pause(); } catch (e) {} fijarGanancia(r0, 1); } }     // 2.0-dev11: llego un tema nuevo en medio de una pausa con fundido
       const vieja = P.activa, sonandoAlgo = P.id && P.ranuras[vieja] && !P.ranuras[vieja].el.paused;
       if (!sonandoAlgo || !(seg > 0)) {
         const r = await ranura(P.activa);
@@ -260,11 +261,43 @@ window.MD = window.MD || {};
       if (P.ctx) { const i = P.ctx.ids.indexOf(id); if (i >= 0) P.ctx.pos = i; }
       await empezar(d, 0, 1.5);
     };
+    // 2.0-dev11: pausa y seguir CON FUNDIDO. La pausa baja el volumen y recien ahi frena (queda el lugar); seguir arranca en silencio y sube.
+    // 'pausandoSuave' = esta bajando para pausar (todavia suena). Si hay un cruce de temas en curso se usa la pausa seca de siempre.
+    const SEG_PAUSA = 0.4;
+    api.pausado = () => { const r = actual(); return !!(r && P.id && !P.apagando && (r.el.paused || P.pausandoSuave)); };
+    api.pausaSuave = (seg) => {
+      const r = actual(); if (!r || !P.id || P.apagando || r.el.paused || P.pausandoSuave) return false;
+      if (P.trans) { api.pausaSeguir(); return true; }
+      seg = seg > 0 ? seg : SEG_PAUSA;
+      const t = r.g.context.currentTime, g = r.g.gain, v = Math.max(g.value, 0.0001);
+      g.cancelScheduledValues(t); g.setValueAtTime(v, t); g.linearRampToValueAtTime(0.0001, t + seg);
+      P.pausandoSuave = true; clearTimeout(P.pausaT);
+      P.pausaT = setTimeout(() => { if (!P.pausandoSuave || actual() !== r) return; P.pausandoSuave = false; try { r.el.pause(); } catch (e) {} emitir(); Au.pintar(); }, seg * 1000 + 30);
+      emitir(); Au.pintar(); return true;
+    };
+    api.seguirSuave = (seg) => {
+      const r = actual(); if (!r || !P.id || P.apagando) return false;
+      if (!r.el.paused && !P.pausandoSuave) return false;
+      seg = seg > 0 ? seg : SEG_PAUSA;
+      clearTimeout(P.pausaT); P.pausandoSuave = false;
+      const t = r.g.context.currentTime, g = r.g.gain, v = r.el.paused ? 0.0001 : Math.max(g.value, 0.0001);
+      g.cancelScheduledValues(t); g.setValueAtTime(v, t); g.linearRampToValueAtTime(1, t + seg);
+      if (r.el.paused) r.el.play().catch(() => {});
+      emitir(); Au.pintar(); return true;
+    };
     api.pausaSeguir = () => {
       const r = actual(); if (!r || !P.id) return;
       const v = P.trans && P.ranuras[P.trans.vieja];
+      if (!P.trans) { if (api.pausado()) api.seguirSuave(); else api.pausaSuave(); return; }
       if (r.el.paused) { r.el.play().catch(() => {}); if (v && v.el.src) v.el.play().catch(() => {}); } else { r.el.pause(); if (v) v.el.pause(); }
       emitir(); Au.pintar();
+    };
+    // 2.0-dev11: ¿hay un "siguiente" de verdad? (cola, o una lista con mas de un tema bajado). Una tecla Ambiente de un solo audio no tiene.
+    api.haySiguiente = () => {
+      if (!P.id) return false;
+      if (P.cola.some((id) => Au.dePorId(id) && Au.bajado(id))) return true;
+      const c = P.ctx; if (!c) return false;
+      return c.ids.filter((id) => Au.bajado(id)).length > 1;
     };
     // Borra del equipo (NO de Drive) los audios bajados: frena lo que suene, saca de la cola y libera el espacio.
     api.liberar = (set) => {
@@ -274,7 +307,7 @@ window.MD = window.MD || {};
       P.cola = P.cola.filter((id) => !set.has(id));
     };
     api.detener = () => {
-      P.apagando = false; cerrarPase();
+      P.apagando = false; P.pausandoSuave = false; clearTimeout(P.pausaT); cerrarPase();
       P.ranuras.forEach((r, i) => { if (r) { fijarGanancia(r, 1); soltar(r); } });
       P.id = null;                                                                // la lista y la cola quedan por si se vuelve a dar play
       emitir(); Au.pintar();
@@ -282,7 +315,7 @@ window.MD = window.MD || {};
     // Apagar suave: baja el volumen del que suena (y del que entra) a cero y para.
     api.apagarSuave = (seg) => {
       const r = actual(); if (!r || !P.id) return;
-      seg = seg || 8; P.apagando = true;
+      seg = seg || 8; P.apagando = true; P.pausandoSuave = false; clearTimeout(P.pausaT);
       const t = r.g.context.currentTime;
       P.ranuras.forEach((x) => { if (x && x.el.src) { const g = x.g.gain; const v = g.value; g.cancelScheduledValues(t); g.setValueAtTime(v, t); g.linearRampToValueAtTime(0, t + seg); } });
       setTimeout(() => { if (P.apagando) api.detener(); }, seg * 1000 + 100);

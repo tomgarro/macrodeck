@@ -58,7 +58,7 @@ window.MD = window.MD || {};
     if ((t.nombre || '').split(/\s+/).some(p => p.length > 7)) out.push('El nombre tiene una palabra de mas de 7 letras: en la pantalla e-Paper se va a cortar.');
     if (!t.nombre) out.push('La tecla no tiene nombre: en el Macrodeck se vera solo el icono.');
     if (['una_vez', 'loop', 'intro_loop', 'mantener', 'azar', 'secuencia'].includes(t.tipo) && t.sonidos.length < 1) out.push('Esta tecla no tiene sonido todavia.');
-    if (t.tipo === 'ambiente' && !t.audio) out.push('Esta tecla no tiene ambiente elegido todavia.');
+    if (t.tipo === 'ambiente' && !t.audio && !t.lista) out.push('Esta tecla no tiene ambiente ni lista elegidos todavia.');
     if (t.tipo === 'musica' && !t.lista) out.push('Esta tecla no tiene lista de musica elegida todavia.');
     if (t.tipo === 'intro_loop' && t.sonidos.length === 1) out.push('"Intro + Loop" con un solo sonido es igual que "Loop": agrega la intro ANTES del loop (el ultimo sonido es el que se repite).');
     if (t.tipo === 'azar' && t.sonidos.length === 1) out.push('"Al azar" con un solo sonido es igual que "Una vez".');
@@ -363,6 +363,8 @@ window.MD = window.MD || {};
     const av = avisoLucesApagadas(A); if (av) caja.append(av);
     return caja;
   }
+  // 2.0-dev11: lo que hacen los gestos del Macrodeck en las teclas Ambiente y Música
+  const GESTOS_AYUDA = 'En el Macrodeck: 1 toque = play / pausa (con fundido, sigue donde quedó) · 2 toques = siguiente de la lista (si no hay, no hace nada) · 3 toques = anterior · MANTENER la tecla y girar la perilla = volumen de esta tecla (se guarda en la escena).';
   // Tecla "Ambiente (de Audios)": elige un audio de tipo Ambiente del catalogo
   function ambienteTecla(A, t) {
     const Au = MD.Au, ambs = Au ? Au.S.cat.filter(x => x.tipo === 'Ambiente').sort((a, b) => a.titulo.localeCompare(b.titulo, 'es')) : [];
@@ -371,10 +373,23 @@ window.MD = window.MD || {};
       ambs.map(x => h('option', { value: x.id, selected: x.id === t.audio }, x.titulo + (Au.bajado(x.id) ? '' : ' (sin bajar)'))),
       t.audio && !ambs.some(x => x.id === t.audio) ? h('option', { value: t.audio, selected: true }, (t.audioTitulo || 'ambiente') + ' (todavía no llegó a este celu)') : null);
     const d = Au && t.audio && Au.dePorId(t.audio);
+    // 2.0-dev11: o una LISTA de ambientes (del Macrodeck: doble toque = el siguiente de la lista)
+    const ls = Au ? Au.listas() : [];
+    const selLista = h('select', { id: 'selListaAmbiente', 'aria-label': 'Lista de ambientes', onchange: (e) => {
+      t.lista = e.target.value; const l = Au && Au.lista(t.lista); t.listaNombre = l ? l.nombre : '';
+      if (l && (!t.nombre || t.nombre === 'Nueva')) t.nombre = l.nombre.slice(0, 18);
+      A.cambio(true); A.render(); } },
+      h('option', { value: '' }, '(ninguna: uso el audio de arriba)'),
+      ls.map(x => h('option', { value: x.id, selected: x.id === t.lista }, x.nombre + (x.auto ? ' (automática)' : ''))),
+      t.lista && !ls.some(x => x.id === t.lista) ? h('option', { value: t.lista, selected: true }, (t.listaNombre || 'lista') + ' (todavía no llegó a este celu)') : null);
+    const l = Au && t.lista && Au.lista(t.lista);
     return h('div', null, h('label', null, 'Audio de tipo Ambiente (de la pestana Audios)'), sel,
-      d ? h('div', { class: 'fila', style: 'margin-top:6px' }, h('button', { type: 'button', onclick: () => Au.carril('ambiente').ambienteTecla(d, t.entrada > 0 ? t.entrada : 3) }, 'Probar'), h('button', { type: 'button', onclick: () => Au.carril('ambiente').apagarSuave(t.salida > 0 ? t.salida : 3) }, 'Parar')) : null,
-      h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: !!t.sumar, onchange: (e) => { t.sumar = e.target.checked; A.cambio(true); } }), ' Sumar: que suene ENCIMA de los otros ambientes (si no, reemplaza al que suena)'),
-      h('p', { class: 'suave' }, 'Un toque lo prende con fundido de entrada; otro toque lo apaga con fundido de salida. Su volumen se regula en Audios (carril Ambientes).'));
+      d && !t.lista ? h('div', { class: 'fila', style: 'margin-top:6px' }, h('button', { type: 'button', onclick: () => Au.carril('ambiente').ambienteTecla(d, t.entrada > 0 ? t.entrada : 3) }, 'Probar'), h('button', { type: 'button', onclick: () => Au.carril('ambiente').apagarSuave(t.salida > 0 ? t.salida : 3) }, 'Parar')) : null,
+      h('label', null, 'O una lista de ambientes (si elegís una, manda sobre el audio de arriba)'), selLista,
+      l ? h('div', { class: 'fila', style: 'margin-top:6px' }, h('button', { type: 'button', onclick: () => Au.carril('ambiente').reproducirLista(l, { azar: !!t.azarLista, entrada: t.entrada > 0 ? t.entrada : 3 }) }, 'Probar'), h('button', { type: 'button', onclick: () => Au.carril('ambiente').apagarSuave(2) }, 'Parar')) : null,
+      l ? h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: !!t.azarLista, onchange: (e) => { t.azarLista = e.target.checked; A.cambio(true); } }), ' En orden al azar') : null,
+      t.lista ? null : h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: !!t.sumar, onchange: (e) => { t.sumar = e.target.checked; A.cambio(true); } }), ' Sumar: que suene ENCIMA de los otros ambientes (si no, reemplaza al que suena)'),
+      h('p', { class: 'suave' }, GESTOS_AYUDA + ' Su volumen general se regula en Audios (carril Ambientes).'));
   }
   // 2.0-dev8: Tecla "Musica (de una lista)": elige una lista de la pestana Audios (las arma el DM) que suena en el carril de Musica
   function musicaTecla(A, t) {
@@ -394,7 +409,7 @@ window.MD = window.MD || {};
       h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: !!t.azarLista, onchange: (e) => { t.azarLista = e.target.checked; A.cambio(true); } }), ' En orden al azar'),
       h('div', { class: 'cols' }, h('div', null, h('label', null, 'Entrada (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.entrada, oninput: num('entrada') })),
         h('div', null, h('label', null, 'Salida (fundido, segundos)'), h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: t.salida, oninput: num('salida') }))),
-      h('p', { class: 'suave' }, 'Un toque arranca esta lista y reemplaza la música que suene (con fundido); otro toque la apaga. Se regula con el volumen de Música (Mezclador de la Mesa).'));
+      h('p', { class: 'suave' }, GESTOS_AYUDA + ' Se regula con el volumen de Música (Mezclador de la Mesa).'));
   }
   // Tecla "Cambio de luz (toggle)": hasta 4 estados que se van alternando
   function toggleTecla(A, t) {
@@ -682,7 +697,7 @@ window.MD = window.MD || {};
       return { el: caja2, cuerpo };
     };
     const nSon = (t.sonidos || []).length;
-    const resSonido = t.tipo === 'ambiente' ? (t.audio ? 'Ambiente elegido' : 'Sin ambiente todavía') : (t.tipo === 'musica' ? (t.lista ? 'Lista: ' + (t.listaNombre || 'elegida') : 'Sin lista todavía') : (t.tipo === 'musica_sig' || t.tipo === 'musica_pausa') ? 'Controla la música' : (t.tipo === 'luz_toggle' ? 'Cambio de luz' : (nSon ? nSon + (nSon === 1 ? ' sonido' : ' sonidos') : 'Sin sonido todavía')));
+    const resSonido = t.tipo === 'ambiente' ? (t.lista ? 'Lista: ' + (t.listaNombre || 'elegida') : (t.audio ? 'Ambiente elegido' : 'Sin ambiente todavía')) : (t.tipo === 'musica' ? (t.lista ? 'Lista: ' + (t.listaNombre || 'elegida') : 'Sin lista todavía') : (t.tipo === 'musica_sig' || t.tipo === 'musica_pausa') ? 'Controla la música' : (t.tipo === 'luz_toggle' ? 'Cambio de luz' : (nSon ? nSon + (nSon === 1 ? ' sonido' : ' sonidos') : 'Sin sonido todavía')));
     const secSonido = seccion('sonido', 'Sonido', 'sonidos', resSonido);
     const secLuces = seccion('luces', 'Luces', 'luz', (t.luces && t.luces.length) ? t.luces.length + (t.luces.length === 1 ? ' lámpara' : ' lámparas') : 'No toca las lámparas');
     const actIc = t.icono ? MD.Iconos.entradaDeHex(t.icono) : null;

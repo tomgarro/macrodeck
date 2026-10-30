@@ -43,15 +43,44 @@ window.MD = window.MD || {};
     if (seg > 0.05) { const now = x.g.context.currentTime; x.g.gain.cancelScheduledValues(now); x.g.gain.setValueAtTime(x.g.gain.value, now); x.g.gain.linearRampToValueAtTime(0, now + seg); setTimeout(fin, seg * 1000 + 80); } else fin();
   }
 
+  // 2.0-dev11: pausa / seguir CON FUNDIDO de un ambiente "sumado" (suena encima de los demas, fuera del carril)
+  function pausarSumado(x, seg) {
+    if (x.pausado) return false;
+    x.pausado = true; seg = seg > 0 ? seg : 0.4;
+    const n = x.g.context.currentTime; x.g.gain.cancelScheduledValues(n); x.g.gain.setValueAtTime(Math.max(x.g.gain.value, 0.0001), n); x.g.gain.linearRampToValueAtTime(0.0001, n + seg);
+    clearTimeout(x.tp); x.tp = setTimeout(() => { if (x.pausado) { try { x.el.pause(); } catch (e) {} } }, seg * 1000 + 30);
+    return true;
+  }
+  function seguirSumado(x, seg) {
+    if (!x.pausado) return false;
+    x.pausado = false; seg = seg > 0 ? seg : 0.4; clearTimeout(x.tp);
+    const n = x.g.context.currentTime; x.g.gain.cancelScheduledValues(n); x.g.gain.setValueAtTime(x.el.paused ? 0.0001 : Math.max(x.g.gain.value, 0.0001), n); x.g.gain.linearRampToValueAtTime(1, n + seg);
+    if (x.el.paused) x.el.play().catch(() => {});
+    return true;
+  }
+
   const Amb = {
-    async tecla(m, i, t, e) {
+    // 'soloIniciar' (2.0-dev11): lo usan los gestos, que ya decidieron que hay que ARRANCAR (el segundo toque ya no apaga: pausa).
+    async tecla(m, i, t, e, soloIniciar) {
       motorRef = m;
       const Au = MD.Au, c = carril();
       if (!Au || !c) return;
       const entrada = t.entrada > 0 ? t.entrada : 3, salida = t.salida > 0 ? t.salida : 3;
-      // segundo toque: apaga
-      if (sumados.has(i)) { soltarSumado(i, salida); e.loop = false; marcar(); return; }
-      if (dueno === i && c.P.id && !c.P.apagando) { c.apagarSuave(salida); dueno = null; e.loop = false; marcar(); return; }
+      // segundo toque: apaga (sin gestos)
+      if (!soloIniciar) {
+        if (sumados.has(i)) { soltarSumado(i, salida); e.loop = false; marcar(); return; }
+        if (dueno === i && c.P.id && !c.P.apagando) { c.apagarSuave(salida); dueno = null; e.loop = false; marcar(); return; }
+      }
+      // 2.0-dev11: una tecla Ambiente puede traer una LISTA de ambientes (en vez de un solo audio): suena en el carril de Ambientes y da la vuelta
+      if (t.lista) {
+        const l = Au.lista(t.lista);
+        if (!l) { aviso('La lista de esta tecla no está en este celu todavía (sincronizá en Drive).'); return; }
+        await m.iniciar();
+        const viejo = dueno; dueno = i;
+        if (await c.reproducirLista(l, { azar: !!t.azarLista, entrada, origen: 'tecla', factor: t.volumen == null ? 1 : t.volumen })) { e.loop = true; if (viejo != null && viejo !== i && m.estadoTecla[viejo]) m.estadoTecla[viejo].loop = false; }
+        else dueno = viejo;
+        marcar(); return;
+      }
       const d = Au.dePorId(t.audio);
       if (!d) { aviso(t.audio ? 'Este ambiente no está en el catálogo de este celu todavía (sincronizá).' : 'La tecla no tiene ambiente elegido.'); return; }
       if (!Au.bajado(d.id)) { aviso('«' + d.titulo + '» no está bajado todavía.'); return; }
@@ -71,15 +100,62 @@ window.MD = window.MD || {};
     },
     musicaPausada() { const c = MD.Au && MD.Au.carriles && MD.Au.carriles.musica; return !!(c && c.P.id && !c.P.apagando && c.estado().sonando === false); },
     // Un toque: arranca su lista (reemplaza la musica que suene, con fundido). Otro toque con esa lista sonando: la apaga con fundido de salida.
-    async musicaTecla(m, i, t, e) {
+    async musicaTecla(m, i, t, e, soloIniciar) {
       motorRef = m;
       const Au = MD.Au, c = Au && Au.carriles && Au.carriles.musica;
       if (!Au || !c) return;
       const l = t.lista && Au.lista(t.lista);
       if (!l) { aviso(t.lista ? 'La lista de esta tecla no está en este celu todavía (sincronizá en Drive).' : 'La tecla no tiene lista elegida.'); return; }
-      if (Amb.musicaActiva(t)) { c.apagarSuave(t.salida > 0 ? t.salida : 3); return; }
+      if (!soloIniciar && Amb.musicaActiva(t)) { c.apagarSuave(t.salida > 0 ? t.salida : 3); return; }
       await m.iniciar();
       await c.reproducirLista(l, { azar: !!t.azarLista, entrada: t.entrada > 0 ? t.entrada : 3, origen: 'tecla', factor: t.volumen == null ? 1 : t.volumen });
+    },
+    // ---- 2.0-dev11: lo que usan los GESTOS (gestos.js): toque = play/pausa, doble = siguiente, triple = anterior ----
+    // 'sonando' | 'pausa' | 'apagado' (de LO QUE ESA TECLA prendio)
+    estadoKey(i, t) {
+      const Au = MD.Au; if (!Au || !Au.carriles || !t) return 'apagado';
+      if (t.tipo === 'musica') { const c = Au.carriles.musica; return Amb.musicaActiva(t) ? (c.pausado() ? 'pausa' : 'sonando') : 'apagado'; }
+      if (t.tipo === 'ambiente') {
+        const x = sumados.get(i); if (x) return x.pausado ? 'pausa' : 'sonando';
+        const c = carril(); if (dueno === i && c && c.P.id && !c.P.apagando) return c.pausado() ? 'pausa' : 'sonando';
+      }
+      return 'apagado';
+    },
+    pausar(i, t, seg) {
+      const Au = MD.Au; if (!Au || !Au.carriles) return false;
+      if (t.tipo === 'ambiente' && sumados.has(i)) return pausarSumado(sumados.get(i), seg);
+      return (t.tipo === 'musica' ? Au.carriles.musica : carril()).pausaSuave(seg);
+    },
+    seguir(i, t, seg) {
+      const Au = MD.Au; if (!Au || !Au.carriles) return false;
+      if (t.tipo === 'ambiente' && sumados.has(i)) return seguirSumado(sumados.get(i), seg);
+      return (t.tipo === 'musica' ? Au.carriles.musica : carril()).seguirSuave(seg);
+    },
+    // Un toque. Devuelve { accion: 'play' | 'pausa' | 'sigue', deshacer }. 'deshacer' es null si ARRANCO (un doble toque sobre una tecla apagada la arranca y salta).
+    async toggle(m, i, t, e, seg) {
+      motorRef = m;
+      const st = Amb.estadoKey(i, t);
+      if (st === 'apagado') { if (t.tipo === 'musica') await Amb.musicaTecla(m, i, t, e, true); else await Amb.tecla(m, i, t, e, true); marcar(); return { accion: 'play', deshacer: null }; }
+      if (st === 'sonando') { Amb.pausar(i, t, seg); marcar(); return { accion: 'pausa', deshacer: () => { Amb.seguir(i, t, seg); marcar(); } }; }
+      Amb.seguir(i, t, seg); marcar();
+      return { accion: 'sigue', deshacer: () => { Amb.pausar(i, t, seg); marcar(); } };
+    },
+    // Doble toque: siguiente tema. Triple: anterior. Devuelven false si no habia nada que hacer (no pasa nada).
+    _carrilDe(i, t) { const Au = MD.Au; if (!Au || !Au.carriles) return null; if (t.tipo === 'ambiente' && sumados.has(i)) return null; return t.tipo === 'musica' ? Au.carriles.musica : carril(); },
+    siguiente(i, t) {
+      const c = Amb._carrilDe(i, t);
+      if (!c || Amb.estadoKey(i, t) === 'apagado' || !c.haySiguiente()) return false;
+      c.siguiente(true); return true;
+    },
+    anterior(i, t) {
+      const c = Amb._carrilDe(i, t);
+      if (!c || Amb.estadoKey(i, t) === 'apagado' || !c.haySiguiente()) return false;
+      c.anterior(); return true;
+    },
+    // Titulo de lo que suena en el carril de esa tecla (para la OLED)
+    titulo(i, t) {
+      const Au = MD.Au, c = Amb._carrilDe(i, t); if (!c || !c.P.id) return '';
+      const d = Au.dePorId(c.P.id); return d ? d.titulo : '';
     },
     // 2.0-dev9: el fader de una tecla Ambiente o Musica mueve, en vivo, el volumen de LO QUE ESA TECLA prendio.
     volTecla(i, t, v) {
