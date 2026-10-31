@@ -74,6 +74,7 @@ window.MD = window.MD || {};
 
   // ---------- tracker real por la radio del Macrodeck (tramas 'L' y 'N') ----------
   IT.alLinea = function (d) { const Sv = MD.Trk && MD.Trk.Servicio; if (Sv) Sv.mdLinea(d.fin, d.txt); };
+  IT.alEnergia = function (d) { const Sv = MD.Trk && MD.Trk.Servicio; if (Sv && Sv.macBateria) Sv.macBateria(d); };      // 2.0-dev14: bateria del Macrodeck
   IT.alPresente = function (p) {
     const Sv = MD.Trk && MD.Trk.Servicio; if (!Sv) return;
     if (MD.Diag) MD.Diag.anotar('tracker por radio: ' + (p ? 'presente' : 'fuera de alcance'));

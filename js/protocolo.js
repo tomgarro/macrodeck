@@ -53,6 +53,7 @@ window.MD = window.MD || {};
       case 0x52: return { t: 'reenviar' };
       case 0x51: return { t: 'volCelu', v: Math.min(100, f[1] | 0) };         // v1.3-dev14: la perilla (en modo CEL) pide ese volumen de Android
       case 0x4c: return { t: 'trkLinea', fin: !!f[1], txt: String.fromCharCode.apply(null, Array.from(f.slice(2, 20)).filter((c) => c >= 32 && c <= 126)) };   // 2.0-dev13: pedazo de una linea que mando el tracker real
+      case 0x45: return { t: 'macBat', pct: f[1] === 255 ? -1 : Math.min(100, f[1] | 0), mv: (f[2] | 0) | ((f[3] | 0) << 8), baja: !!f[4] };         // 2.0-dev14: bateria del Macrodeck (firmware dev43): pct, milivoltios, baja
       case 0x4e: return { t: 'trkPresente', p: !!f[1] };                      // 2.0-dev13: el tracker real esta (1) o dejo de estar (0) al alcance de la radio del Macrodeck
       case 0x54: return { t: 'trkBoton', b: f[1] | 0, abajo: !!f[2] };         // 2.0-dev12: boton del Tracker apretado/soltado (0 izquierda, 1 centro, 2 derecha)
     }

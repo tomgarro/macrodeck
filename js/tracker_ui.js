@@ -326,7 +326,7 @@ window.MD = window.MD || {};
       Object.keys(refs.modos).forEach((m) => { refs.modos[m].className = Sv.modo === m ? 'on' : ''; refs.modos[m].disabled = (c || ocup) || (m === 'usb' && !sop.usb) || (m === 'web' && !sop.web) || (m === 'md' && !Sv.soporte().md); });
       refs.cBtn.textContent = c || ocup ? 'Desconectar' : 'Conectar'; refs.cBtn.disabled = !c && !ocup && !Sv.modo;
       const p = Sv.pill();
-      refs.cTxt.textContent = c ? (Sv.sinSenal() ? '⚠ Conectado, pero no llega nada del Arduino' : '● Conectado' + (Sv.modo === 'sim' ? ' (simulador)' : '') + (Sv.hola ? ' · firmware ' + Sv.hola.ver : '')) : (ocup ? '… ' + Sv.detalle : (est === 'error' ? '✖ ' + Sv.detalle : 'Sin conexión'));
+      refs.cTxt.textContent = c ? (Sv.sinSenal() ? '⚠ Conectado, pero no llega nada del Arduino' : '● Conectado' + (Sv.modo === 'sim' ? ' (simulador)' : '') + (Sv.hola ? ' · firmware ' + Sv.hola.ver : '') + (Sv.textoBat ? Sv.textoBat() : '')) : (ocup ? '… ' + Sv.detalle : (est === 'error' ? '✖ ' + Sv.detalle : 'Sin conexión'));
       refs.cTxt.className = 'tk-estado ' + (c ? (Sv.sinSenal() ? 'warn' : 'ok') : (est === 'error' ? 'mal' : ''));
       refs.cResumen.textContent = refs.cTxt.textContent; refs.cResumen.className = 'tk-resumen ' + (c ? (Sv.sinSenal() ? 'warn' : 'ok') : (est === 'error' ? 'mal' : ''));
       if (refs.conex._c !== c) { const primera = refs.conex._c === undefined; refs.conex._c = c; let el2 = null; try { el2 = localStorage.getItem('tk_conex'); } catch (e) {}

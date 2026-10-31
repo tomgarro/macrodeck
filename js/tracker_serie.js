@@ -56,10 +56,25 @@ window.MD = window.MD || {};
   };
   Sv.limpiarLog = function () { Sv.log.length = 0; avisar('log'); };
 
+  // 2.0-dev14: baterias (el dummy tiene la del tracker, que llega por !BAT, y la del Macrodeck, que llega por la trama 'E'). Los datos viejos (2 min) se ignoran.
+  Sv.bat = null; Sv.macBat = null;
+  Sv.macBateria = function (d) { Sv.macBat = { pct: d.pct, mv: d.mv, baja: !!d.baja, t: Date.now() }; avisar('bat'); };
+  Sv.textoBat = function () {
+    const ahora = Date.now(), p = [];
+    if (Sv.bat && Sv.bat.pct >= 0 && ahora - Sv.bat.t < 120000) p.push('tracker ' + Sv.bat.pct + ' %');
+    if (Sv.macBat && Sv.macBat.pct >= 0 && ahora - Sv.macBat.t < 120000) p.push('Macrodeck ' + Sv.macBat.pct + ' %');
+    return p.length ? ' · 🔋 ' + p.join(' · ') : '';
+  };
+
   // ---------- lineas que llegan ----------
   Sv.linea = function (txt) {
     txt = String(txt).replace(/[\r\n]+/g, '').trim(); if (!txt) return;
     Sv.ultRx = Date.now(); Sv.rxN++;
+    if (txt.indexOf('!BAT,') === 0) {                                              // 2.0-dev14: bateria del tracker: !BAT,<%>,<mV>,<mV del 100 %>,<mV del 0 %> (pct -1 = sin bateria)
+      const f = txt.slice(1).split(',');
+      Sv.bat = { pct: parseInt(f[1], 10), mv: parseInt(f[2], 10), full: parseInt(f[3], 10) || 0, empty: parseInt(f[4], 10) || 0, t: Date.now() };
+      Sv.anotar('rx', txt, { nota: 'batería del tracker' }); avisar('bat'); return;
+    }
     const x = Sv.espejo.linea(txt);
     if (!x) return;
     if (x.k === 'hola') {

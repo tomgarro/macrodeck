@@ -213,6 +213,7 @@
       case 'trkBoton': if (MD.IT) MD.IT.boton(d.b, d.abajo); break;
       case 'trkLinea': if (MD.IT) MD.IT.alLinea(d); break;                          // 2.0-dev13: una linea del tracker real (llega por la radio del Macrodeck)
       case 'trkPresente': if (MD.IT) MD.IT.alPresente(d.p); break;                  // 2.0-dev13: el tracker real aparecio / salio del alcance                 // 2.0-dev12: C2/D2/E2 (los botones del Initiative Tracker)
+      case 'macBat': if (MD.IT) MD.IT.alEnergia(d); break;                          // 2.0-dev14: bateria del Macrodeck (para el dummy)
       case 'volCelu': break;                                          // 1.3-dev31: el volumen del celu (CEL) se saco: se regula desde la app     // v1.3-dev14: la perilla del Macrodeck (modo CEL) pide ese volumen de Android
     }
   };
