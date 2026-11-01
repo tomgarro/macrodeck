@@ -33,7 +33,10 @@ window.MD = window.MD || {};
       })()]);
     } finally { clearTimeout(t); clearTimeout(t2); }
   }
-  const msgTimeout = (ms) => 'Drive no respondió en ' + Math.round(ms / 1000) + ' s. Revisá que este Wi-Fi tenga internet (abrí una página en el navegador) y probá de nuevo.';
+  const msgTimeout = (ms, accion, tipo) => 'Drive no respondió en ' + Math.round(ms / 1000) + ' s (pedido: ' + (accion || '?') + ', ' + tipo + '). Probá de nuevo; si sigue igual, avisale a Claude qué pedido es.';
+  // 2.0-dev16: registro de los ultimos pedidos (cual, cuanto tardo, como termino) para saber donde se corta. MD.Drive.diag
+  const diag = [];
+  const nota = (accion, tipo, t0, res) => { diag.push({ accion: accion || '?', tipo: tipo, ms: Date.now() - t0, res: res }); if (diag.length > 30) diag.shift(); try { console.log('[drive] ' + tipo + ' ' + accion + ' -> ' + res + ' (' + (Date.now() - t0) + ' ms)'); } catch (e) {} };
 
   async function get(params) {
     if (!urlActual() || !aj.clave) throw new Error('Falta la direccion o la clave de Drive.');
@@ -42,11 +45,12 @@ window.MD = window.MD || {};
     try { u = new URL(urlActual()); } catch (e) { throw new Error('La direccion no es valida (tiene que empezar con https:// y terminar en /exec).'); }
     u.searchParams.set('clave', aj.clave);
     for (const k in params) u.searchParams.set(k, params[k]);
-    const ms = msDe(params && params.accion);
+    const ms = msDe(params && params.accion), t0 = Date.now(), acc = params && params.accion;
     let j;
-    try { j = await pedir(u.toString(), {}, ms); }
+    try { j = await pedir(u.toString(), {}, ms); nota(acc, 'GET', t0, 'ok'); }
     catch (e) {
-      if (e.codigo === 'timeout') throw new Error(msgTimeout(ms));
+      nota(acc, 'GET', t0, e.codigo || 'error');
+      if (e.codigo === 'timeout') throw new Error(msgTimeout(ms, acc, 'GET'));
       if (e.codigo === 'json') throw new Error('Drive contesto algo raro. Revisa que el acceso del script sea "Cualquier persona".');
       throw new Error('No se pudo conectar con Drive. Revisa internet y que la direccion sea la correcta.');
     }
@@ -60,11 +64,12 @@ window.MD = window.MD || {};
     if (!urlActual() || !aj.clave) throw new Error('Falta la direccion o la clave de Drive.');
     if (MD.Red) await MD.Red.verificar(obj && obj.accion);
     obj.clave = aj.clave;
-    const ms = msDe(obj && obj.accion);
+    const ms = msDe(obj && obj.accion), t0 = Date.now(), acc = obj && obj.accion;
     let j;
-    try { j = await pedir(urlActual(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(obj) }, ms); }
+    try { j = await pedir(urlActual(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(obj) }, ms); nota(acc, 'POST', t0, 'ok'); }
     catch (e) {
-      if (e.codigo === 'timeout') throw new Error(msgTimeout(ms));
+      nota(acc, 'POST', t0, e.codigo || 'error');
+      if (e.codigo === 'timeout') throw new Error(msgTimeout(ms, acc, 'POST'));
       if (e.codigo === 'json') throw new Error('Drive contesto algo raro. Si cambiaste el script, publica una nueva version en Implementar > Administrar implementaciones.');
       throw new Error('No se pudo conectar con Drive. Revisa internet (si es un archivo grande, puede haberse cortado).');
     }
@@ -77,6 +82,7 @@ window.MD = window.MD || {};
 
   MD.Drive = {
     usuarios: USUARIOS,
+    diag: diag,
     urlFija: !!URL_FIJA,
     ajustes: () => ({ url: urlActual(), clave: aj.clave || '', por: aj.por || USUARIOS[0] }),
     configurado: () => !!(urlActual() && aj.clave),
