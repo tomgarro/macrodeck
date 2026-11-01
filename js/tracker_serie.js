@@ -187,11 +187,17 @@ window.MD = window.MD || {};
     if (!actual || actual.mascara !== T.mask) out.push('HAB,' + T.mask);
     if (!actual || actual.brillo !== T.brillo) out.push('BRI,' + T.brillo);
     for (const k of 'abcd') if (T.nom[k]) out.push('NOM,' + k + ',' + T.nom[k]);
+    for (const k of 'DRNXLI') if (T.nom[k] || !actual) out.push('NOM,' + k + ',' + (T.nom[k] || ''));   // 2.0-dev24 (firmware ESP32 1.8): nombre vacio = el de fabrica; al «Guardar y aplicar» (sin 'actual') se mandan todos, asi se pisan los viejos
     if (out.length) { Sv.enviarLento(out); Sv.enviarLento(['CFG']); }          // al final se vuelve a preguntar: el espejo pinta con los colores nuevos
     return out.length;
   };
-  // nombres de los invitados con color: se ven en toda la app
-  Trk.aplicarNombres = function (T) { for (const k of 'abcd') Trk.TIPOS[k].n = (T && T.nom && T.nom[k]) || ('Invitado ' + k.toUpperCase()); };
+  // nombres y clases de los personajes (2.0-dev24: todos son editables, no solo los invitados A-D): se ven en toda la app
+  Trk.aplicarNombres = function (T) {
+    for (const k of 'DRNXLIabcd') {
+      Trk.TIPOS[k].n = (T && T.nom && T.nom[k]) || Trk.NOMBRES_FABRICA[k];
+      Trk.TIPOS[k].cl = (T && T.cls && T.cls[k]) || Trk.CLASES_FABRICA[k];
+    }
+  };
 
   // ---------- estado de la conexion ----------
   function poner(estado, detalle) {

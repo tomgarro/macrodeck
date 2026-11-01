@@ -19,7 +19,7 @@ window.MD = window.MD || {};
     R: { n: 'Ront', cl: 'Bárbaro', c: [0, 200, 0] },
     N: { n: 'Nabi', cl: 'Druida', c: [255, 100, 0] },
     X: { n: 'Narxira', cl: 'Monje', c: [255, 40, 0] },
-    L: { n: 'Eclipso', cl: 'Pícaro', c: [60, 0, 90] },
+    L: { n: 'Eclipso', cl: 'Pícaro', c: [170, 0, 255] },   // 2.0-dev24: era [60, 0, 90] (se veía muy tenue); igual que COL_FABRICA del firmware ESP32 1.7
     I: { n: 'Invitado', cl: 'Invitado', c: [0, 255, 127] },
     // 3.0: cuatro invitados con color propio (apagados de fabrica; se prenden en el Taller de colores). Mismos colores que COL_FABRICA del firmware del ESP32.
     a: { n: 'Invitado A', cl: 'Color A', c: [200, 0, 255] },
@@ -27,12 +27,19 @@ window.MD = window.MD || {};
     c: { n: 'Invitado C', cl: 'Color C', c: [255, 220, 0] },
     d: { n: 'Invitado D', cl: 'Color D', c: [255, 255, 255] },
   };
+  // 2.0-dev24: SLOTS. Cada personaje de la mesa tiene un numero de slot fijo (Slot 1 = Dieter, Slot 2 = Ront...). El nombre y la clase se pueden cambiar (Taller de colores) para otra campaña,
+  // pero los sonidos de cada slot quedan atados al SLOT, no al nombre: «Sonido Slot 1 (Dieter)». Slots 6 a 9 = los cuatro personajes extra (letras a-d), apagados de fabrica.
+  Trk.SLOTS = 'DRNXLabcd';
+  Trk.slotDe = (k) => Trk.SLOTS.indexOf(k) + 1;                      // 0 = no tiene slot (el enemigo y el invitado generico)
+  Trk.NOMBRES_FABRICA = {}; Trk.CLASES_FABRICA = {};
+  for (const k of Object.keys(Trk.TIPOS)) { Trk.NOMBRES_FABRICA[k] = Trk.TIPOS[k].n; Trk.CLASES_FABRICA[k] = Trk.TIPOS[k].cl; }
+  Trk.etiquetaSlot = (k) => { const s = Trk.slotDe(k); return s ? 'Slot ' + s + ' (' + Trk.TIPOS[k].n + ')' : Trk.TIPOS[k].n; };
   Trk.LETRAS_TODAS = 'EDRNXLIabcd';      // el orden es el del enum del firmware 3.0 (los 7 de siempre + los 4 invitados con color)
   Trk.MASCARA_FABRICA = 0x7F;            // E D R N X L I (como el Uno); a-d apagados
   Trk.BRILLO_FABRICA = 35;
   Trk.coloresFabrica = () => { const o = {}; for (const t of Trk.LETRAS_TODAS) o[t] = Trk.TIPOS[t].c.slice(); return o; };
   Trk.ALT_LETRAS = 'NCJI';
-  Trk.ALT_N = ['normal', 'concentración', 'comodín', 'inconsciente'];
+  Trk.ALT_N = ['normal', 'concentración', 'wild', 'inconsciente'];       // 2.0-dev24: «wild» (comodín), ya no «joker»
   Trk.ALT_C = [[0, 0, 0], [255, 0, 180], [173, 255, 47], [0, 0, 0]];
   Trk.SEC_CENTRO = [6, 7, 5, 8, 4, 9, 3, 10, 2, 11, 1, 12];
   Trk.UMBRAL_INACTIVO = 180000;
@@ -44,6 +51,16 @@ window.MD = window.MD || {};
   const S8 = (i) => SIN[i & 255];
   Trk.S8 = S8;
   const PL = (frames, M) => fr((S8(Math.floor(((frames >>> 0) * M) / 256)) + 127) / 254);   // 0..1, avanza M/256 puntos por cuadro (25 ms)
+
+  // ---------- fuego erratico (2.0-dev24; copia de factorFuegoErratico() de motor.h del ESP32): cada LED salta a un brillo al azar (35 a 100 %) cada ~70 ms, con un fundido de 25 ms ----------
+  const azarFuego = (a) => { a = Math.imul(a, 2654435761) >>> 0; a = (a ^ (a >>> 13)) >>> 0; a = Math.imul(a, 1274126177) >>> 0; a = (a ^ (a >>> 16)) >>> 0; return a & 255; };
+  Trk.factorFuegoErratico = function (ms, index) {
+    const t = ((ms >>> 0) + Math.imul(index, 53)) >>> 0, slot = Math.floor(t / 70), resto = t % 70;
+    const A = fr(azarFuego((Math.imul(slot, 31) + Math.imul(index, 977)) >>> 0) / 255);
+    const B = fr(azarFuego((Math.imul(slot + 1, 31) + Math.imul(index, 977)) >>> 0) / 255);
+    const u = resto < 25 ? fr(resto / 25) : 1;
+    return fr(fr(0.35) + fr(fr(0.65) * fr(A + fr(fr(B - A) * u))));
+  };
 
   // ---------- la pantalla de 12 LEDs ----------
   // S = { modo:'Q'|'C'|'B', ronda, turno, total, cfg, ins, tipo:[,'E',...], alt:[,0,...], muerto:[,false,...] }
@@ -125,9 +142,7 @@ window.MD = window.MD || {};
             this.led(i, mx(0), mx(1), mx(2));
           }
         } else {
-          const ia = ((Math.floor(((ms * 40053) % 4294967296) / 65536) & 255) + (trunc((k * 9371 + 50) / 100) & 255)) & 255;
-          const ib = ((Math.floor(((ms * 72095) % 4294967296) / 65536) & 255) - (trunc((k * 6926 + 50) / 100) & 255)) & 255;
-          const ff = fr(fr(0.75) + fr(fr(fr(0.125) * (S8(ia) + S8((ib + 64) & 255))) / 127));
+          const ff = Trk.factorFuegoErratico(ms, k);                  // 2.0-dev24: fuego erratico (igual que factorFuegoErratico de motor.h, firmware ESP32 1.7)
           this.led(i, M(b[0], ff), M(b[1], ff), M(b[2], ff));
         }
       }

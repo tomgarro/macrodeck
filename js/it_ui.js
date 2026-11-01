@@ -108,10 +108,10 @@ window.MD = window.MD || {};
     const chk = (txt, val, fn, ayuda) => el('label', { class: 'tk-chk' }, el('input', { type: 'checkbox', checked: val, onchange: (ev) => fn(ev.target.checked) }), ' ', el('span', null, txt, ayuda ? el('small', { class: 'suave', style: 'display:block' }, ayuda) : null));
 
     // ---------------- TALLER DE COLORES ----------------
-    const fabrica = () => ({ mask: Trk.MASCARA_FABRICA, brillo: Trk.BRILLO_FABRICA, col: Trk.coloresFabrica(), nom: {} });
-    const deCfg = (x) => ({ mask: x.mascara, brillo: x.brillo, col: JSON.parse(JSON.stringify(x.colores)), nom: {} });
+    const fabrica = () => ({ mask: Trk.MASCARA_FABRICA, brillo: Trk.BRILLO_FABRICA, col: Trk.coloresFabrica(), nom: {}, cls: {} });
+    const deCfg = (x) => ({ mask: x.mascara, brillo: x.brillo, col: JSON.parse(JSON.stringify(x.colores)), nom: {}, cls: {} });
     let T = JSON.parse(JSON.stringify(Sv.cfg.taller || (Sv.cfgTracker ? deCfg(Sv.cfgTracker) : fabrica())));
-    for (const k of 'abcd') if (!T.nom) T.nom = {};
+    if (!T.nom) T.nom = {}; if (!T.cls) T.cls = {};
     const filas = el('div', { class: 'it-filas' }), estadoT = el('p', { class: 'suave tk-nota' });
     const brilloV = el('b', null, String(T.brillo) + ' %');
     const brillo = el('input', { type: 'range', min: 5, max: 100, step: 5, value: T.brillo, 'aria-label': 'Brillo de la tira', oninput: () => { T.brillo = +brillo.value; brilloV.textContent = T.brillo + ' %'; } });
@@ -120,9 +120,14 @@ window.MD = window.MD || {};
       Trk.LETRAS_TODAS.split('').forEach((k, i) => {
         const inv = 'abcd'.indexOf(k) >= 0, sw = el('input', { type: 'color', value: hex(T.col[k]), 'aria-label': 'Color de ' + Trk.TIPOS[k].n, oninput: (ev) => { T.col[k] = deHex(ev.target.value); } });
         const en = el('input', { type: 'checkbox', checked: k === 'E' || ((T.mask >> i) & 1) === 1, disabled: k === 'E', 'aria-label': 'Se puede elegir ' + Trk.TIPOS[k].n, onchange: (ev) => { T.mask = ev.target.checked ? (T.mask | (1 << i)) : (T.mask & ~(1 << i)); } });
-        const nombre = inv ? el('input', { type: 'text', maxlength: 9, placeholder: 'Invitado ' + k.toUpperCase(), value: (T.nom && T.nom[k]) || '', 'aria-label': 'Nombre del invitado ' + k.toUpperCase(), oninput: (ev) => { T.nom = T.nom || {}; T.nom[k] = ev.target.value; } })
-          : el('span', { class: 'it-nom' }, Trk.TIPOS[k].n, el('small', { class: 'suave' }, ' ' + Trk.TIPOS[k].cl));
-        filas.append(el('div', { class: 'it-fila' + (k === 'I' ? ' it-sep' : '') }, sw, el('div', { class: 'crece' }, nombre), el('label', { class: 'it-en' }, en, k === 'E' ? 'siempre' : (k === 'I' ? 'genérico' : 'en juego'))));
+        // 2.0-dev24: todos los personajes (menos el enemigo) tienen nombre y clase editables; el slot es fijo y es de lo que cuelgan los sonidos
+        const slot = Trk.slotDe(k);
+        const nombre = k === 'E' ? el('span', { class: 'it-nom' }, Trk.TIPOS[k].n, el('small', { class: 'suave' }, ' ' + Trk.TIPOS[k].cl))
+          : el('div', null,
+            el('input', { type: 'text', maxlength: 9, placeholder: Trk.NOMBRES_FABRICA[k], value: (T.nom && T.nom[k]) || '', 'aria-label': 'Nombre ' + (slot ? 'del Slot ' + slot : 'del invitado genérico'), oninput: (ev) => { T.nom = T.nom || {}; T.nom[k] = ev.target.value; } }),
+            el('input', { type: 'text', maxlength: 14, placeholder: Trk.CLASES_FABRICA[k], value: (T.cls && T.cls[k]) || '', 'aria-label': 'Clase ' + (slot ? 'del Slot ' + slot : 'del invitado genérico'), style: 'margin-top:4px', oninput: (ev) => { T.cls = T.cls || {}; T.cls[k] = ev.target.value; } }),
+            slot ? el('small', { class: 'suave' }, 'Slot ' + slot + ' · los sonidos quedan en el slot') : null);
+        filas.append(el('div', { class: 'it-fila' + (k === 'I' ? ' it-sep' : '') }, sw, el('div', { class: 'crece' }, nombre), el('label', { class: 'it-en' }, en, k === 'E' ? 'siempre' : (k === 'I' ? 'genérico' : (slot > 5 ? 'extra' : 'en juego')))));
       });
     }
     function estadoTxt() {
@@ -131,19 +136,19 @@ window.MD = window.MD || {};
     }
     const tTaller = el('div', { class: 'tarjeta it-taller' },
       el('h3', null, 'Taller de colores ', el('small', null, 'personajes e invitados')),
-      el('p', { class: 'suave tk-nota' }, 'Elegí el color de cada personaje y quiénes aparecen al armar el combate. Los invitados A–D y el genérico son opcionales: tildá solo los que vayas a usar.'),
+      el('p', { class: 'suave tk-nota' }, 'Elegí el color de cada personaje y quiénes aparecen al armar el combate. Podés cambiar el nombre y la clase de cada personaje (para otra campaña); los sonidos de cada uno quedan atados a su slot. Los slots 6 a 9 y el invitado genérico son opcionales: tildá solo los que vayas a usar.'),
       filas,
       el('div', { class: 'fila tk-fila it-brillo' }, el('label', { style: 'margin:0' }, 'Brillo de la tira'), el('span', { class: 'crece' }, brillo), brilloV),
       el('p', { class: 'suave tk-nota' }, '35 % es lo recomendado (cuida la batería y el booster). Blanco al 100 % no se prueba.'),
       el('div', { class: 'fila tk-fila' },
         el('button', { type: 'button', class: 'primario', onclick: () => {
-          Sv.cfg.taller = Trk.tallerNormalizar(T); T = JSON.parse(JSON.stringify(Sv.cfg.taller)); Sv.guardarCfg();
+          Sv.cfg.taller = Trk.tallerNormalizar(T); T = JSON.parse(JSON.stringify(Sv.cfg.taller)); Sv.guardarCfg(); Trk.aplicarNombres(Sv.cfg.taller);
           const n = (Sv.estado === 'conectado' && Sv.firmwareNuevo()) ? Sv.aplicarTaller(null) : 0;
           toast(n ? 'Guardado. Mandando ' + n + ' órdenes al tracker…' : 'Guardado en la app. Se manda cuando conecte el tracker.'); pintarFilas(); estadoTxt();
         } }, 'Guardar y aplicar'),
         el('button', { type: 'button', onclick: () => { if (Sv.estado !== 'conectado' || !Sv.firmwareNuevo()) { toast('Conectá el tracker nuevo (o el simulador) primero'); return; } Sv.enviarLinea('CFG'); Sv._traer = true; toast('Pidiendo lo que tiene el tracker…'); } }, 'Traer del tracker'),
         el('button', { type: 'button', onclick: () => {
-          T = fabrica(); Sv.cfg.taller = null; Sv.guardarCfg(); brillo.value = T.brillo; brilloV.textContent = T.brillo + ' %';
+          T = fabrica(); Sv.cfg.taller = null; Sv.guardarCfg(); Trk.aplicarNombres(null); brillo.value = T.brillo; brilloV.textContent = T.brillo + ' %';
           if (Sv.estado === 'conectado' && Sv.firmwareNuevo()) { Sv.enviarLinea('DEF'); setTimeout(() => Sv.enviarLinea('CFG'), 300); }
           toast('Colores de fábrica'); pintarFilas(); estadoTxt();
         } }, 'De fábrica')),
@@ -186,7 +191,7 @@ window.MD = window.MD || {};
           el('i', { style: 'background:' + hex(TU.colorDe(k)) }), el('span', { class: 'n' }, (Trk.TIPOS[k] || { n: k }).n),
           el('span', { class: 'bar' }, el('em', { style: 'width:' + Math.round(100 * (x.turnosPorClase[k] || 0) / max) + '%;background:' + hex(TU.colorDe(k)) })),
           el('span', { class: 'v' }, (x.turnosPorClase[k] || 0) + ' turnos' + (x.muertes[k] ? ' · ' + x.muertes[k] + ' muerte(s)' : '') + (x.caidos[k] ? ' · ' + x.caidos[k] + ' caído(s)' : ''))))),
-        el('p', { class: 'suave' }, 'Concentraciones: ' + x.conc + ' · Comodines: ' + x.comodin + ' · Inserciones: ' + x.inserciones + (x.retomado ? ' · (se contó desde que se conectó la app)' : '')),
+        el('p', { class: 'suave' }, 'Concentraciones: ' + x.conc + ' · Wild: ' + x.comodin + ' · Inserciones: ' + x.inserciones + (x.retomado ? ' · (se contó desde que se conectó la app)' : '')),
         el('div', { class: 'fila' }, el('button', { type: 'button', disabled: i >= H.lista.length - 1, onclick: () => abrirMonitor(i + 1) }, '← Anterior'), el('button', { type: 'button', disabled: i <= 0, onclick: () => abrirMonitor(i - 1) }, 'Siguiente →')));
       document.body.append(mon);
     }

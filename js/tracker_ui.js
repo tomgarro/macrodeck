@@ -192,12 +192,17 @@ window.MD = window.MD || {};
       return el('div', { class: 'tk-item' }, el('label', null, el('input', { type: 'checkbox', checked: marcado, onchange: (ev) => cambiar(id, t, (x) => { const s = (x.s || []).slice(); const i = s.indexOf(ref); if (ev.target.checked && i < 0) s.push(ref); if (!ev.target.checked && i >= 0) s.splice(i, 1); x.s = s; }) }), ' ', nombre),
         el('button', { type: 'button', class: 'chico', 'aria-label': 'Escuchar ' + nombre, onclick: () => { Trk.Audio.asegurar(); Trk.Audio.tocar([ref], 1, 'prev'); } }, '▶'));
     };
+    // 2.0-dev24: las pestañas por personaje: el enemigo, los 5 slots de siempre, el invitado generico y los slots extra (6 a 9) que esten en juego o ya tengan sonidos
+    const ambitosVisibles = () => {
+      const T = (Sv.cfg && Sv.cfg.taller) || null, mask = T ? T.mask : Trk.MASCARA_FABRICA;
+      return Trk.LETRAS_TODAS.split('').filter((c, i) => 'EDRNXLI'.indexOf(c) >= 0 || ((mask >> i) & 1) === 1 || Object.keys(((cfg().cl || {})[c]) || {}).length > 0);
+    };
     function editor(id) {
       const ev = Trk.EV[id], t = ambito, esC = !!t, o = entrada(id, t, false) || {}, r = Trk.resolver(cfg(), id, t), w = el('div', { class: 'tk-ed' });
       if (ev.clase) {
         w.append(el('div', { class: 'tk-clases' }, el('button', { type: 'button', class: !t ? 'on' : '', onclick: () => { ambito = null; sucio.cfg = true; pedir(); } }, 'General'),
-          Trk.LETRAS.split('').map((c) => el('button', { type: 'button', class: (t === c ? 'on ' : '') + (Trk.cambiado(cfg(), id, c) ? 'tiene' : ''), onclick: () => { ambito = c; sucio.cfg = true; pedir(); } }, Trk.TIPOS[c].n))));
-        if (esC) w.append(el('p', { class: 'suave tk-nota' }, 'Solo cuando el movimiento es de ' + Trk.TIPOS[t].n + ' (' + Trk.TIPOS[t].cl + '). Lo que no cambies acá, vale lo del movimiento general.'));
+          ambitosVisibles().map((c) => el('button', { type: 'button', title: 'Sonido ' + Trk.etiquetaSlot(c), 'aria-label': 'Sonido ' + Trk.etiquetaSlot(c), class: (t === c ? 'on ' : '') + (Trk.cambiado(cfg(), id, c) ? 'tiene' : ''), onclick: () => { ambito = c; sucio.cfg = true; pedir(); } }, (Trk.slotDe(c) ? 'S' + Trk.slotDe(c) + ' ' : '') + Trk.TIPOS[c].n))));
+        if (esC) w.append(el('p', { class: 'suave tk-nota' }, 'Sonido ' + Trk.etiquetaSlot(t) + ' · ' + Trk.TIPOS[t].cl + '. Solo cuando el movimiento es de este ' + (Trk.slotDe(t) ? 'slot' : 'personaje') + ' (si cambiás el nombre, los sonidos se quedan en el slot). Lo que no cambies acá, vale lo del movimiento general.'));
       }
       // sonido
       const modoS = o.s === undefined ? (esC ? 'igual' : 'fab') : (o.s.length ? 'elegir' : 'silencio');

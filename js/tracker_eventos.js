@@ -31,7 +31,7 @@ window.MD = window.MD || {};
     { id: 'RN', g: T, n: 'Ronda nueva', d: 'Se da la vuelta completa hacia adelante', clase: true, sf: ['roundchange1', 'roundchange2', 'roundchange3'], sug: { look: 'lf_relampago', seg: 2 } },
     { id: 'RP', g: T, n: 'Ronda anterior', d: 'Se da la vuelta completa hacia atrás', clase: true, sf: ['roundchange1', 'roundchange2', 'roundchange3'] },
     { id: 'SC', g: E, n: 'Concentración', d: 'Toque corto en el centro: pasa a concentración (rosa)', clase: true, sug: { look: 'lf_hechizo', seg: 2 } },
-    { id: 'SJ', g: E, n: 'Comodín', d: 'Segundo toque: comodín (verde lima)', clase: true, sug: { look: 'lf_veneno', seg: 2 } },
+    { id: 'SJ', g: E, n: 'Wild (comodín)', d: 'Segundo toque: wild, un comodín (verde lima)', clase: true, sug: { look: 'lf_veneno', seg: 2 } },
     { id: 'SN', g: E, n: 'Vuelve a normal', d: 'Tercer toque, o un toque sobre alguien caído', clase: true },
     { id: 'SI', g: E, n: 'Cae inconsciente', d: 'Centro mantenido 2 s sobre un personaje (no enemigo)', clase: true, sug: { look: 'lf_alarma', seg: 2 } },
     { id: 'KL', g: E, n: 'Muere', d: 'Centro mantenido 2 s sobre un enemigo (4 s sobre un invitado). Suena apenas empieza el destello', clase: true, sf: ['kill1'], sug: { look: 'lf_rugido', seg: 2.5 } },
@@ -52,15 +52,18 @@ window.MD = window.MD || {};
   // entrada = { s?: ['f:cmbMove1' | 's:<idDeLaBiblioteca>', ...] ([] = silencio), vol?: 0..1, l?: { look, seg, lamp:'dnd'|'dnd-1'|'dnd-2' } | null (= sin luz) }
   // "undefined" en s o l = no se tocó: vale lo de más abajo (clase -> evento -> fábrica).
   Trk.cfgNueva = function () { return { v: 1, vol: 1, duck: true, luces: true, auto: true, baud: 115200, ev: {}, cl: {}, taller: null, luzTurno: { on: false, seg: 4, lamp: 'dnd', efecto: 'respirar', brillo: 80 } }; };
-  // Taller de colores (3.0): lo que Frodo eligio para el tracker. mask = personajes que se pueden elegir (bits E D R N X L I a b c d; el enemigo siempre), brillo 5..100, col = color por letra, nom = nombre de los invitados a-d.
+  // Taller de colores (3.0): lo que Frodo eligio para el tracker. mask = personajes que se pueden elegir (bits E D R N X L I a b c d; el enemigo siempre), brillo 5..100, col = color por letra, nom = nombre de cada personaje (D R N X L I a b c d: se puede cambiar para otra campaña), cls = su clase (texto libre).
   Trk.tallerNormalizar = function (t) {
     if (!t || typeof t !== 'object') return null;
     const n = (v, d, a, z) => { v = Number(v); return isFinite(v) ? Math.min(z, Math.max(a, Math.round(v))) : d; };
-    const o = { mask: (n(t.mask, Trk.MASCARA_FABRICA, 0, 2047) | 1), brillo: n(t.brillo, Trk.BRILLO_FABRICA, 5, 100), col: {}, nom: {} };
+    const o = { mask: (n(t.mask, Trk.MASCARA_FABRICA, 0, 2047) | 1), brillo: n(t.brillo, Trk.BRILLO_FABRICA, 5, 100), col: {}, nom: {}, cls: {} };
     for (const k of Trk.LETRAS_TODAS) {
       const c = t.col && t.col[k]; o.col[k] = Array.isArray(c) && c.length === 3 ? c.map((v) => n(v, 0, 0, 255)) : Trk.TIPOS[k].c.slice();
     }
-    for (const k of 'abcd') { const s = t.nom && typeof t.nom[k] === 'string' ? t.nom[k].replace(/[^\x20-\x7e]/g, '').trim().slice(0, 9) : ''; if (s) o.nom[k] = s; }
+    for (const k of 'DRNXLIabcd') {
+      const s = t.nom && typeof t.nom[k] === 'string' ? t.nom[k].replace(/[^\x20-\x7e]/g, '').trim().slice(0, 9) : ''; if (s) o.nom[k] = s;
+      const c = t.cls && typeof t.cls[k] === 'string' ? t.cls[k].replace(/[^\x20-\x7e\u00c0-\u00ff]/g, '').trim().slice(0, 14) : ''; if (c) o.cls[k] = c;
+    }
     return o;
   };
   Trk.cfgNormalizar = function (c) {
