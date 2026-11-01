@@ -404,6 +404,22 @@ nav.tabs .tab-ic{width:44px}nav.tabs .tab-n{max-width:100%;overflow:hidden;text-
 .barra-sync .sync-t{flex:1 1 160px;min-width:0;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .barra-sync .sync-t.mal{color:var(--rojo)}
 .barra-sync .sync-cancel,.barra-sync .sync-rec{padding:4px 10px;font-size:.8rem;min-height:30px;flex:none}
+/* 2.0-dev23: explicacion + barra de progreso de la sincronizacion */
+.barra-sync .sync-info{flex:1 1 100%;display:flex;flex-direction:column;gap:3px;padding:2px 0 4px}
+.barra-sync .sync-info[hidden]{display:none}
+.barra-sync .sync-paso{font-size:.84rem;font-weight:700}
+.barra-sync .sync-det{font-size:.76rem;line-height:1.3}
+.barra-sync .sync-prog{height:8px;border-radius:99px;background:var(--panel2);overflow:hidden;position:relative}
+.barra-sync .sync-prog i{display:block;height:100%;width:0;background:var(--acento);border-radius:99px;transition:width .4s}
+.barra-sync .sync-prog.ind i{width:35%;position:absolute;top:0;animation:syncind 1.3s ease-in-out infinite}
+@keyframes syncind{0%{left:-35%}100%{left:100%}}
+.barra-sync .sync-vivo{font-size:.72rem}
+.barra-sync .sync-vivo.mal{color:var(--rojo)}
+.huevo-dlg{max-width:340px;text-align:center}
+.huevo-dlg .dado{font-size:3.2rem;font-weight:800;line-height:1.1;margin:6px 0}
+.huevo-dlg .dado.crit{color:var(--amarillo)}
+.huevo-dlg .dado.pifia{color:var(--rojo)}
+.huevo-dlg .frase{min-height:4.2em;font-size:.95rem}
 @keyframes syncgira{to{transform:rotate(360deg)}}
 input[type=search].esc-buscar{background:var(--bg);color:var(--tx);border:1px solid transparent;border-radius:10px;padding:.5em .7em;width:100%;min-height:42px}
 input[type=search].esc-buscar:focus{outline:none;border-color:var(--acento)}

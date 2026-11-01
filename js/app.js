@@ -375,7 +375,7 @@
     if (A.driveBajando[s.id] != null) return;
     A.driveBajando[s.id] = 0; if (A.tab === 'drive') A.render();
     try {
-      const blob = await MDg.Drive.bajar(s.id, (q) => { A.driveBajando[s.id] = q; });
+      const blob = await MDg.Drive.bajar(s.id, (q) => { A.driveBajando[s.id] = q; }, () => A.driveCancelar);
       const reg = { blob, nombre: s.nombre, tipo: blob.type || s.mime || 'audio/mpeg' };
       await MDg.Almacen.guardarSonido(s.id, reg);
       A.regs.set(s.id, reg); await A.motor.fijarArchivo(s.id, reg);
@@ -384,7 +384,7 @@
       if (ya) { ya.duracion = dur; ya.driveMod = s.mod; ya.carpeta = s.carpeta; }
       else A.cfg.sonidos.push({ id: s.id, nombre, volumen: 1, duracion: dur, archivoOriginal: s.nombre, carpeta: s.carpeta, driveMod: s.mod });
       A.cambio(false); await A.guardarYa(); await A.infoStorage();
-    } catch (e) { A.driveMsg = 'No se pudo bajar "' + s.nombre + '": ' + e.message; }
+    } catch (e) { A.driveMsg = e && e.cancelado ? 'Descarga cancelada.' : 'No se pudo bajar "' + s.nombre + '": ' + e.message; }
     delete A.driveBajando[s.id]; if (A.tab === 'drive') A.render();
   };
   // Sube sonidos de este celu a Drive (los demas los ven como "nuevos"). Tambien quedan en la biblioteca de este celu con el mismo id.
@@ -522,10 +522,10 @@
     for (let i = 0; i < lista.length; i++) {
       if (A.driveCancelar) break;
       if (!navigator.onLine) await MDg.Au.esperarRed(() => A.driveCancelar);
-      A.driveBajandoTodo = (i + 1) + ' / ' + lista.length; if (A.tab === 'drive') A.render(); await A.driveBajar(lista[i]);
+      A.driveBajandoTodo = (i + 1) + ' / ' + lista.length; A.driveBajandoNombre = (lista[i] && lista[i].nombre) || ''; if (A.tab === 'drive') A.render(); await A.driveBajar(lista[i]);
     }
     soltar();
-    A.driveBajandoTodo = ''; if (!A.driveMsg) A.driveMsg = 'Listo: ' + lista.length + ' sonido(s) bajados a este celu.'; if (A.tab === 'drive') A.render();
+    A.driveBajandoTodo = ''; A.driveBajandoNombre = ''; if (!A.driveMsg) A.driveMsg = 'Listo: ' + lista.length + ' sonido(s) bajados a este celu.'; if (A.tab === 'drive') A.render();
   };
 
   // ---------- packs ----------

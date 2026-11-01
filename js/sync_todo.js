@@ -99,7 +99,7 @@ window.MD = window.MD || {};
     if (!MD.Drive.configurado()) { A.tab = 'drive'; A.render(); return; }
     if (!navigator.onLine) { S.error = 'No hay internet.'; pintar(); return; }
     if (todo && Di && Di.activo() && !Di.listo()) { try { await Di.reconectar(); } catch (e) {} if (!Di.listo()) { S.error = 'El disco «' + Di.nombre() + '» no está conectado: conectalo y tocá «Reconectar disco».'; pintar(); return; } }
-    S.activo = true; S.todo = !!todo; S.cancel = false; S.error = ''; S.resumen = ''; pintar();
+    S.activo = true; S.todo = !!todo; S.cancel = false; S.error = ''; S.resumen = ''; S.t0 = Date.now(); S.movMarca = ''; S.movT = Date.now(); pintar();
     const soltar = MD.Sostener ? MD.Sostener.tomar() : () => {};
     let ult = '', desde = Date.now(), avisado = false;
     const guardia = setInterval(() => {
@@ -147,6 +147,29 @@ window.MD = window.MD || {};
     finally { clearInterval(guardia); const x = document.getElementById('dlgTrabado'); if (x) { try { x.close(); } catch (e2) {} x.remove(); } soltar(); S.activo = false; S.todo = false; S.cancel = false; S.fase = ''; pintar(); }
   }
 
+  // 2.0-dev23: explicacion en palabras simples de lo que esta haciendo la app + barra de progreso + indicador de "sigue vivo".
+  const PASOS_ESC = { 'empezando': 'arrancando', 'leyendo escenas de Drive': 'leyendo lo último que hay en Drive', 'juntando escenas, looks y listas': 'mezclando lo de Drive con lo de este celu', 'juntando el tracker': 'juntando la configuración del tracker', 'guardando en este celu': 'guardando las escenas nuevas en este celu', 'subiendo a Drive': 'subiendo tus cambios a Drive' };
+  const dur = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  function describir(A) {
+    const dl = MD.Au && MD.Au.S.dl, f = S.fase || '';
+    if (dl && dl.activo) {
+      const n = Math.min(dl.hechos + 1, dl.total), q = dl.pct || 0;
+      return { paso: 'Paso 4 de 4 · Bajando audios (' + n + ' de ' + dl.total + ')', det: (dl.actual ? '«' + dl.actual + '». ' : '') + 'Cada audio queda guardado en este equipo para que suene sin internet.', pct: dl.total ? (dl.hechos + q) / dl.total : null, extra: Math.round(q * 100) + ' % de este audio' };
+    }
+    if (A && A.driveBajandoTodo) {
+      const m = /^(\d+)\s*\/\s*(\d+)$/.exec(A.driveBajandoTodo), i = m ? +m[1] : 1, n = m ? +m[2] : 1;
+      const vals = A.driveBajando ? Object.keys(A.driveBajando).map((k) => A.driveBajando[k]).filter((v) => typeof v === 'number') : [], q = vals.length ? vals[0] : 0;
+      return { paso: 'Paso 4 de 4 · Bajando sonidos de las teclas (' + i + ' de ' + n + ')', det: (A.driveBajandoNombre ? '«' + A.driveBajandoNombre + '». ' : '') + 'Los archivos grandes llegan de a pedazos de 3 MB, por eso uno puede tardar uno o dos minutos. Cada sonido queda guardado en este celu.', pct: (i - 1 + q) / n, extra: Math.round(q * 100) + ' % de este sonido' };
+    }
+    if (/^Escenas/.test(f)) { const p = PASOS_ESC[A && A.escPaso]; return { paso: 'Paso 1 de 4 · Juntando tus escenas con las de Drive', det: 'Comparo las escenas, looks, listas, favoritos y el tracker de este celu con los de Drive, junto las dos versiones y subo lo nuevo.' + (p ? ' Ahora: ' + p + '.' : ''), pct: null }; }
+    if (/^Cat/.test(f)) return { paso: 'Paso 2 de 4 · Actualizando la lista de audios', det: 'Le pido a Drive el catálogo de audios (temas, ambientes y música disponibles). Todavía no baja ningún audio.', pct: null };
+    if (/^Sonidos de Drive/.test(f)) return { paso: 'Paso 3 de 4 · Viendo qué sonidos te faltan', det: 'Le pido a Drive la lista de sonidos de las teclas (son cientos) y la comparo con lo que ya tenés en este celu, para saber qué falta bajar.', pct: null };
+    if (/^Registrando/.test(f)) return { paso: 'Paso 3 de 4 · Registrando sonidos del disco', det: 'Anoto en la app los sonidos que ya estaban guardados en el disco.', pct: null };
+    if (/^Reintentando/.test(f)) return { paso: f.replace('…', ''), det: 'Algunos archivos fallaron y vuelvo a probar con ellos.', pct: null };
+    if (/^Sin internet/.test(f)) return { paso: 'Sin internet', det: 'Espero a que vuelva la conexión y sigo sola, sin repetir lo ya bajado.', pct: null };
+    return { paso: f || 'Trabajando…', det: '', pct: null };
+  }
+
   function pintar() {
     if (!barra) return;
     const A = window.MDapp, D = MD.Disco;
@@ -173,6 +196,23 @@ window.MD = window.MD || {};
     if (D && D.activo() && !D.listo() && !S.activo) txt = '💾 Disco «' + D.nombre() + '» desconectado · ' + txt;
     t.textContent = txt;
     t.classList.toggle('mal', !!S.error);
+    const inf = barra.querySelector('.sync-info');
+    if (inf) {
+      const dl2 = MD.Au && MD.Au.S.dl, visible = !!(S.activo || (A && A.driveBajandoTodo) || (dl2 && dl2.activo));
+      inf.hidden = !visible;
+      if (visible) {
+        const d = describir(A), marca = d.paso + '|' + Math.round((d.pct || 0) * 1000);
+        if (marca !== S.movMarca) { S.movMarca = marca; S.movT = Date.now(); }
+        const idle = Math.round((Date.now() - (S.movT || Date.now())) / 1000);
+        inf.querySelector('.sync-paso').textContent = d.paso;
+        inf.querySelector('.sync-det').textContent = d.det;
+        const pr = inf.querySelector('.sync-prog'); pr.classList.toggle('ind', d.pct == null);
+        pr.firstChild.style.width = d.pct == null ? '' : Math.max(2, Math.min(100, Math.round(d.pct * 100))) + '%';
+        const v = inf.querySelector('.sync-vivo');
+        v.classList.toggle('mal', idle >= 60);
+        v.textContent = (d.pct != null ? Math.round(d.pct * 100) + ' % del paso' + (d.extra ? ' (' + d.extra + ')' : '') + ' · ' : '') + (idle < 10 ? '● avanzando' : idle < 60 ? '● esperando respuesta (' + idle + ' s)…' : '⚠ sin novedades hace ' + idle + ' s') + (S.activo && S.t0 ? ' · lleva ' + dur(Date.now() - S.t0) : '');
+      }
+    }
     let rc = barra.querySelector('.sync-rec');
     if (D && D.activo() && !D.listo()) {
       if (!rc) { rc = h('button', { type: 'button', class: 'sync-rec', onclick: async () => { await D.reconectar(); pintar(); } }, 'Reconectar disco'); barra.append(rc); }
@@ -187,7 +227,8 @@ window.MD = window.MD || {};
       if (barra) { pintar(); return; }
       barra = h('div', { class: 'barra-sync', id: 'barraSync' }, h('button', { type: 'button', class: 'sync-b', id: 'btnSincronizarTodo', onclick: () => sincronizarTodo(false) }, h('span', { class: 'sync-ic' }, '⟳'), h('b', null, 'Sincronizar todo')),
         h('button', { type: 'button', class: 'sync-b sync-b2', id: 'btnDescargarTodo', title: 'Baja TODOS los audios, sonidos, escenas, looks y listas a este equipo (aunque ninguna escena los use)', onclick: () => sincronizarTodo(true) }, h('span', { class: 'sync-ic' }, '⬇'), h('b', null, 'Descargar TODO')),
-        h('button', { type: 'button', class: 'sync-cancel', id: 'btnCancelarSync', hidden: true, onclick: cancelar }, 'Cancelar'), h('span', { class: 'sync-t suave' }));
+        h('button', { type: 'button', class: 'sync-cancel', id: 'btnCancelarSync', hidden: true, onclick: cancelar }, 'Cancelar'), h('span', { class: 'sync-t suave' }),
+        h('div', { class: 'sync-info', hidden: true }, h('div', { class: 'sync-paso' }), h('div', { class: 'sync-det suave' }), h('div', { class: 'sync-prog' }, h('i')), h('div', { class: 'sync-vivo suave' })));
       const main = document.getElementById('vista'); main.parentNode.insertBefore(barra, main);
       if (MD.Disco) MD.Disco.alCambiar = ((previo) => () => { try { if (previo) previo(); } catch (e) {} pintar(); })(MD.Disco.alCambiar);
       if (!tim) tim = setInterval(pintar, 1500);

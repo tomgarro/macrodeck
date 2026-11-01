@@ -107,9 +107,11 @@ window.MD = window.MD || {};
     bajarAudio: (id, parte) => get({ accion: 'audio', id: id, parte: parte }),
     caratulas: (ids) => get({ accion: 'caratulas', ids: ids.join(',') }),     // dev24: varias tapas en una sola consulta
     // Baja un sonido entero (el script lo entrega en trozos). 'progreso' recibe 0..1.
-    async bajar(id, progreso) {
+    // 2.0-dev22: 'cancelado' (opcional) es una funcion que dice si el usuario toco Cancelar; se mira entre tramo y tramo, asi un sonido grande (muchos tramos) corta enseguida.
+    async bajar(id, progreso, cancelado) {
       const trozos = []; let mime = 'audio/mpeg';
       for (let p = 0, partes = 1; p < partes; p++) {
+        if (cancelado && cancelado()) throw Object.assign(new Error('Descarga cancelada.'), { cancelado: true });
         const j = await get({ accion: 'bajar', id: id, parte: p });
         partes = j.partes; mime = j.mime || mime;
         const bin = atob(j.datos), a = new Uint8Array(bin.length);
