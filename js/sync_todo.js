@@ -76,6 +76,22 @@ window.MD = window.MD || {};
   }
   function cancelar() { S.cancel = true; try { MD.Au.S.dl.cancelar = true; window.MDapp.driveCancelar = true; } catch (e) {} pintar(); }
 
+  // 2.0-dev20: cartel de "trabada". Si la sync lleva mas de 1 minuto sin cambiar de fase/paso (y no esta bajando audios), sale un cartel que NO se cierra
+  // tocando afuera ni con Esc/Atras: dice en que fase y paso se quedo y cuales fueron los ultimos pedidos a Drive, para sacarle captura.
+  function avisoTrabado(A) {
+    if (document.getElementById('dlgTrabado')) return;
+    const dg = (MD.Drive && MD.Drive.diag ? MD.Drive.diag.slice(-8) : []).map((d) => d.tipo + ' ' + d.accion + ' → ' + d.res + ' (' + Math.round(d.ms / 1000) + ' s)').join('\n') || 'ningún pedido registrado';
+    const txt = 'Versión ' + MD.VERSION + '\nFase: ' + (S.fase || '-') + '\nPaso de escenas: ' + (A.escPaso || '-') + '\nEscenas cargando: ' + (A.escCargando ? 'sí' : 'no') + '\nÚltimos pedidos a Drive:\n' + dg;
+    const d = h('dialog', { class: 'esc-md-dlg', id: 'dlgTrabado' }, h('h3', null, '⚠ La sincronización está trabada'),
+      h('p', null, 'Lleva más de 1 minuto sin avanzar. Sacale captura a esto y mandáselo a Claude:'),
+      h('pre', { style: 'white-space:pre-wrap;font-size:12px;user-select:text;background:#0003;padding:8px;border-radius:8px' }, txt),
+      h('div', { class: 'fila', style: 'margin-top:12px;justify-content:flex-end;flex-wrap:wrap' },
+        h('button', { type: 'button', onclick: () => { d.close(); d.remove(); A.escCargando = false; S.activo = false; S.todo = false; S.fase = ''; S.cancel = false; S.error = 'Sincronización cortada a mano porque se trabó en: ' + (txt.split('\n')[1] || '') + ' → ' + (A.escPaso || '-'); pintar(); } }, 'Destrabar'),
+        h('button', { type: 'button', class: 'primario', onclick: () => { d.close(); d.remove(); } }, 'Entendido')));
+    d.addEventListener('cancel', (e) => e.preventDefault());
+    document.body.append(d); d.showModal();
+  }
+
   // todo = false: "Sincronizar todo" (baja lo que usan las escenas, listas y favoritos). todo = true: "Descargar TODO" (baja absolutamente todo).
   async function sincronizarTodo(todo) {
     const A = window.MDapp, Au = MD.Au, Di = MD.Disco;
@@ -85,6 +101,13 @@ window.MD = window.MD || {};
     if (todo && Di && Di.activo() && !Di.listo()) { try { await Di.reconectar(); } catch (e) {} if (!Di.listo()) { S.error = 'El disco «' + Di.nombre() + '» no está conectado: conectalo y tocá «Reconectar disco».'; pintar(); return; } }
     S.activo = true; S.todo = !!todo; S.cancel = false; S.error = ''; S.resumen = ''; pintar();
     const soltar = MD.Sostener ? MD.Sostener.tomar() : () => {};
+    let ult = '', desde = Date.now(), avisado = false;
+    const guardia = setInterval(() => {
+      const dl = MD.Au && MD.Au.S.dl, bajando = !!(dl && dl.activo) || !!A.driveBajandoTodo;
+      const marca = S.fase + '|' + (A.escPaso || '') + '|' + (bajando ? 'b' + (dl ? dl.hechos + '/' + dl.pct : '') : '');
+      if (marca !== ult || bajando) { ult = marca; desde = Date.now(); avisado = false; return; }
+      if (!avisado && S.fase && Date.now() - desde > 60000) { avisado = true; avisoTrabado(A); }
+    }, 5000);
     if (todo) marca(true);
     try {
       S.fase = 'Escenas, looks, listas, favoritos y tracker…'; pintar();
@@ -121,8 +144,7 @@ window.MD = window.MD || {};
       S.ultima = Date.now();
       S.resumen = 'Listo ' + hora(S.ultima) + (A.escMsg ? ' · ' + A.escMsg.replace(/\s*Ojo:.*$/, '') : '') + bajados + (errLista ? ' · ⚠ No pude leer la lista de sonidos de Drive: ' + errLista : '');
     } catch (e) { S.error = e.message || String(e); }
-    soltar();
-    S.activo = false; S.todo = false; S.cancel = false; S.fase = ''; pintar();
+    finally { clearInterval(guardia); const x = document.getElementById('dlgTrabado'); if (x) { try { x.close(); } catch (e2) {} x.remove(); } soltar(); S.activo = false; S.todo = false; S.cancel = false; S.fase = ''; pintar(); }
   }
 
   function pintar() {
