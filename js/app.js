@@ -409,15 +409,17 @@
   };
 
   // Escenas compartidas: junta las de este celu con las de Drive (ver drive_escenas.js).
-  A.escCargando = false; A.escMsg = ''; A.escConflictos = []; A.escElec = {};
+  A.escCargando = false; A.escMsg = ''; A.escConflictos = []; A.escElec = {}; A.escPaso = '';
+  // 2.0-dev19: cada paso de la sincronizacion de escenas se anota en A.escPaso (se ve en la barra de arriba) y lo local tiene tope de tiempo, asi nada queda esperando para siempre sin avisar.
+  const conTope = (p, ms, que) => { let t; return Promise.race([p, new Promise((_, mal) => { t = setTimeout(() => mal(new Error('Se trabo ' + que + ' (mas de ' + Math.round(ms / 1000) + ' s)')), ms); })]).finally(() => clearTimeout(t)); };
   A.driveEscenas = async function () {
     if (A.escCargando) return;
-    A.escCargando = true; A.escMsg = ''; A.render();
+    A.escCargando = true; A.escMsg = ''; A.escPaso = 'empezando'; A.render();
     try {
       // 1.3-dev21: Frodo (el DM) ve y arma TODO, con las escenas nuevas en "borrador". Tom solo recibe las "confirmadas" (los borradores quedan ocultos, solo se cuenta cuantos hay).
       const dm = MDg.Drive.esDM();
       for (let intento = 0; intento < 3; intento++) {
-        const r = await MDg.Drive.escenasLeer();
+        A.escPaso = 'leyendo escenas de Drive'; const r = await MDg.Drive.escenasLeer(); A.escPaso = 'juntando escenas, looks y listas';
         const remotoTodo = (r.config && r.config.escenas) || [], remotoLooks = (r.config && r.config.looks) || [], remotoListas = (r.config && r.config.listas) || [], remotoFavs = (r.config && r.config.favoritos) || [], remotoAj = (r.config && r.config.ajustes) || {}, remotoTr = (r.config && r.config.tracker) || null, base = MDg.Drive.baseEscenas();
         const ocultas = dm ? [] : remotoTodo.filter(e => e && e.estado === 'borrador');
         const remoto = dm ? remotoTodo : remotoTodo.filter(e => !(e && e.estado === 'borrador'));
@@ -443,7 +445,7 @@
         const cambioFavs = MDg.DriveEsc.estable(nuevosFavs.slice().sort()) !== MDg.DriveEsc.estable((A.cfg.favoritos || []).slice().sort());
         const cambioLuz = MDg.DriveEsc.estable(nuevaLuz) !== MDg.DriveEsc.estable(luzLocal);
         // 2.0-dev5: configuracion del Initiative Tracker (sonidos y luces por evento). Entrada por entrada; si dos celus tocaron la misma, gana Frodo (el DM).
-        const Sv = MDg.Trk && MDg.Trk.Servicio, DE = MDg.DriveEsc;
+        A.escPaso = 'juntando el tracker'; const Sv = MDg.Trk && MDg.Trk.Servicio, DE = MDg.DriveEsc;
         let nuevoTrMapa = null, trRes = { traidas: 0, subidas: 0 }, cambioTr = false, trIgual = true;
         if (Sv && Sv.cfgCargada) {
           const remNorm = MDg.Trk.cfgNormalizar(remotoTr || {}), locTr = DE.aplanarTracker(Sv.cfg);
@@ -465,7 +467,7 @@
           if (cambioFavs) A.cfg.favoritos = nuevosFavs;
           if (cambioLuz) { A.cfg.ajustes.luzBase = nuevaLuz; if (MDg.LucesDnd && MDg.LucesDnd.alCambiarReposo) MDg.LucesDnd.alCambiarReposo(); }
           if (cambioTr) { const d = DE.desaplanarTracker(nuevoTrMapa); Sv.cfg.ev = d.ev; Sv.cfg.cl = d.cl; Sv.cfg = MDg.Trk.cfgNormalizar(Sv.cfg); Sv.guardarCfg(); }
-          A.cambio(true); await A.guardarYa();
+          A.escPaso = 'guardando en este celu'; A.cambio(true); await conTope(A.guardarYa(), 15000, 'el guardado en este celu');
         }
         let version = r.version;
         const favsIguales = MDg.DriveEsc.estable(nuevosFavs.slice().sort()) === MDg.DriveEsc.estable((remotoFavs || []).slice().sort()), luzIgual = !!luzRemota && MDg.DriveEsc.estable(nuevaLuz) === MDg.DriveEsc.estable(luzRemota);
@@ -473,7 +475,7 @@
           // lo que Tom no ve (los borradores de Frodo) se conserva tal cual en Drive, en su mismo lugar
           const salida = nuevas.slice();
           ocultas.forEach(o => salida.splice(Math.min(remotoTodo.indexOf(o), salida.length), 0, o));
-          const g = await MDg.Drive.escenasGuardar(r.version, { escenas: salida, looks: nuevosLooks, listas: nuevasListas, favoritos: nuevosFavs, ajustes: { luzBase: nuevaLuz }, tracker: nuevoTrMapa ? DE.desaplanarTracker(nuevoTrMapa) : (remotoTr || undefined) });
+          A.escPaso = 'subiendo a Drive'; const g = await MDg.Drive.escenasGuardar(r.version, { escenas: salida, looks: nuevosLooks, listas: nuevasListas, favoritos: nuevosFavs, ajustes: { luzBase: nuevaLuz }, tracker: nuevoTrMapa ? DE.desaplanarTracker(nuevoTrMapa) : (remotoTr || undefined) });
           if (g.conflicto) continue;                                   // alguien guardo justo en el medio: se vuelve a juntar
           version = g.version;
         }
@@ -487,8 +489,8 @@
           + (faltan.size ? ' Ojo: faltan ' + faltan.size + ' sonido(s) en este celu; usa "Bajar lo nuevo".' : '');
         break;
       }
-    } catch (e) { A.escMsg = 'No se pudo sincronizar: ' + e.message; }
-    A.escCargando = false; A.render();
+    } catch (e) { A.escMsg = 'No se pudo sincronizar: ' + e.message + (A.escPaso ? ' (paso: ' + A.escPaso + ')' : ''); }
+    A.escPaso = ''; A.escCargando = false; A.render();
   };
   A.driveElegir = function (id, quien) { A.escElec[id] = quien; A.driveEscenas(); };
 

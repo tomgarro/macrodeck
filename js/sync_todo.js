@@ -139,7 +139,7 @@ window.MD = window.MD || {};
     const dl = MD.Au && MD.Au.S.dl;
     if (S.error) txt = '⚠ ' + S.error;
     else if (S.activo) {
-      txt = S.fase;
+      txt = S.fase + (A && A.escCargando && A.escPaso ? ' → ' + A.escPaso : '');   // 2.0-dev19: en que parte va
       if (dl && dl.activo) txt = 'Bajando audio ' + Math.min(dl.hechos + 1, dl.total) + ' de ' + dl.total + (dl.actual ? ': ' + dl.actual : '') + ' (' + Math.round(dl.pct * 100) + ' %)';
       else if (A && A.driveBajandoTodo) txt = 'Bajando sonidos ' + A.driveBajandoTodo;
       if (MD.Sostener && MD.Sostener.pantallaDespierta()) txt += ' · ☀ pantalla despierta';
