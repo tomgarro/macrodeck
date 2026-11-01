@@ -13,9 +13,9 @@ window.MD = window.MD || {};
 
   // 2.0-dev15: TODO pedido a Drive tiene tiempo limite. Antes el fetch podia quedar esperando para siempre (Google no contesta, Wi-Fi sin salida, etc.)
   // y "Sincronizar todo" se colgaba en el primer paso sin mostrar ningun error. Ahora corta y avisa en pantalla.
-  const MS_LIVIANO = 30000, MS_PESADO = 90000, MS_SUBIDA = 180000;
+  const MS_LIVIANO = 30000, MS_PESADO = 90000, MS_SUBIDA = 180000, MS_LISTAR = 120000;   // 2.0-dev17: 'listar' recorre todas las carpetas de Drive y pide 5 datos por sonido: puede tardar mas de 30 s
   const LIVIANAS = ['ping', 'escenas', 'escenas_guardar', 'listar', 'catalogo'];
-  const msDe = (accion) => accion === 'subir' ? MS_SUBIDA : (LIVIANAS.indexOf(accion) >= 0 || !accion) ? MS_LIVIANO : MS_PESADO;
+  const msDe = (accion) => accion === 'subir' ? MS_SUBIDA : accion === 'listar' ? MS_LISTAR : (LIVIANAS.indexOf(accion) >= 0 || !accion) ? MS_LIVIANO : MS_PESADO;
   // Hace el fetch y lee el JSON con un solo reloj (si se pasa el tiempo, aborta tambien la lectura). Tira un Error con .codigo = 'timeout' | 'red' | 'json'.
   async function pedir(url, opts, ms) {
     const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
