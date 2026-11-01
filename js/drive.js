@@ -11,6 +11,30 @@ window.MD = window.MD || {};
   const USUARIOS = Array.isArray(MD.DRIVE_USUARIOS) && MD.DRIVE_USUARIOS.length ? MD.DRIVE_USUARIOS : ['Tom', 'Frodo'];
   const urlActual = () => URL_FIJA || aj.url || '';
 
+  // 2.0-dev15: TODO pedido a Drive tiene tiempo limite. Antes el fetch podia quedar esperando para siempre (Google no contesta, Wi-Fi sin salida, etc.)
+  // y "Sincronizar todo" se colgaba en el primer paso sin mostrar ningun error. Ahora corta y avisa en pantalla.
+  const MS_LIVIANO = 30000, MS_PESADO = 90000, MS_SUBIDA = 180000;
+  const LIVIANAS = ['ping', 'escenas', 'escenas_guardar', 'listar', 'catalogo'];
+  const msDe = (accion) => accion === 'subir' ? MS_SUBIDA : (LIVIANAS.indexOf(accion) >= 0 || !accion) ? MS_LIVIANO : MS_PESADO;
+  // Hace el fetch y lee el JSON con un solo reloj (si se pasa el tiempo, aborta tambien la lectura). Tira un Error con .codigo = 'timeout' | 'red' | 'json'.
+  async function pedir(url, opts, ms) {
+    const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    let vencio = false;
+    const t = setTimeout(() => { vencio = true; if (ctl) ctl.abort(); }, ms);
+    let t2;
+    const tope = new Promise((_, mal) => { t2 = setTimeout(() => { vencio = true; mal(Object.assign(new Error('timeout'), { codigo: 'timeout' })); }, ms + 1500); });   // por si el abort no corta
+    try {
+      return await Promise.race([tope, (async () => {
+        let r;
+        try { r = await fetch(url, Object.assign({}, opts, ctl ? { signal: ctl.signal } : {})); }
+        catch (e) { throw Object.assign(new Error('red'), { codigo: vencio ? 'timeout' : 'red' }); }
+        try { return await r.json(); }
+        catch (e) { throw Object.assign(new Error('json'), { codigo: vencio ? 'timeout' : 'json' }); }
+      })()]);
+    } finally { clearTimeout(t); clearTimeout(t2); }
+  }
+  const msgTimeout = (ms) => 'Drive no respondió en ' + Math.round(ms / 1000) + ' s. Revisá que este Wi-Fi tenga internet (abrí una página en el navegador) y probá de nuevo.';
+
   async function get(params) {
     if (!urlActual() || !aj.clave) throw new Error('Falta la direccion o la clave de Drive.');
     if (MD.Red) await MD.Red.verificar(params && params.accion);          // 1.3-dev35: en una red prohibida (ej. el Wi-Fi "Tom's Phone") no se descarga nada
@@ -18,10 +42,14 @@ window.MD = window.MD || {};
     try { u = new URL(urlActual()); } catch (e) { throw new Error('La direccion no es valida (tiene que empezar con https:// y terminar en /exec).'); }
     u.searchParams.set('clave', aj.clave);
     for (const k in params) u.searchParams.set(k, params[k]);
-    let r;
-    try { r = await fetch(u.toString()); } catch (e) { throw new Error('No se pudo conectar con Drive. Revisa internet y que la direccion sea la correcta.'); }
+    const ms = msDe(params && params.accion);
     let j;
-    try { j = await r.json(); } catch (e) { throw new Error('Drive contesto algo raro. Revisa que el acceso del script sea "Cualquier persona".'); }
+    try { j = await pedir(u.toString(), {}, ms); }
+    catch (e) {
+      if (e.codigo === 'timeout') throw new Error(msgTimeout(ms));
+      if (e.codigo === 'json') throw new Error('Drive contesto algo raro. Revisa que el acceso del script sea "Cualquier persona".');
+      throw new Error('No se pudo conectar con Drive. Revisa internet y que la direccion sea la correcta.');
+    }
     if (!j.ok) throw new Error(j.error === 'clave' ? 'La clave no coincide con la del script.' : (j.error || 'Error de Drive.'));
     return j;
   }
@@ -32,11 +60,14 @@ window.MD = window.MD || {};
     if (!urlActual() || !aj.clave) throw new Error('Falta la direccion o la clave de Drive.');
     if (MD.Red) await MD.Red.verificar(obj && obj.accion);
     obj.clave = aj.clave;
-    let r;
-    try { r = await fetch(urlActual(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(obj) }); }
-    catch (e) { throw new Error('No se pudo conectar con Drive. Revisa internet (si es un archivo grande, puede haberse cortado).'); }
+    const ms = msDe(obj && obj.accion);
     let j;
-    try { j = await r.json(); } catch (e) { throw new Error('Drive contesto algo raro. Si cambiaste el script, publica una nueva version en Implementar > Administrar implementaciones.'); }
+    try { j = await pedir(urlActual(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(obj) }, ms); }
+    catch (e) {
+      if (e.codigo === 'timeout') throw new Error(msgTimeout(ms));
+      if (e.codigo === 'json') throw new Error('Drive contesto algo raro. Si cambiaste el script, publica una nueva version en Implementar > Administrar implementaciones.');
+      throw new Error('No se pudo conectar con Drive. Revisa internet (si es un archivo grande, puede haberse cortado).');
+    }
     if (!j.ok && !j.conflicto) throw new Error(j.error === 'clave' ? 'La clave no coincide con la del script.' : (j.error || 'Error de Drive.'));
     return j;
   }

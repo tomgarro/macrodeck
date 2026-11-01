@@ -50,7 +50,8 @@ window.MD = window.MD || {};
     pantallaCompleta: (on) => sinError(pl.pantallaCompleta && pl.pantallaCompleta({ on: !!on })),
     alParar: (fn) => { try { return pl.addListener('parar', () => { try { fn(); } catch (e) {} }); } catch (e) { return null; } },
     bateria: () => Promise.resolve(pl.bateria ? pl.bateria() : { exento: false }).catch(() => ({ exento: false })),
-    red: () => Promise.resolve(pl.redActual ? pl.redActual() : null).catch(() => null),
+    // 2.0-dev15: si el plugin no contesta en 6 s se sigue como si no se supiera la red (antes un cuelgue aca frenaba todo pedido a Drive sin avisar)
+    red: () => Promise.race([Promise.resolve(pl.redActual ? pl.redActual() : null).catch(() => null), new Promise((ok) => setTimeout(() => ok(null), 6000))]),
     pedirUbicacion: () => Promise.resolve(pl.pedirUbicacion ? pl.pedirUbicacion() : null).catch(() => null),
     pedirExencionBateria: () => sinError(pl.pedirExencionBateria && pl.pedirExencionBateria()),
     // v1.3-dev14: estado del celu para la OLED del Macrodeck
