@@ -414,7 +414,7 @@
   const conTope = (p, ms, que) => { let t; return Promise.race([p, new Promise((_, mal) => { t = setTimeout(() => mal(new Error('Se trabo ' + que + ' (mas de ' + Math.round(ms / 1000) + ' s)')), ms); })]).finally(() => clearTimeout(t)); };
   A.driveEscenas = async function () {
     if (A.escCargando) return;
-    A.escCargando = true; A.escMsg = ''; A.escPaso = 'empezando'; A.render();
+    A.escCargando = true; A.escMsg = ''; A.escAvisoGuardar = ''; A.escPaso = 'empezando'; A.render();
     try {
       // 1.3-dev21: Frodo (el DM) ve y arma TODO, con las escenas nuevas en "borrador". Tom solo recibe las "confirmadas" (los borradores quedan ocultos, solo se cuenta cuantos hay).
       const dm = MDg.Drive.esDM();
@@ -467,7 +467,10 @@
           if (cambioFavs) A.cfg.favoritos = nuevosFavs;
           if (cambioLuz) { A.cfg.ajustes.luzBase = nuevaLuz; if (MDg.LucesDnd && MDg.LucesDnd.alCambiarReposo) MDg.LucesDnd.alCambiarReposo(); }
           if (cambioTr) { const d = DE.desaplanarTracker(nuevoTrMapa); Sv.cfg.ev = d.ev; Sv.cfg.cl = d.cl; Sv.cfg = MDg.Trk.cfgNormalizar(Sv.cfg); Sv.guardarCfg(); }
-          A.escPaso = 'guardando en este celu'; A.cambio(true); await conTope(A.guardarYa(), 15000, 'el guardado en este celu');
+          A.escPaso = 'guardando en este celu'; A.cambio(true);
+          // 2.0-dev21: el guardado local ya NO puede frenar la sincronizacion. Si no confirma en 8 s se sigue igual (el cambio ya esta en memoria y el autoguardado lo reintenta) y se avisa al final.
+          try { await conTope(A.guardarYa(), 8000, 'el guardado en este celu'); }
+          catch (e) { A.escAvisoGuardar = e.message || String(e); try { if (MDg.Diag) MDg.Diag.anotar('sync: ' + A.escAvisoGuardar); } catch (e2) {} }
         }
         let version = r.version;
         const favsIguales = MDg.DriveEsc.estable(nuevosFavs.slice().sort()) === MDg.DriveEsc.estable((remotoFavs || []).slice().sort()), luzIgual = !!luzRemota && MDg.DriveEsc.estable(nuevaLuz) === MDg.DriveEsc.estable(luzRemota);
@@ -486,6 +489,7 @@
         A.escMsg = 'Escenas sincronizadas (' + (x.traidas ? x.traidas + ' traida(s) de Drive' : 'nada nuevo en Drive') + ', ' + (x.subidas ? x.subidas + ' subida(s)' : 'nada para subir') + (x.borradas ? ', ' + x.borradas + ' borrada(s)' : '') + ').'
           + (nuevoTrMapa && (trRes.traidas || trRes.subidas) ? ' Tracker: ' + trRes.traidas + ' traida(s), ' + trRes.subidas + ' subida(s).' : '')
           + (ocultas.length ? ' Hay ' + ocultas.length + ' escena(s) en preparacion.' : '')
+          + (A.escAvisoGuardar ? ' Ojo: el celu no confirmo el guardado (' + A.escAvisoGuardar + '); reabri la app y revisa que esten las escenas.' : '')
           + (faltan.size ? ' Ojo: faltan ' + faltan.size + ' sonido(s) en este celu; usa "Bajar lo nuevo".' : '');
         break;
       }
