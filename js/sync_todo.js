@@ -93,8 +93,9 @@ window.MD = window.MD || {};
       if (/^No se pudo/.test(A.escMsg || '')) throw new Error(A.escMsg);
       S.fase = 'Catálogo de audios…'; pintar();
       await Au.actualizar(true);
-      S.fase = 'Sonidos de Drive…'; pintar();
+      S.fase = 'Sonidos de Drive… (puede tardar un poco)'; pintar();
       await A.driveActualizar();
+      const errLista = A.driveError || '';          // 2.0-dev18: antes este error se perdia sin avisar
       let adoptados = 0;
       if (A.adoptarSonidosDeDisco) { S.fase = 'Registrando sonidos que ya están en el disco…'; pintar(); try { adoptados = await A.adoptarSonidosDeDisco(); } catch (e) {} }   // 1.3-dev38: los que vinieron por pendrive
       // (2.0-dev3) En una red de la lista (ej. el hotspot) solo se sincroniza lo liviano; los audios y sonidos esperan a otro Wi-Fi
@@ -118,7 +119,7 @@ window.MD = window.MD || {};
       if (soloLiv) bajados = S.avisoLiviano;
       if (adoptados) bajados += ' · registré ' + adoptados + ' sonido(s) del disco';
       S.ultima = Date.now();
-      S.resumen = 'Listo ' + hora(S.ultima) + (A.escMsg ? ' · ' + A.escMsg.replace(/\s*Ojo:.*$/, '') : '') + bajados;
+      S.resumen = 'Listo ' + hora(S.ultima) + (A.escMsg ? ' · ' + A.escMsg.replace(/\s*Ojo:.*$/, '') : '') + bajados + (errLista ? ' · ⚠ No pude leer la lista de sonidos de Drive: ' + errLista : '');
     } catch (e) { S.error = e.message || String(e); }
     soltar();
     S.activo = false; S.todo = false; S.cancel = false; S.fase = ''; pintar();
