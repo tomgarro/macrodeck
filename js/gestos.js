@@ -11,7 +11,7 @@ window.MD = window.MD || {};
 (function (MD) {
   const MANTENER_MS = 450;        // apretada tanto tiempo = modo volumen
   const VENTANA_MS = 330;         // maximo entre un toque y el siguiente para que cuenten como doble / triple
-  const FUNDIDO = 0.18;           // segundos del fundido de un toque (play / pausa)
+  const FUNDIDO = 0.18;           // fundido CORTO: se usa si la tecla tiene Entrada/Salida en 0, y para deshacer el primer toque de un doble toque. (2.0-dev25: con valores > 0 el toque usa los fundidos de la tecla)
   const AVISO_MS = 1800;          // cuanto dura el cartel en la OLED
   const VOL_MAX = 1.5;            // la perilla abarca 0 a 150 % (como el Mezclador)
   const TOL = 12;                 // "agarre" de la perilla, sobre 0..255 (unos 5 %)

@@ -132,12 +132,15 @@ window.MD = window.MD || {};
       return (t.tipo === 'musica' ? Au.carriles.musica : carril()).seguirSuave(seg);
     },
     // Un toque. Devuelve { accion: 'play' | 'pausa' | 'sigue', deshacer }. 'deshacer' es null si ARRANCO (un doble toque sobre una tecla apagada la arranca y salta).
+    // 2.0-dev25: un toque RESPETA los fundidos de la tecla: la pausa baja con su "Salida" y seguir sube con su "Entrada" (si valen 0, se usa 'seg', el fundido corto de siempre).
+    // El "deshacer" del doble toque va con el fundido corto ('seg'), asi "siguiente" sigue siendo rapido aunque el fundido de la tecla sea largo.
     async toggle(m, i, t, e, seg) {
       motorRef = m;
       const st = Amb.estadoKey(i, t);
+      const sal = t && t.salida > 0 ? t.salida : seg, ent = t && t.entrada > 0 ? t.entrada : seg;
       if (st === 'apagado') { if (t.tipo === 'musica') await Amb.musicaTecla(m, i, t, e, true); else await Amb.tecla(m, i, t, e, true); marcar(); return { accion: 'play', deshacer: null }; }
-      if (st === 'sonando') { Amb.pausar(i, t, seg); marcar(); return { accion: 'pausa', deshacer: () => { Amb.seguir(i, t, seg); marcar(); } }; }
-      Amb.seguir(i, t, seg); marcar();
+      if (st === 'sonando') { Amb.pausar(i, t, sal); marcar(); return { accion: 'pausa', deshacer: () => { Amb.seguir(i, t, seg); marcar(); } }; }
+      Amb.seguir(i, t, ent); marcar();
       return { accion: 'sigue', deshacer: () => { Amb.pausar(i, t, seg); marcar(); } };
     },
     // Doble toque: siguiente tema. Triple: anterior. Devuelven false si no habia nada que hacer (no pasa nada).
