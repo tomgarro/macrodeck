@@ -663,6 +663,13 @@ button.chico{min-height:36px;min-width:36px;padding:4px 10px;font-size:.85rem}
 .tk-mesa .nom{font-size:min(8vw,2.4rem);font-weight:700}.tk-mesa .cl{color:#9b9b9b}.tk-mesa .sig{color:#7d7d84;font-size:1rem}
 .tk-toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panel2);border:1px solid var(--linea);color:var(--tx);padding:8px 14px;border-radius:10px;font-size:.84rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:70;max-width:90vw;text-align:center}
 .tk-toast.on{opacity:1}
+/* 2.0-dev26: cartel del volumen del tracker (arriba, al centro, sobre todo: tambien sobre la pantalla de mesa) */
+.tk-vol{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%) translateY(-8px);display:flex;align-items:center;gap:12px;min-width:240px;max-width:90vw;padding:10px 16px;background:var(--panel2);border:1px solid var(--linea);border-radius:14px;color:var(--tx);box-shadow:0 8px 24px #0008;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:80}
+.tk-vol.on{opacity:1;transform:translateX(-50%)}
+.tk-vol-ic{display:flex;color:var(--acento)}
+.tk-vol-barra{flex:1;height:10px;border-radius:5px;background:var(--hover);border:1px solid var(--linea);overflow:hidden}
+.tk-vol-barra i{display:block;height:100%;background:var(--acento);width:0}
+.tk-vol-n{min-width:3.4ch;text-align:right;font-variant-numeric:tabular-nums}
 
 /* Conexion desplegable (2.0-dev4) */
 .tk-conex>summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;min-height:34px}

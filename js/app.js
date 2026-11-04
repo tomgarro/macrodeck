@@ -204,8 +204,10 @@
       case 'tecla':
         if (MD.Diag) MD.Diag.anotar('tecla ' + d.i + (d.abajo ? ' abajo' : ' arriba') + ' (audio ' + (A.motor.ctx ? A.motor.ctx.state : 'sin iniciar') + ')');
         if (!A.motor.ctx || A.motor.ctx.state !== 'running') { A.motor.iniciar().then(() => { if (A.motor.ctx.state !== 'running') document.getElementById('audioGate').hidden = false; pintarPills(); }); }
+        if (MD.IT && MD.IT.teclaVol(d.i, d.abajo)) { A.actualizarEstado(false); break; }        // 2.0-dev26: con tracker, B2 apretada + perilla = volumen de los sonidos del tracker (la tecla no suena)
         A.motor.tecla(d.i, d.abajo); break;
-      case 'perilla': if (MD.Gestos && MD.Gestos.perilla(A.motor, A, d.v)) { A.actualizarEstado(false); break; }      // 2.0-dev11: tecla Ambiente / Musica mantenida = su volumen
+      case 'perilla': if (MD.IT && MD.IT.perilla(d.v)) { A.actualizarEstado(false); break; }                          // 2.0-dev26: B2 apretada (con tracker) = volumen del tracker
+        if (MD.Gestos && MD.Gestos.perilla(A.motor, A, d.v)) { A.actualizarEstado(false); break; }      // 2.0-dev11: tecla Ambiente / Musica mantenida = su volumen
         A.motor.fijarVolumen(d.v / 255); if (A.mesaVol && document.activeElement !== A.mesaVol) A.mesaVol.value = d.v; break;
       case 'escena': { const real = A.escenasMacrodeck()[d.i]; if (real != null) A.activar(real); break; }       // d.i = lugar en el selector del Macrodeck
       case 'hola': if (conectado()) A.tr.send(P.enc.hola()); break;
@@ -240,6 +242,7 @@
     const avN = m.avisoNivel && performance.now() < m.avisoNivel.hasta ? m.avisoNivel : null;     // 1.3-dev20: aviso de la tecla Intensidad (2,5 s)
     const filas = [esc ? esc.nombre : '', sonando[0] || '', sonando[1] || (sonando.length > 2 ? '+' + (sonando.length - 1) : ''), avN ? (avN.oled || (avN.n ? 'INT ' + avN.n + '/5' : 'SIN LOOP')) : (m.silenciado ? 'SILENCIO' : (sonando.length ? sonando.length + ' sonando' : ''))];
     const og = MD.Gestos && MD.Gestos.oled(m); if (og) og.forEach((t, k) => { filas[k] = t; });      // 2.0-dev11: volumen de la tecla mantenida / aviso del gesto (PLAY, PAUSE, NEXT...)
+    const ot = MD.IT && MD.IT.oled(); if (ot) ot.forEach((t, k) => { filas[k] = t; });                // 2.0-dev26: volumen de los sonidos del tracker (B2 apretada, o ~1,8 s despues de cambiarlo)
     filas.forEach((t, k) => { const x = P.ascii(t).slice(0, 10); if (conectado() && (forzar || x !== A.ultFilas[k])) A.tr.send(P.enc.oled(k, x)); A.ultFilas[k] = x; });
     if (A.tab === 'mesa' && A.mesaCeldas.length) {
       A.mesaCeldas.forEach((c, i) => { if (c.dataset.led !== String(leds[i])) c.dataset.led = String(leds[i]); });
@@ -255,7 +258,7 @@
     if (A.tr) { try { A.tr.desconectar(); } catch (e) {} }
     A.tr = tr;
     tr.onFrame = (f) => A.alTrama(f);
-    tr.onEstado = () => { if (MDg.Diag) MDg.Diag.anotar('bluetooth ' + tr.estado); if (tr.estado !== 'conectado' && MDg.Gestos) MDg.Gestos.reset(); pintarPills(); if (tr.estado === 'conectado') A.mantenerVivo(true); else A.notifEstado(); if (A.tab === 'mesa') A.render(); };
+    tr.onEstado = () => { if (MDg.Diag) MDg.Diag.anotar('bluetooth ' + tr.estado); if (tr.estado !== 'conectado' && MDg.Gestos) MDg.Gestos.reset(); if (tr.estado !== 'conectado' && MDg.IT) MDg.IT.reiniciarVol(); pintarPills(); if (tr.estado === 'conectado') A.mantenerVivo(true); else A.notifEstado(); if (A.tab === 'mesa') A.render(); };
     tr.onConectado = () => { A.ultLeds = ''; A.ultFilas = ['', '', '', '']; A.motor.fijarTope(A.cfg.ajustes.volMax); };
   }
   A.conectarBle = async function () {

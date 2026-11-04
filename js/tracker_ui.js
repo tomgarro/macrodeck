@@ -22,6 +22,25 @@ window.MD = window.MD || {};
   const rgb = (c) => 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')';
   const nombreFicha = (S, k) => { const t = S.tipo[k]; return Trk.TIPOS[t].n + (t === 'E' ? ' ' + Trk.numEnemigo(S, k) : ''); };
 
+  // ============================================================================================================
+  // Cartel del volumen (2.0-dev26): aparece en CUALQUIER pantalla (la pestana, la pantalla de mesa...) cada vez que cambia el volumen de los sonidos del
+  // tracker (perilla del Macrodeck con B2 apretada, o el deslizador de Ajustes) y se va ~1,8 s despues del ultimo cambio. Arranca oculto.
+  let cartelVol = null, tCartelVol = 0;
+  const SVG_VOL = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/>';
+  function mostrarVol() {
+    const v = Math.round(Sv.cfg.vol * 100);
+    if (!cartelVol) {
+      cartelVol = el('div', { class: 'tk-vol', role: 'status', 'aria-live': 'polite' }, el('span', { class: 'tk-vol-ic' }), el('div', { class: 'tk-vol-barra' }, el('i')), el('b', { class: 'tk-vol-n' }));
+      document.body.append(cartelVol);
+    }
+    cartelVol.querySelector('.tk-vol-ic').innerHTML = SVG_VOL + (v === 0 ? '<path d="M16 9l5 6M21 9l-5 6"/>' : '<path d="M16 9a4 4 0 0 1 0 6"/>' + (v > 50 ? '<path d="M19 6a8 8 0 0 1 0 12"/>' : '')) + '</svg>';
+    cartelVol.querySelector('i').style.width = v + '%';
+    cartelVol.querySelector('.tk-vol-n').textContent = v + '%';
+    cartelVol.classList.add('on');
+    clearTimeout(tCartelVol); tCartelVol = setTimeout(() => cartelVol.classList.remove('on'), 1800);
+  }
+  Sv.alCambio((que) => { if (que === 'vol') mostrarVol(); });
+
 
   // ============================================================================================================
   // Pantalla de mesa: ronda y ficha del turno en grande (para dejar el celu o la tablet parados frente a la mesa). Tiene su propio bucle:
@@ -280,7 +299,8 @@ window.MD = window.MD || {};
     const chk = (txt, val, fn, ayuda) => el('label', { class: 'tk-chk' }, el('input', { type: 'checkbox', checked: val, onchange: (ev) => fn(ev.target.checked) }), ' ', txt, ayuda ? el('small', { class: 'suave' }, ayuda) : null);
     const vol = el('input', { type: 'range', min: 0, max: 100, value: Math.round(cfg().vol * 100), 'aria-label': 'Volumen del tracker' });
     const volL = el('span', { class: 'suave' }, Math.round(cfg().vol * 100) + '%');
-    vol.addEventListener('input', () => { volL.textContent = vol.value + '%'; cfg().vol = vol.value / 100; Sv.guardarCfg(); });
+    refs.vol = vol; refs.volL = volL;                                        // 2.0-dev26: el deslizador sigue al volumen cuando cambia con B2 + perilla del Macrodeck
+    vol.addEventListener('input', () => { volL.textContent = vol.value + '%'; Sv.fijarVol(vol.value / 100); });
     const baud = el('select', { 'aria-label': 'Baudios' }, [115200, 57600, 38400, 19200, 9600].map((b) => el('option', { value: b, selected: b === cfg().baud }, b + (b === 115200 ? ' (recomendado)' : ''))));
     baud.addEventListener('change', () => { cfg().baud = +baud.value; Sv.guardarCfg(); toast('Se usa en la próxima conexión (y tiene que coincidir con BAUDIOS del sketch)'); });
     root.append(el('div', { class: 'tarjeta' }, el('h3', null, 'Ajustes del tracker'),
@@ -394,7 +414,8 @@ window.MD = window.MD || {};
 
     // ---------- bucle ----------
     function pedir() { sucio.todo = true; }
-    const quien = Sv.alCambio((que) => { if (que === 'log') sucio.log = true; else { sucio.todo = true; if (que === 'cfg') sucio.cfg = true; } if (typeof que === 'string' && que.indexOf('aviso:') === 0) toast(que.slice(6)); });
+    const quien = Sv.alCambio((que) => { if (que === 'vol') { const p = Math.round(cfg().vol * 100); if (refs.vol && document.activeElement !== refs.vol) refs.vol.value = p; if (refs.volL) refs.volL.textContent = p + '%'; return; }       // 2.0-dev26: solo se mueve el deslizador (sin rearmar la pestana)
+      if (que === 'log') sucio.log = true; else { sucio.todo = true; if (que === 'cfg') sucio.cfg = true; } if (typeof que === 'string' && que.indexOf('aviso:') === 0) toast(que.slice(6)); });
     function lazo(ms) {
       if (!root.isConnected) { quien(); document.removeEventListener('keydown', teclas); document.removeEventListener('keyup', teclasArriba); return; }
       if (sucio.todo) { sucio.todo = false; actualizar(); }

@@ -670,7 +670,9 @@ window.MD = window.MD || {};
     const cfg = A.cfg; const t = esc.teclas[i];
     const caja = h('div', { class: 'tarjeta', id: 'editorTecla' });
     caja.append(h('h3', null, 'Tecla ' + NOM[i]));
-    if (MD.IT && MD.IT.esFija(i)) caja.append(h('p', { class: 'aviso', id: 'avisoTrkTecla' }, 'Ojo: ' + NOM[i] + ' es una de las 3 teclas del Initiative Tracker (C2 = turno siguiente, D2 = centro / estado, E2 = turno anterior). Mientras el tracker esté conectado esta tecla NO suena y la e-Paper muestra el control del tracker. Cuando se desconecta, vuelve a ser la que armaste acá.'));
+    if (MD.IT && MD.IT.esFija(i)) caja.append(h('p', { class: 'aviso', id: 'avisoTrkTecla' }, i === MD.IT.TECLA_VOL
+      ? 'Ojo: ' + NOM[i] + ' es la tecla del VOLUMEN del Initiative Tracker (mantenela apretada y girá la perilla). Mientras el tracker esté conectado esta tecla NO suena y la e-Paper muestra un parlante. Cuando se desconecta, vuelve a ser la que armaste acá.'
+      : 'Ojo: ' + NOM[i] + ' es una de las 3 teclas del Initiative Tracker (C2 = turno siguiente, D2 = centro / estado, E2 = turno anterior). Mientras el tracker esté conectado esta tecla NO suena y la e-Paper muestra el control del tracker. Cuando se desconecta, vuelve a ser la que armaste acá.'));
     if (!t) {
       caja.append(vacio('mesa', 'Esta tecla está vacía', 'Creala y elegí qué suena, cómo se llama y con qué icono se ve en la e-Paper.'));
       const fila = h('div', { class: 'fila' }, h('button', { class: 'primario', type: 'button', id: 'btnCrearTecla', onclick: () => { esc.teclas[i] = MD.Config.teclaNueva({ nombre: 'Nueva' }); A.cambio(true); A.render(); } }, 'Crear tecla'));

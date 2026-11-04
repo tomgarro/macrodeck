@@ -36,6 +36,37 @@ window.MD = window.MD || {};
     Trk.aplicarNombres(Sv.cfg.taller);
     avisar('cfg');
   };
+  // ---------- volumen de los sonidos (2.0-dev26) ----------
+  // UNICO camino para cambiarlo: el deslizador de Ajustes del tracker y la perilla del Macrodeck con B2 apretada (it_enlace.js) llaman a esto.
+  // v = 0..1 en pasos de 1 % (de fabrica 1 = 100 %, lineal, sin curvas). Hace cuatro cosas: lo aplica a los sonidos, lo guarda (en ese celu), avisa a la app
+  // (avisar('vol'): cartel del volumen) y se lo manda al tracker (orden VOL, para su OLED) y a la OLED del Macrodeck.  o.mostrar = solo mostrarlo (no cambio).
+  Sv.fijarVol = function (v, o) {
+    v = Math.round(Math.max(0, Math.min(1, +v || 0)) * 100) / 100;
+    const mostrar = !!(o && o.mostrar), cambio = v !== Sv.cfg.vol;
+    if (!cambio && !mostrar) return;
+    if (cambio) {
+      Sv.cfg.vol = v; Trk.Audio.volumen = v;
+      clearTimeout(Sv.tGuardar);
+      Sv.tGuardar = setTimeout(() => { try { MD.Almacen.guardarConfigClave('tracker_cfg', Sv.cfg); } catch (e) {} }, 400);
+    }
+    avisar('vol');
+    mandarVol(mostrar);
+    if (MD.IT && MD.IT.volCambio) MD.IT.volCambio();
+  };
+  // La orden VOL,<0..100> hacia la OLED del tracker ESP32: como mucho una cada 120 ms (la radio y la cola del tracker son chicas) y SIEMPRE llega el ultimo valor.
+  const volTx = { t: 0, ult: -1, pend: 0 };
+  function mandarVol(forzar) {
+    if (forzar) volTx.ult = -1;
+    clearTimeout(volTx.pend);
+    const ir = () => {
+      volTx.pend = 0;
+      const p = Math.round(Sv.cfg.vol * 100);
+      if (p === volTx.ult || Sv.estado !== 'conectado' || Sv.modo === 'sim' || !Sv.firmwareNuevo()) return;       // el simulador no tiene OLED; el Uno (2.1) no la entiende
+      if (Sv.enviarLinea('VOL,' + p)) { volTx.ult = p; volTx.t = Date.now(); }
+    };
+    const falta = 120 - (Date.now() - volTx.t);
+    if (falta <= 0) ir(); else volTx.pend = setTimeout(ir, falta);
+  }
   Sv.cargarCfg = async function () {
     try { Sv.cfg = Trk.cfgNormalizar(await MD.Almacen.leerConfigClave('tracker_cfg')); } catch (e) { Sv.cfg = Trk.cfgNueva(); }
     Trk.aplicarNombres(Sv.cfg.taller);
@@ -108,7 +139,7 @@ window.MD = window.MD || {};
   // ---------- enviar ----------
   Sv.enviar = function (txt) {
     txt = String(txt); if (Sv.estado !== 'conectado') return false;
-    Sv.anotar('tx', txt.replace(/[\r\n]+$/, ''));
+    if (txt.slice(0, 4) !== 'VOL,') Sv.anotar('tx', txt.replace(/[\r\n]+$/, ''));       // las VOL (una cada 120 ms al girar la perilla) no llenan el monitor
     try {
       if (Sv.modo === 'sim') Sv.motor.entrada(txt);
       else if (Sv.modo === 'md') { if (!Sv.mdEnviar(txt)) return false; }
