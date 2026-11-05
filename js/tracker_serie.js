@@ -112,10 +112,11 @@ window.MD = window.MD || {};
       Sv.hola = x; Sv.anotar('rx', txt, { nota: 'Tracker v' + x.ver + (x.restaurado ? ' · retomó el combate guardado' : '') });
       if (x.restaurado) { Sv.stats.t0 = Sv.stats.t0 || Date.now(); avisar('aviso:Retomé el combate que estaba guardado en el Arduino'); }
       avisar('hola');
-      if (Sv.firmwareNuevo()) { Sv.pushHecho = false; Sv.enviarLinea('CFG'); }          // 3.0: pregunta la configuracion para ponerla igual a la del Taller de colores
+      if (Sv.firmwareNuevo()) { Sv.pushHecho = false; Sv.estHecho = false; Sv.enviarLinea('CFG'); }          // 3.0: pregunta la configuracion para ponerla igual a la del Taller de colores
       return;
     }
     if (x.k === 'cfg') { Sv.anotar('rx', txt, { nota: 'configuración del tracker' }); Sv.cfgTracker = x; Sv.alConfigTracker(x); avisar('cfgTracker'); return; }
+    if (x.k === 'est') { Sv.anotar('rx', txt, { nota: 'estados del tracker' }); Sv.estTracker = x; x.col.forEach((c, i) => { Trk.colEstMapa[i] = c; }); if (Sv.cfg.taller && Sv.cfg.taller.est && !Sv.estHecho) { Sv.estHecho = true; Sv.aplicarEst(x); } avisar('cfgTracker'); return; }
     if (x.k === 'snap') { Sv.anotar('rx', txt); avisar('snap'); return; }
     if (x.k === 'ev') { Sv.alEvento(x.id, x.a, txt); return; }
     Sv.anotar('rx', txt, { k: 'o' });
@@ -123,6 +124,7 @@ window.MD = window.MD || {};
 
   // un movimiento del tracker -> sonido + luz + estadisticas
   Sv.alEvento = function (id, a, txt) {
+    if (id === 'SP' || id === 'SQ') { if (MD.IT && MD.IT.selEstado) MD.IT.selEstado(id === 'SP'); return; }      // 2.0-dev27: el selector de estados se abrio / se cerro (no es un evento para sonidos)
     const ev = Trk.EV[id], t = Trk.claseDe(id, a), ahora = Date.now();
     Trk.statsContar(Sv.stats, id, a, ahora);
     Sv.ultEvento = { id, a, t: ahora };
@@ -139,7 +141,7 @@ window.MD = window.MD || {};
   // ---------- enviar ----------
   Sv.enviar = function (txt) {
     txt = String(txt); if (Sv.estado !== 'conectado') return false;
-    if (txt.slice(0, 4) !== 'VOL,') Sv.anotar('tx', txt.replace(/[\r\n]+$/, ''));       // las VOL (una cada 120 ms al girar la perilla) no llenan el monitor
+    if (txt.slice(0, 4) !== 'VOL,' && txt.slice(0, 2) !== 'K,') Sv.anotar('tx', txt.replace(/[\r\n]+$/, ''));       // las VOL (una cada 120 ms al girar la perilla) no llenan el monitor
     try {
       if (Sv.modo === 'sim') Sv.motor.entrada(txt);
       else if (Sv.modo === 'md') { if (!Sv.mdEnviar(txt)) return false; }
@@ -220,6 +222,18 @@ window.MD = window.MD || {};
     for (const k of 'abcd') if (T.nom[k]) out.push('NOM,' + k + ',' + T.nom[k]);
     for (const k of 'DRNXLI') if (T.nom[k] || !actual) out.push('NOM,' + k + ',' + (T.nom[k] || ''));   // 2.0-dev24 (firmware ESP32 1.8): nombre vacio = el de fabrica; al «Guardar y aplicar» (sin 'actual') se mandan todos, asi se pisan los viejos
     if (out.length) { Sv.enviarLento(out); Sv.enviarLento(['CFG']); }          // al final se vuelve a preguntar: el espejo pinta con los colores nuevos
+    return out.length + (!actual ? Sv.aplicarEst(null) : 0);        // 2.0-dev27: con «Guardar y aplicar» (sin 'actual') tambien van los estados
+  };
+  // 2.0-dev27: estados del selector (cuales puede elegir la perilla y su color). actual = lo que dijo el tracker (!EST); sin 'actual' se manda todo.
+  Sv.aplicarEst = function (actual) {
+    const T = Sv.cfg.taller, E = T && T.est; if (!E || !Sv.firmwareNuevo() || Sv.estado !== 'conectado') return 0;
+    const out = [];
+    for (let i = 0; i < 18; i++) {
+      const a = actual && actual.col && actual.col[i], w = E.col[i];
+      if (!a || a[0] !== w[0] || a[1] !== w[1] || a[2] !== w[2]) out.push('ECOL,' + i + ',' + w.join(','));
+    }
+    if (!actual || actual.hab !== E.hab) out.push('EHAB,' + E.hab);
+    if (out.length) { Sv.enviarLento(out); Sv.enviarLento(['CFG']); }
     return out.length;
   };
   // nombres y clases de los personajes (2.0-dev24: todos son editables, no solo los invitados A-D): se ven en toda la app

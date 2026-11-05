@@ -34,6 +34,8 @@ window.MD = window.MD || {};
     { id: 'SJ', g: E, n: 'Wild (comodín)', d: 'Segundo toque: wild, un comodín (verde lima)', clase: true, sug: { look: 'lf_veneno', seg: 2 } },
     { id: 'SN', g: E, n: 'Vuelve a normal', d: 'Tercer toque, o un toque sobre alguien caído', clase: true },
     { id: 'SI', g: E, n: 'Cae inconsciente', d: 'Centro mantenido 2 s sobre un personaje (no enemigo)', clase: true, sug: { look: 'lf_alarma', seg: 2 } },
+    { id: 'ST', g: E, n: 'Estado nuevo', d: 'D2 apretada + perilla: una condición del PHB (cegado, envenenado, paralizado…). La luz de abajo es la del estado, se cambia en «Estados»', clase: true },
+    { id: 'AG', g: E, n: 'Sube el agotamiento', d: 'D2 apretada + perilla en Agotamiento: sube un nivel (al 7.º vuelve a 0)', clase: true },
     { id: 'KL', g: E, n: 'Muere', d: 'Centro mantenido 2 s sobre un enemigo (4 s sobre un invitado). Suena apenas empieza el destello', clase: true, sf: ['kill1'], sug: { look: 'lf_rugido', seg: 2.5 } },
     { id: 'IN', g: I, n: 'Se inserta alguien', d: 'Centro + izquierdo: aparece un lugar nuevo después del turno actual', clase: true },
     { id: 'IT', g: I, n: 'Cambia el tipo del insertado', d: 'Mientras se elige quién es el que se inserta', clase: true, sf: ['cfgMove1'] },
@@ -64,6 +66,9 @@ window.MD = window.MD || {};
       const s = t.nom && typeof t.nom[k] === 'string' ? t.nom[k].replace(/[^\x20-\x7e]/g, '').trim().slice(0, 9) : ''; if (s) o.nom[k] = s;
       const c = t.cls && typeof t.cls[k] === 'string' ? t.cls[k].replace(/[^\x20-\x7e\u00c0-\u00ff]/g, '').trim().slice(0, 14) : ''; if (c) o.cls[k] = c;
     }
+    const e = t.est, ev = { hab: n(e && e.hab, Trk.EST_MASCARA_FABRICA, 0, 0x3FFFF) | 1 | (1 << 17), col: [] };      // 2.0-dev27: estados del selector
+    for (let i = 0; i < 18; i++) { const c = e && e.col && e.col[i]; ev.col.push(Array.isArray(c) && c.length === 3 ? c.map((v) => n(v, 0, 0, 255)) : Trk.COL_EST_FABRICA[i].slice()); }
+    o.est = ev;
     return o;
   };
   Trk.cfgNormalizar = function (c) {

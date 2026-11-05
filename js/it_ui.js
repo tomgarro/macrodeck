@@ -108,10 +108,11 @@ window.MD = window.MD || {};
     const chk = (txt, val, fn, ayuda) => el('label', { class: 'tk-chk' }, el('input', { type: 'checkbox', checked: val, onchange: (ev) => fn(ev.target.checked) }), ' ', el('span', null, txt, ayuda ? el('small', { class: 'suave', style: 'display:block' }, ayuda) : null));
 
     // ---------------- TALLER DE COLORES ----------------
-    const fabrica = () => ({ mask: Trk.MASCARA_FABRICA, brillo: Trk.BRILLO_FABRICA, col: Trk.coloresFabrica(), nom: {}, cls: {} });
-    const deCfg = (x) => ({ mask: x.mascara, brillo: x.brillo, col: JSON.parse(JSON.stringify(x.colores)), nom: {}, cls: {} });
+    const fabrica = () => ({ mask: Trk.MASCARA_FABRICA, brillo: Trk.BRILLO_FABRICA, col: Trk.coloresFabrica(), nom: {}, cls: {}, est: { hab: Trk.EST_MASCARA_FABRICA, col: Trk.COL_EST_FABRICA.map((c) => c.slice()) } });
+    const deCfg = (x) => ({ mask: x.mascara, brillo: x.brillo, col: JSON.parse(JSON.stringify(x.colores)), nom: {}, cls: {}, est: Sv.estTracker ? { hab: Sv.estTracker.hab, col: JSON.parse(JSON.stringify(Sv.estTracker.col)) } : fabrica().est });
     let T = JSON.parse(JSON.stringify(Sv.cfg.taller || (Sv.cfgTracker ? deCfg(Sv.cfgTracker) : fabrica())));
     if (!T.nom) T.nom = {}; if (!T.cls) T.cls = {};
+    if (!T.est) T.est = fabrica().est;
     const filas = el('div', { class: 'it-filas' }), estadoT = el('p', { class: 'suave tk-nota' });
     const brilloV = el('b', null, String(T.brillo) + ' %');
     const brillo = el('input', { type: 'range', min: 5, max: 100, step: 5, value: T.brillo, 'aria-label': 'Brillo de la tira', oninput: () => { T.brillo = +brillo.value; brilloV.textContent = T.brillo + ' %'; } });
@@ -130,6 +131,21 @@ window.MD = window.MD || {};
         filas.append(el('div', { class: 'it-fila' + (k === 'I' ? ' it-sep' : '') }, sw, el('div', { class: 'crece' }, nombre), el('label', { class: 'it-en' }, en, k === 'E' ? 'siempre' : (k === 'I' ? 'genérico' : (slot > 5 ? 'extra' : 'en juego')))));
       });
     }
+    // 2.0-dev27: ESTADOS (selector del tracker: D2 apretada + perilla). Cada estado se puede habilitar o no y tiene su color en las tiras. Arranca cerrado.
+    const estFilas = el('div', { class: 'it-filas' });
+    function pintarEst() {
+      estFilas.innerHTML = '';
+      for (let i = 1; i < 18; i++) {
+        const fija = i === 17, sinColor = i === 6 || i === 17;                  // Inconsciente siempre esta; Agotamiento y Inconsciente no tinen la tira
+        const sw = sinColor ? el('span', { class: 'it-sinc' }, '·') : el('input', { type: 'color', value: hex(T.est.col[i]), 'aria-label': 'Color de ' + Trk.EST_NOMBRES_ES[i], oninput: (ev) => { T.est.col[i] = deHex(ev.target.value); } });
+        const en = el('input', { type: 'checkbox', checked: fija || ((T.est.hab >> i) & 1) === 1, disabled: fija, 'aria-label': 'Se puede elegir ' + Trk.EST_NOMBRES_ES[i], onchange: (ev) => { T.est.hab = ev.target.checked ? (T.est.hab | (1 << i)) : (T.est.hab & ~(1 << i)); } });
+        estFilas.append(el('div', { class: 'it-fila' }, sw, el('div', { class: 'crece' }, el('span', { class: 'it-nom' }, Trk.EST_NOMBRES_ES[i], el('small', { class: 'suave' }, ' ' + Trk.EST_NOMBRES[i]))),
+          el('label', { class: 'it-en' }, en, fija ? 'siempre' : (i === 6 ? 'se suma' : 'en juego'))));
+      }
+    }
+    const detEst = el('details', { class: 'it-estados' }, el('summary', null, 'Estados ', el('small', { class: 'suave' }, 'color y cuáles se pueden elegir')),
+      el('p', { class: 'suave tk-nota' }, 'Se eligen en el tracker con D2 apretada + la perilla del Macrodeck. Destildá los que no uses y la perilla los saltea. El color tiñe la tira del personaje; Agotamiento se suma a cualquier estado y se ve en la OLED.'),
+      estFilas);
     function estadoTxt() {
       const lista = Sv.estado === 'conectado' && Sv.firmwareNuevo();
       estadoT.textContent = lista ? '● Tracker conectado: «Guardar y aplicar» se lo manda ahora.' : (Sv.estado === 'conectado' ? 'Este tracker es el Arduino viejo (firmware 2.x): no entiende colores nuevos.' : 'Sin tracker conectado: se guarda en la app y se manda solo cuando conecte (o con el simulador).');
@@ -138,19 +154,20 @@ window.MD = window.MD || {};
       el('h3', null, 'Taller de colores ', el('small', null, 'personajes e invitados')),
       el('p', { class: 'suave tk-nota' }, 'Elegí el color de cada personaje y quiénes aparecen al armar el combate. Podés cambiar el nombre y la clase de cada personaje (para otra campaña); los sonidos de cada uno quedan atados a su slot. Los slots 6 a 9 y el invitado genérico son opcionales: tildá solo los que vayas a usar.'),
       filas,
+      detEst,
       el('div', { class: 'fila tk-fila it-brillo' }, el('label', { style: 'margin:0' }, 'Brillo de la tira'), el('span', { class: 'crece' }, brillo), brilloV),
       el('p', { class: 'suave tk-nota' }, '35 % es lo recomendado (cuida la batería y el booster). Blanco al 100 % no se prueba.'),
       el('div', { class: 'fila tk-fila' },
         el('button', { type: 'button', class: 'primario', onclick: () => {
           Sv.cfg.taller = Trk.tallerNormalizar(T); T = JSON.parse(JSON.stringify(Sv.cfg.taller)); Sv.guardarCfg(); Trk.aplicarNombres(Sv.cfg.taller);
           const n = (Sv.estado === 'conectado' && Sv.firmwareNuevo()) ? Sv.aplicarTaller(null) : 0;
-          toast(n ? 'Guardado. Mandando ' + n + ' órdenes al tracker…' : 'Guardado en la app. Se manda cuando conecte el tracker.'); pintarFilas(); estadoTxt();
+          toast(n ? 'Guardado. Mandando ' + n + ' órdenes al tracker…' : 'Guardado en la app. Se manda cuando conecte el tracker.'); pintarFilas(); pintarEst(); estadoTxt();
         } }, 'Guardar y aplicar'),
         el('button', { type: 'button', onclick: () => { if (Sv.estado !== 'conectado' || !Sv.firmwareNuevo()) { toast('Conectá el tracker nuevo (o el simulador) primero'); return; } Sv.enviarLinea('CFG'); Sv._traer = true; toast('Pidiendo lo que tiene el tracker…'); } }, 'Traer del tracker'),
         el('button', { type: 'button', onclick: () => {
           T = fabrica(); Sv.cfg.taller = null; Sv.guardarCfg(); Trk.aplicarNombres(null); brillo.value = T.brillo; brilloV.textContent = T.brillo + ' %';
           if (Sv.estado === 'conectado' && Sv.firmwareNuevo()) { Sv.enviarLinea('DEF'); setTimeout(() => Sv.enviarLinea('CFG'), 300); }
-          toast('Colores de fábrica'); pintarFilas(); estadoTxt();
+          toast('Colores de fábrica'); pintarFilas(); pintarEst(); estadoTxt();
         } }, 'De fábrica')),
       estadoT);
     poner(tTaller);
@@ -217,12 +234,13 @@ window.MD = window.MD || {};
     poner(tLuz);
 
     // ---------------- vida de la vista ----------------
-    pintarFilas(); estadoTxt(); pintarHist(); H.asegurar().then(pintarHist);
+    pintarFilas(); pintarEst(); estadoTxt(); pintarHist(); H.asegurar().then(pintarHist);
     const quien = Sv.alCambio((que) => {
       if (!root.isConnected) { quien(); cerrarMonitor(); return; }
       if (que === 'hist') pintarHist();
       else if (que === 'estado' || que === 'hola') estadoTxt();
-      else if (que === 'cfgTracker' && Sv._traer && Sv.cfgTracker) { Sv._traer = false; T = deCfg(Sv.cfgTracker); T.nom = Object.assign({}, (Sv.cfg.taller && Sv.cfg.taller.nom) || {}); brillo.value = T.brillo; brilloV.textContent = T.brillo + ' %'; pintarFilas(); toast('Listo: se cargó lo que tiene el tracker (tocá «Guardar y aplicar» para quedarte con eso)'); }
+      else if (que === 'cfgTracker' && Sv._traerEst && Sv.estTracker) { Sv._traerEst = false; T.est = { hab: Sv.estTracker.hab, col: JSON.parse(JSON.stringify(Sv.estTracker.col)) }; pintarEst(); }
+      else if (que === 'cfgTracker' && Sv._traer && Sv.cfgTracker) { Sv._traer = false; Sv._traerEst = true; T = deCfg(Sv.cfgTracker); T.nom = Object.assign({}, (Sv.cfg.taller && Sv.cfg.taller.nom) || {}); brillo.value = T.brillo; brilloV.textContent = T.brillo + ' %'; pintarFilas(); toast('Listo: se cargó lo que tiene el tracker (tocá «Guardar y aplicar» para quedarte con eso)'); }
     });
   };
 })(window.MD);

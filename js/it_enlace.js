@@ -103,6 +103,8 @@ window.MD = window.MD || {};
   // La perilla (0..255). Devuelve true si este modulo se QUEDA con el valor (no se toca el volumen general).
   IT.perilla = function (v) {
     V.ultP = v;
+    mandarK(v);
+    if (K.sel) return true;                              // selector de estados abierto: la perilla es del tracker
     const S = servicio();
     if (V.abajo) {
       if (!S || !IT.presente()) { V.abajo = false; return false; }      // el tracker se fue con B2 apretada: se suelta sola
@@ -122,6 +124,23 @@ window.MD = window.MD || {};
     }
     return false;
   };
+  // ---------- 2.0-dev27: ESTADOS (D2 apretada + perilla) ----------
+  // La perilla se le manda SIEMPRE al tracker ('K,<0..255>'; como mucho una cada 70 ms y siempre llega la ultima), asi sabe donde esta cuando se aprieta D2.
+  // Mientras el selector esta abierto (el tracker avisa con @SP ... @SQ) el volumen general no se mueve; al cerrarlo la perilla tiene que volver a "agarrarlo".
+  const K = { t: 0, ult: -1, pend: 0, sel: false };
+  function mandarK(v) {
+    const S = servicio(); if (!S || !IT.presente() || S.estado !== 'conectado' || !S.firmwareNuevo()) return;
+    clearTimeout(K.pend);
+    const ir = () => { K.pend = 0; if (K.ult === K.v) return; if (S.enviarLinea('K,' + K.v)) { K.ult = K.v; K.t = Date.now(); } };
+    K.v = v;
+    const falta = 70 - (Date.now() - K.t);
+    if (falta <= 0) ir(); else K.pend = setTimeout(ir, falta);
+  }
+  IT.selEstado = function (si) {
+    if (si === K.sel) return;
+    K.sel = si;
+    if (!si && IT.A && IT.A.motor && V.ultP >= 0) { const obj = Math.round(IT.A.motor.volGeneral * 255); V.pendMaster = true; V.ladoM = V.ultP > obj ? 1 : -1; }
+  };
   // Cuatro renglones de 10 letras para la OLED del Macrodeck, o null si no hay nada que mostrar
   IT.oled = function () {
     const S = servicio(); if (!S) return null;
@@ -136,7 +155,7 @@ window.MD = window.MD || {};
     try { A.actualizarEstado(false); } catch (e) {}
     clearTimeout(V.tOled); V.tOled = setTimeout(() => { try { A.actualizarEstado(false); } catch (e) {} }, MS_OLED + 80);
   };
-  IT.reiniciarVol = function () { V.abajo = false; V.pendMaster = false; V.movio = false; V.hasta = 0; };       // al perder la conexion con el Macrodeck
+  IT.reiniciarVol = function () { K.sel = false; V.abajo = false; V.pendMaster = false; V.movio = false; V.hasta = 0; };       // al perder la conexion con el Macrodeck
 
   // La app llama a esto cuando algo pudo cambiar (conecto el tracker, se desconecto, conecto el Macrodeck...). Solo manda si cambio (o si 'forzar').
   IT.revisar = function (forzar) {

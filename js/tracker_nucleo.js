@@ -37,10 +37,17 @@ window.MD = window.MD || {};
   Trk.LETRAS_TODAS = 'EDRNXLIabcd';      // el orden es el del enum del firmware 3.0 (los 7 de siempre + los 4 invitados con color)
   Trk.MASCARA_FABRICA = 0x7F;            // E D R N X L I (como el Uno); a-d apagados
   Trk.BRILLO_FABRICA = 35;
+  // 2.0-dev27: estados del selector (posicion de la perilla 0..17, el orden del firmware 1.10). habilitados = bits; NORMAL (0) e INCONSCIENTE (17) siempre.
+  Trk.EST_MASCARA_FABRICA = 0x3FFFF;
+  Trk.COL_EST_FABRICA = [[0, 0, 0], [255, 0, 180], [173, 255, 47], [255, 230, 0], [255, 60, 160], [120, 120, 140], [110, 70, 20], [255, 120, 0], [0, 200, 90],
+    [200, 0, 40], [80, 90, 255], [0, 220, 220], [140, 150, 150], [70, 230, 0], [190, 130, 60], [160, 0, 255], [255, 255, 120], [0, 0, 0]];
+  Trk.EST_NOMBRES = ['NORMAL', 'CONCENTRATION', 'WILD', 'BLINDED', 'CHARMED', 'DEAFENED', 'EXHAUSTION', 'FRIGHTENED', 'GRAPPLED', 'INCAPACITATED', 'INVISIBLE', 'PARALYZED', 'PETRIFIED', 'POISONED', 'PRONE', 'RESTRAINED', 'STUNNED', 'UNCONSCIOUS'];
+  Trk.EST_NOMBRES_ES = ['Normal', 'Concentración', 'Wild (comodín)', 'Cegado', 'Hechizado', 'Ensordecido', 'Agotamiento', 'Asustado', 'Agarrado', 'Incapacitado', 'Invisible', 'Paralizado', 'Petrificado', 'Envenenado', 'Derribado', 'Apresado', 'Aturdido', 'Inconsciente'];
   Trk.coloresFabrica = () => { const o = {}; for (const t of Trk.LETRAS_TODAS) o[t] = Trk.TIPOS[t].c.slice(); return o; };
   Trk.ALT_LETRAS = 'NCJI';
   Trk.ALT_N = ['normal', 'concentración', 'wild', 'inconsciente'];       // 2.0-dev24: «wild» (comodín), ya no «joker»
   Trk.ALT_C = [[0, 0, 0], [255, 0, 180], [173, 255, 47], [0, 0, 0]];
+  Trk.colEstMapa = Trk.COL_EST_FABRICA.map((c) => c.slice());      // 2.0-dev27: color de cada estado en las tiras (el mismo objeto que ve el espejo; lo pisa el motor simulado o el !EST del tracker real)
   Trk.SEC_CENTRO = [6, 7, 5, 8, 4, 9, 3, 10, 2, 11, 1, 12];
   Trk.UMBRAL_INACTIVO = 180000;
 
@@ -65,7 +72,7 @@ window.MD = window.MD || {};
   // ---------- la pantalla de 12 LEDs ----------
   // S = { modo:'Q'|'C'|'B', ronda, turno, total, cfg, ins, tipo:[,'E',...], alt:[,0,...], muerto:[,false,...] }
   Trk.estadoVacio = function () {
-    return { modo: 'Q', ronda: 1, turno: 1, total: 4, cfg: 1, ins: 0, tipo: Array(13).fill('E'), alt: Array(13).fill(0), muerto: Array(13).fill(false) };
+    return { modo: 'Q', ronda: 1, turno: 1, total: 4, cfg: 1, ins: 0, tipo: Array(13).fill('E'), alt: Array(13).fill(0), muerto: Array(13).fill(false), cond: Array(13).fill(0), agot: Array(13).fill(0) };
   };
   const trunc = Math.trunc;
 
@@ -129,8 +136,8 @@ window.MD = window.MD || {};
         if (S.muerto[k]) { this.led(i, 0, 0, 0); continue; }
         const b = this.colorDe(S.tipo[k]);
         if (S.ins && k === S.ins) { this.led(i, M(b[0], pIns), M(b[1], pIns), M(b[2], pIns)); continue; }
-        const est = S.alt[k], alt = est !== 0;
-        const a = (alt && est !== 3) ? Trk.ALT_C[est] : [0, 0, 0];
+        const cd = S.cond[k] | 0, est = S.alt[k], alt = est !== 0 || cd !== 0;
+        const a = cd ? Trk.colEstMapa[cd] : ((alt && est !== 3) ? Trk.colEstMapa[est] : [0, 0, 0]);
         if (k === S.turno) {
           if (!alt) this.led(i, M(255, pT), M(255, pT), M(255, pT));
           else if (est === 3) this.led(i, M(b[0], lat), M(b[1], lat), M(b[2], lat));
@@ -242,6 +249,9 @@ window.MD = window.MD || {};
         if (!Trk.TIPOS[t] || Trk.ALT_LETRAS.indexOf(e) < 0 || (v !== '0' && v !== '1')) return { k: 'otro', txt: l };
         S.tipo[i] = t; S.alt[i] = Trk.ALT_LETRAS.indexOf(e); S.muerto[i] = v === '0';
       }
+      // 2.0-dev27: cola opcional ",<cond><agot>" por lugar (cond 0..9 / A..H = codigo 0..17; agot 0..6)
+      const cola = cuerpo.slice(S.total * 3);
+      if (cola[0] === ',') for (let i = 1; i <= S.total; i++) { const c = '0123456789ABCDEFGH'.indexOf(cola[1 + (i - 1) * 2]), g = +cola[2 + (i - 1) * 2]; S.cond[i] = c > 0 ? c : 0; S.agot[i] = g >= 0 && g <= 6 ? g : 0; }
       return { k: 'snap', S };
     }
     if (l.startsWith('!CFG,')) {                          // 3.0: !CFG,mascara,brillo,<11 colores en rrggbb>
@@ -249,6 +259,12 @@ window.MD = window.MD || {};
       if (hex.length < 66) return { k: 'otro', txt: l };
       const colores = {}; Trk.LETRAS_TODAS.split('').forEach((t, i) => { colores[t] = [0, 1, 2].map((j) => parseInt(hex.substr(i * 6 + j * 2, 2), 16) || 0); });
       return { k: 'cfg', mascara: (+p[0] || 0) | 1, brillo: Math.max(5, Math.min(100, +p[1] || Trk.BRILLO_FABRICA)), colores };
+    }
+    if (l.startsWith('!EST,')) {                          // 2.0-dev27: !EST,<mascara en 5 hex>,<18 colores rrggbb>
+      const p = l.slice(5).split(','), hex = (p[1] || '');
+      if (hex.length < 108) return { k: 'otro', txt: l };
+      const col = []; for (let i = 0; i < 18; i++) col.push([0, 1, 2].map((j) => parseInt(hex.substr(i * 6 + j * 2, 2), 16) || 0));
+      return { k: 'est', hab: (parseInt(p[0], 16) || 0) | 1 | (1 << 17), col };
     }
     if (c === '!') { const p = l.slice(1).split(','); return { k: 'hola', ver: p[1] || '?', restaurado: p[2] === '1' }; }
     return { k: 'otro', txt: l };
@@ -289,7 +305,9 @@ window.MD = window.MD || {};
       if (['TN', 'TP', 'SC', 'SJ', 'SN', 'UN', 'CG'].indexOf(id) >= 0) this.inactivo = false;
       if (id === 'RN' || id === 'RP') { S.ronda = num(a[0]); S.turno = num(a[2]) || S.turno; this.inactivo = false; p.arrancar('ronda', id === 'RN' ? 1 : -1, null, ms); }
       else if (id === 'TN' || id === 'TP') S.turno = num(a[1]) || S.turno;
-      else if (id === 'SC' || id === 'SJ' || id === 'SN' || id === 'SI') { const k = num(a[1]); if (k >= 1 && k <= 12) S.alt[k] = id === 'SC' ? 1 : (id === 'SJ' ? 2 : (id === 'SN' ? 0 : 3)); }
+      else if (id === 'SC' || id === 'SJ' || id === 'SN' || id === 'SI') { const k = num(a[1]); if (k >= 1 && k <= 12) { S.alt[k] = id === 'SC' ? 1 : (id === 'SJ' ? 2 : (id === 'SN' ? 0 : 3)); S.cond[k] = 0; } }
+      else if (id === 'ST') { const k = num(a[1]); if (k >= 1 && k <= 12) { S.cond[k] = num(a[2]); S.alt[k] = 0; } }       // condicion puesta
+      else if (id === 'AG') { const k = num(a[1]); if (k >= 1 && k <= 12) S.agot[k] = num(a[2]); }                      // nivel de agotamiento
       else if (id === 'KL') p.arrancar('fulminado', num(a[1]), null, ms);
       else if (id === 'QO') { S.modo = 'C'; S.cfg = 1; p.arrancar('flash', 0, null, ms); }
       else if (id === 'CG') S.modo = 'B';

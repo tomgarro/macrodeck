@@ -16,6 +16,9 @@
       this.modo = 0;                         // 0 cantidad · 1 colores · 2 combate · 3 terminado (todo apagado)
       this.total = 4; this.turno = 1; this.ronda = 1; this.slotCfg = 1;
       this.tipo = Array(13).fill(ENEMIGO); this.alt = Array(13).fill(NORMAL); this.muerto = Array(13).fill(false);
+      // 2.0-dev27: una condicion del PHB 2014 por lugar (codigo = posicion en la lista de la perilla) y agotamiento 0..6, que convive con todo
+      this.cond = Array(13).fill(0); this.agot = Array(13).fill(0);
+      this.perillaUlt = -1; this.perillaBase = -1; this.selActivo = false; this.selIdx = 0;
       this.ins = false; this.slotIns = 0; this.hist = [];
       this.tInicioTurno = 0; this.idleAvisado = false;
       this.pul = { I: false, C: false, D: false };
@@ -43,10 +46,33 @@
         else if (this.rx.length < 47) this.rx += c; else this.rx = '';
       }
     }
+    idxPerilla(k) { const lista = []; for (let i = 0; i < 18; i++) if ((this.estHab >> i) & 1) lista.push(i); const j = Math.min(lista.length - 1, (k * lista.length) >> 8); return lista[j]; }
+    perilla(k, ms) {
+      this.perillaUlt = k;
+      if (this.selActivo) { const i = this.idxPerilla(k); if (i !== this.selIdx) { this.selIdx = i; this.ev('SP', i); } return; }
+      if (!this.cenPres || this.modo !== 2 || this.ins || this.cmdInc || this.pul.I || this.pul.D) return;
+      if (this.perillaBase < 0) { this.perillaBase = k; return; }
+      if (Math.abs(k - this.perillaBase) > 8) { this.selActivo = true; this.cmdInc = true; this.cmdMuerte = true; this.accionCen = true; this.selIdx = this.idxPerilla(k); this.ev('SP', this.selIdx); }
+    }
+    aplicarSeleccion(idx, ms) {
+      if (this.modo !== 2 || this.ins) return;
+      const t = this.tipo[this.turno], n = this.turno;
+      this.guardarHist(); this.marcarTurno();
+      if (idx >= 17) {
+        if (t === ENEMIGO) { this.cmdMuerte = true; this.enemAntes = this.enemigosVivos(); this.slotMuriendo = n; this.evTS('KL', t, n); this.sincronizar(); this.p.iniciar('fulminado', n, () => this.accionPost(), ms); this.postAcc = 1; return; }
+        this.alt[n] = INCONSCIENTE; this.cond[n] = 0; this.evTS('SI', t, n);
+      } else if (idx === 6) { this.agot[n] = (this.agot[n] + 1) % 7; this.ev('AG', L[t], n, this.agot[n]); }
+      else if (idx === 0) { this.alt[n] = NORMAL; this.cond[n] = 0; this.evTS('SN', t, n); }
+      else if (idx === 1) { this.alt[n] = CONCENTRACION; this.cond[n] = 0; this.evTS('SC', t, n); }
+      else if (idx === 2) { this.alt[n] = COMODIN; this.cond[n] = 0; this.evTS('SJ', t, n); }
+      else { this.alt[n] = NORMAL; this.cond[n] = idx; this.ev('ST', L[t], n, idx); }
+      this.pedirSnap(); this.marcarCambio();
+    }
     orden(s) {
       if (s[0] === '?') { this.holaPend = true; this.snapPend = true; return; }
       let m;
       if ((m = /^B,([ICD]),([01])$/.exec(s))) { this.boton(m[1], m[2] === '1'); return; }
+      if ((m = /^K,(-?\d+)/.exec(s))) { this.perilla(Math.max(0, Math.min(255, +m[1])), this.ms); return; }
       if ((m = /^COL,([A-Za-z]),(-?\d+),(-?\d+),(-?\d+)/.exec(s))) {
         const t = L.indexOf(m[1]); if (t < 0) return;
         this.col[t] = [m[2], m[3], m[4]].map((v) => Math.max(0, Math.min(255, +v)));
@@ -55,27 +81,33 @@
       if ((m = /^HAB,(-?\d+)/.exec(s))) { this.mask = ((+m[1]) & ((1 << N_TIPOS) - 1)) | 1; this.cfgCambio(); return; }       // el enemigo siempre
       if ((m = /^BRI,(-?\d+)/.exec(s))) { this.brillo = Math.max(5, Math.min(100, +m[1])); this.cfgCambio(); return; }
       if (s === 'CFG') { this.enviarCfg(); return; }
+      if ((m = /^EHAB,(-?\d+)/.exec(s))) { this.estHab = ((+m[1]) & 0x3FFFF) | 1 | (1 << 17); this.cfgCambio(); return; }
+      if ((m = /^ECOL,(\d+),(\d+),(\d+),(\d+)/.exec(s)) && +m[1] < 18) { this.colEst[+m[1]] = [+m[2], +m[3], +m[4]].map((v) => Math.max(0, Math.min(255, v))); this.cfgCambio(); this.pedirSnap(); return; }
       if (s === 'DEF') { this.cfgFabrica(); this.cfgCambio(); this.pedirSnap(); this.enviarCfg(); }
     }
     // ---------- configuracion (3.0) ----------
     cfgFabrica() {
       this.mask = Trk.MASCARA_FABRICA; this.brillo = Trk.BRILLO_FABRICA;
+      this.estHab = Trk.EST_MASCARA_FABRICA; this.colEst = Trk.COL_EST_FABRICA.map((c) => c.slice());
       this.col = L.split('').map((t) => Trk.TIPOS[t].c.slice());
       this.colMapa = this.colMapa || {}; this.cfgMapa();
     }
-    cfgMapa() { L.split('').forEach((t, i) => { this.colMapa[t] = this.col[i]; }); }      // el mapa es el MISMO objeto que ve la pantalla
+    cfgMapa() { L.split('').forEach((t, i) => { this.colMapa[t] = this.col[i]; }); this.colEst.forEach((c, i) => { Trk.colEstMapa[i] = c; }); }      // el mapa es el MISMO objeto que ve la pantalla
     cfgDe(o) {
       try {
         if (typeof o.mask === 'number') this.mask = (o.mask & ((1 << N_TIPOS) - 1)) | 1;
         if (typeof o.brillo === 'number' && o.brillo >= 5 && o.brillo <= 100) this.brillo = o.brillo;
+        if (typeof o.estHab === 'number') this.estHab = (o.estHab & 0x3FFFF) | 1 | (1 << 17);
+        if (Array.isArray(o.colEst) && o.colEst.length === 18) this.colEst = o.colEst.map((c) => [0, 1, 2].map((j) => Math.max(0, Math.min(255, c[j] | 0))));
         if (Array.isArray(o.col) && o.col.length === N_TIPOS) this.col = o.col.map((c) => [0, 1, 2].map((j) => Math.max(0, Math.min(255, c[j] | 0))));
         this.cfgMapa();
       } catch (e) { /* configuracion rota: queda la de fabrica */ }
     }
-    cfgCambio() { this.cfgMapa(); this.alCfg({ mask: this.mask, brillo: this.brillo, col: this.col.map((c) => c.slice()) }); }
+    cfgCambio() { this.cfgMapa(); this.alCfg({ mask: this.mask, brillo: this.brillo, col: this.col.map((c) => c.slice()), estHab: this.estHab, colEst: this.colEst.map((c) => c.slice()) }); }
     enviarCfg() {
       const h = (v) => (v < 16 ? '0' : '') + v.toString(16);
       this.tx('!CFG,' + this.mask + ',' + this.brillo + ',' + this.col.map((c) => h(c[0]) + h(c[1]) + h(c[2])).join(''));
+      this.tx('!EST,' + ('00000' + this.estHab.toString(16)).slice(-5) + ',' + this.colEst.map((c) => h(c[0]) + h(c[1]) + h(c[2])).join(''));
     }
     habilitado(t) { return t === ENEMIGO || (t < N_TIPOS && ((this.mask >> t) & 1) === 1); }
 
@@ -87,6 +119,8 @@
     foto() {
       let s = '#' + 'QCBF'[this.modo] + ',' + this.ronda + ',' + this.turno + ',' + this.total + ',' + this.slotCfg + ',' + (this.ins ? this.slotIns : 0) + ',';
       for (let i = 1; i <= this.total; i++) s += L[this.tipo[i]] + Trk.ALT_LETRAS[this.alt[i]] + (this.muerto[i] ? '0' : '1');
+      s += ',';
+      for (let i = 1; i <= this.total; i++) s += '0123456789ABCDEFGH'[this.cond[i] > 17 ? 0 : this.cond[i]] + (this.agot[i] > 6 ? 0 : this.agot[i]);
       return s;
     }
     servirSerie() {
@@ -98,7 +132,7 @@
     sincronizar() {
       const S = this.S;
       S.modo = 'QCBF'[this.modo]; S.ronda = this.ronda; S.turno = this.turno; S.total = this.total; S.cfg = this.slotCfg; S.ins = this.ins ? this.slotIns : 0;
-      for (let i = 0; i <= 12; i++) { S.tipo[i] = L[this.tipo[i]]; S.alt[i] = this.alt[i]; S.muerto[i] = this.muerto[i]; }
+      for (let i = 0; i <= 12; i++) { S.tipo[i] = L[this.tipo[i]]; S.alt[i] = this.alt[i]; S.muerto[i] = this.muerto[i]; S.cond[i] = this.cond[i]; S.agot[i] = this.agot[i]; }
     }
 
     // ---------- guardado ----------
@@ -108,7 +142,7 @@
     servirEE() {
       if (this.modo === 2 && !this.combateGanado && this.eeSucio && !this.p.anim && this.ms - this.eeT > 600) {
         this.eeSucio = false;
-        this.alGuardar({ turno: this.turno, ronda: this.ronda, total: this.total, tipo: this.tipo.slice(), alt: this.alt.slice(), muerto: this.muerto.slice() });
+        this.alGuardar({ turno: this.turno, ronda: this.ronda, total: this.total, tipo: this.tipo.slice(), alt: this.alt.slice(), muerto: this.muerto.slice(), cond: this.cond.slice(), agot: this.agot.slice() });
       }
     }
     restaurarDe(o) {
@@ -116,7 +150,7 @@
         if (!(o.total >= 1 && o.total <= 12 && o.turno >= 1 && o.turno <= o.total)) return;
         for (let i = 0; i <= 12; i++) if ((o.tipo[i] | 0) >= N_TIPOS) return;       // un tipo que no existe: el guardado esta roto (se ignora)
         this.total = o.total; this.turno = o.turno; this.ronda = Math.max(1, o.ronda | 0);
-        for (let i = 0; i <= 12; i++) { this.tipo[i] = o.tipo[i] | 0; this.alt[i] = o.alt[i] | 0; this.muerto[i] = !!o.muerto[i]; }
+        for (let i = 0; i <= 12; i++) { this.tipo[i] = o.tipo[i] | 0; this.alt[i] = o.alt[i] | 0; this.muerto[i] = !!o.muerto[i]; const c = (o.cond && o.cond[i]) | 0, g = (o.agot && o.agot[i]) | 0; this.cond[i] = (c >= 3 && c <= 16 && c !== 6) ? c : 0; this.agot[i] = (g >= 0 && g <= 6) ? g : 0; }
         this.modo = 2; this.slotCfg = this.total; this.hist = []; this.combateGanado = false; this.restauradoEnBoot = true; this.marcarTurno();
       } catch (e) { /* se ignora un guardado roto */ }
     }
@@ -162,7 +196,7 @@
         else if (ms - this.tTriple > 3000) {
           this.ev('RS'); this.invalidarEE();
           this.modo = 0; this.reiniciarMemoria(); this.ins = false; this.contTriple = false; this.cenPres = false;
-          this.pedirSnap(); this.sincronizar(); this.p.iniciar('estrobo', 3, null, ms);
+          this.selActivo = false; this.pedirSnap(); this.sincronizar(); this.p.iniciar('estrobo', 3, null, ms);
         }
         return;
       } else this.contTriple = false;
@@ -193,7 +227,7 @@
         } else this.navegarTurno(dir);
       }
 
-      if (bCen && !this.cenPres) { this.cenPres = true; this.tPresCen = ms; this.accionCen = false; this.cmdInc = false; this.cmdMuerte = false; }
+      if (bCen && !this.cenPres) { this.cenPres = true; this.tPresCen = ms; this.accionCen = false; this.cmdInc = false; this.cmdMuerte = false; this.perillaBase = this.perillaUlt; this.selActivo = false; }
 
       if (bCen && this.cenPres) {
         const dur = ms - this.tPresCen;
@@ -220,6 +254,7 @@
 
       if (!bCen && this.cenPres) {
         const dur = ms - this.tPresCen; this.cenPres = false;
+        if (this.selActivo) { this.selActivo = false; this.ev('SQ'); this.aplicarSeleccion(this.selIdx, ms); }
         if (!this.accionCen && dur < 1000) {
           if (this.ins) {
             this.ins = false; this.guardarHist(); this.evTS('IO', this.tipo[this.slotIns], this.slotIns); this.pedirSnap(); this.marcarCambio();
@@ -230,7 +265,7 @@
             this.pedirSnap();
           } else if (this.modo === 2) {
             this.guardarHist(); this.marcarTurno();
-            let e = this.alt[this.turno]; e = (e === INCONSCIENTE) ? NORMAL : (e + 1) % 3; this.alt[this.turno] = e;
+            let e = this.alt[this.turno]; e = (e === INCONSCIENTE) ? NORMAL : (e + 1) % 3; this.alt[this.turno] = e; this.cond[this.turno] = 0;
             this.evTS(e === NORMAL ? 'SN' : (e === CONCENTRACION ? 'SC' : 'SJ'), this.tipo[this.turno], this.turno);
             this.pedirSnap(); this.marcarCambio();
           }
@@ -240,29 +275,29 @@
     }
 
     // ---------- historial y acciones ----------
-    reiniciarMemoria() { for (let i = 1; i <= 12; i++) { this.tipo[i] = ENEMIGO; this.muerto[i] = false; this.alt[i] = NORMAL; } }
+    reiniciarMemoria() { for (let i = 1; i <= 12; i++) { this.tipo[i] = ENEMIGO; this.muerto[i] = false; this.alt[i] = NORMAL; this.cond[i] = 0; this.agot[i] = 0; } }
     reiniciarEstadisticas() {
       this.turno = 1; this.ronda = 1; this.hist = []; this.slotCfg = this.total;
-      for (let i = 1; i <= 12; i++) { this.muerto[i] = false; this.alt[i] = NORMAL; }
+      for (let i = 1; i <= 12; i++) { this.muerto[i] = false; this.alt[i] = NORMAL; this.cond[i] = 0; this.agot[i] = 0; }
       this.marcarTurno(); this.combateGanado = false; this.guardarHist(); this.marcarCambio();
     }
     guardarHist() {
-      const h = { turno: this.turno, ronda: this.ronda, total: this.total, slotCfg: this.slotCfg, tipo: this.tipo.slice(), alt: this.alt.slice(), muerto: this.muerto.slice() };
+      const h = { turno: this.turno, ronda: this.ronda, total: this.total, slotCfg: this.slotCfg, tipo: this.tipo.slice(), alt: this.alt.slice(), cond: this.cond.slice(), agot: this.agot.slice(), muerto: this.muerto.slice() };
       if (this.hist.length < 5) this.hist.push(h); else { this.hist.shift(); this.hist.push(h); }
     }
     ctrlZ() {
       if (this.ins || this.hist.length === 0) { this.ev('NO', 'U'); return; }
       const h = this.hist.pop();
-      this.turno = h.turno; this.ronda = h.ronda; this.total = h.total; this.slotCfg = h.slotCfg; this.tipo = h.tipo.slice(); this.alt = h.alt.slice(); this.muerto = h.muerto.slice();
+      this.turno = h.turno; this.ronda = h.ronda; this.total = h.total; this.slotCfg = h.slotCfg; this.tipo = h.tipo.slice(); this.alt = h.alt.slice(); this.cond = h.cond.slice(); this.agot = h.agot.slice(); this.muerto = h.muerto.slice();
       this.marcarTurno(); this.ev('UN'); this.pedirSnap(); this.marcarCambio();
     }
     iniciarInsercion() {
       if (this.modo !== 2) return;
       if (this.total >= 12) { this.ev('NO', 'I'); return; }
       this.guardarHist();
-      for (let i = this.total; i > this.turno; i--) { this.tipo[i + 1] = this.tipo[i]; this.alt[i + 1] = this.alt[i]; this.muerto[i + 1] = this.muerto[i]; }
+      for (let i = this.total; i > this.turno; i--) { this.tipo[i + 1] = this.tipo[i]; this.alt[i + 1] = this.alt[i]; this.cond[i + 1] = this.cond[i]; this.agot[i + 1] = this.agot[i]; this.muerto[i + 1] = this.muerto[i]; }
       this.slotIns = this.turno + 1; this.total++;
-      this.tipo[this.slotIns] = ENEMIGO; this.alt[this.slotIns] = NORMAL; this.muerto[this.slotIns] = false;
+      this.tipo[this.slotIns] = ENEMIGO; this.alt[this.slotIns] = NORMAL; this.cond[this.slotIns] = 0; this.agot[this.slotIns] = 0; this.muerto[this.slotIns] = false;
       if (!this.disponible(this.tipo[this.slotIns], this.slotIns)) this.cambiarTipoConfig(1, this.slotIns);
       this.ins = true; this.evTS('IN', this.tipo[this.slotIns], this.slotIns); this.pedirSnap();
     }
