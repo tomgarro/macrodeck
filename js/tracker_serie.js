@@ -110,7 +110,7 @@ window.MD = window.MD || {};
     if (!x) return;
     if (x.k === 'hola') {
       Sv.hola = x; Sv.anotar('rx', txt, { nota: 'Tracker v' + x.ver + (x.restaurado ? ' · retomó el combate guardado' : '') });
-      if (x.restaurado) { Sv.stats.t0 = Sv.stats.t0 || Date.now(); avisar('aviso:Retomé el combate que estaba guardado en el Arduino'); }
+      if (x.restaurado) { Sv.stats.t0 = Sv.stats.t0 || Date.now(); if (!Sv.avisoRetomado) { Sv.avisoRetomado = true; avisar('aviso:Retomé el combate que estaba guardado en el Arduino'); } }
       avisar('hola');
       if (Sv.firmwareNuevo()) { Sv.pushHecho = false; Sv.estHecho = false; Sv.enviarLinea('CFG'); }          // 3.0: pregunta la configuracion para ponerla igual a la del Taller de colores
       return;
@@ -248,6 +248,7 @@ window.MD = window.MD || {};
   function poner(estado, detalle) {
     if (Sv.estado === estado && Sv.detalle === (detalle || '')) return;
     Sv.estado = estado; Sv.detalle = detalle || '';
+    if (estado !== 'conectado') Sv.avisoRetomado = false;
     Sv.anotar('info', 'Conexión: ' + estado + (detalle ? ' · ' + detalle : ''));
     avisar('estado');
     Sv.vivo(estado === 'conectado' && Sv.modo === 'usb');
