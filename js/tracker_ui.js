@@ -84,13 +84,13 @@ window.MD = window.MD || {};
 
     // ---------- cabecera ----------
     refs.pill = el('span', { class: 'tk-pill' });
-    root.append(el('div', { class: 'tk-cab' }, el('span', { class: 'tk-dr' }, svgIcono('tracker')), el('div', { class: 'crece' }, el('h2', null, 'Initiative Tracker'), el('small', null, 'El tracker de iniciativa de Frodo · Arduino por USB')), refs.pill));
+    root.append(el('div', { class: 'tk-cab' }, el('span', { class: 'tk-dr' }, svgIcono('tracker')), el('div', { class: 'crece' }, el('h2', null, 'Initiative Tracker'), el('small', null, 'El tracker de iniciativa de Frodo · por cable USB o por el Macrodeck')), refs.pill));
 
     // ---------- conexion ----------
     const sop = Sv.soporte();
     refs.modos = {};
     const segm = el('div', { class: 'tk-seg', role: 'tablist' });
-    [['usb', 'USB (Arduino)', sop.usb, 'Solo dentro de la APK, con el cable OTG'], ['web', 'Compu (Web Serial)', sop.web, 'Chrome o Edge en la compu'], ['sim', 'Simulador', true, '']].concat(IT ? [['md', 'Por el Macrodeck', Sv.soporte().md, 'Hace falta el Macrodeck conectado por Bluetooth']] : []).forEach(([m, n, ok, tip]) => {
+    [['usb', 'USB (cable al tracker)', sop.usb, 'Solo dentro de la APK, con el cable OTG'], ['web', 'Compu (Web Serial)', sop.web, 'Chrome o Edge en la compu'], ['sim', 'Simulador', true, '']].concat(IT ? [['md', 'Por el Macrodeck', Sv.soporte().md, 'Hace falta el Macrodeck conectado por Bluetooth']] : []).forEach(([m, n, ok, tip]) => {
       const b = el('button', { type: 'button', title: ok ? '' : tip, disabled: !ok, onclick: () => { Sv.modo = m; Sv.avisar('modo'); } }, n); refs.modos[m] = b; segm.append(b);
     });
     refs.cBtn = el('button', { type: 'button', class: 'primario', onclick: () => { if (Sv.estado === 'conectado' || Sv.estado === 'conectando') Sv.desconectar(); else Sv.conectar(Sv.modo || undefined); } }, 'Conectar');
@@ -356,7 +356,7 @@ window.MD = window.MD || {};
       refs.cResumen.textContent = refs.cTxt.textContent; refs.cResumen.className = 'tk-resumen ' + (c ? (Sv.sinSenal() ? 'warn' : 'ok') : (est === 'error' ? 'mal' : ''));
       if (refs.conex._c !== c) { const primera = refs.conex._c === undefined; refs.conex._c = c; let el2 = null; try { el2 = localStorage.getItem('tk_conex'); } catch (e) {}
         if (!el2 && !(primera && c)) { refs.conex._auto = true; refs.conex.open = !c; setTimeout(() => { refs.conex._auto = false; }, 50); } }
-      refs.cAyuda.textContent = Sv.modo === 'md' ? 'Prendé el tracker: el Macrodeck lo encuentra por la radio (ESP-NOW) y le pasa todo a la app por Bluetooth. No hace falta WiFi ni hotspot.' : Sv.modo === 'usb' ? 'Enchufá el Arduino al celu con un cable OTG; Android te pide permiso la primera vez. Si el Uno se reinicia al conectar, es normal: retoma el combate guardado.' : (Sv.modo === 'web' ? 'Chrome o Edge en la compu: te deja elegir el puerto del Arduino.' : (Sv.modo === 'sim' ? 'El simulador es un Arduino virtual con la misma lógica que el sketch: probá todo sin el aparato.' : (sop.usb ? 'Elegí cómo conectar.' : 'Sin el APK no hay USB: probá con el simulador, o con Web Serial desde Chrome en la compu.')));
+      refs.cAyuda.textContent = Sv.modo === 'md' ? 'Prendé el tracker: el Macrodeck lo encuentra por la radio (ESP-NOW) y le pasa todo a la app por Bluetooth. No hace falta WiFi ni hotspot.' : Sv.modo === 'usb' ? 'Enchufá el tracker (el 2.0 o el Arduino) al celu con un cable USB-C de datos (OTG); Android te pide permiso la primera vez. Si se reinicia al conectar, es normal: retoma el combate guardado.' : (Sv.modo === 'web' ? 'Chrome o Edge en la compu: te deja elegir el puerto del Arduino.' : (Sv.modo === 'sim' ? 'El simulador es un Arduino virtual con la misma lógica que el sketch: probá todo sin el aparato.' : (sop.usb ? 'Elegí cómo conectar.' : 'Sin el APK no hay USB: probá con el simulador, o con Web Serial desde Chrome en la compu.')));
       refs.pill.className = 'tk-pill ' + (p ? p.clase : 'off'); refs.pill.textContent = p ? p.texto : 'Sin conexión';
       refs.joyCard.classList.toggle('inactivo', !joyOk());
       const hay = c && E.hay;
