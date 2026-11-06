@@ -7,7 +7,7 @@ window.MD = window.MD || {};
 (function (MD) {
   const Trk = MD.Trk || (MD.Trk = {});
   const Au = Trk.Audio = {
-    ctx: null, buffers: new Map(), pend: new Map(), ultimo: {}, activas: 0, tDuck: 0, duckOn: false, volumen: 1, duck: true, bibliotecaMeta: () => [], fallos: [],
+    ctx: null, buffers: new Map(), pend: new Map(), ultimo: {}, activas: 0, tDuck: 0, duckOn: false, volumen: 1, mute: false, duck: true, bibliotecaMeta: () => [], fallos: [],
   };
   Au.asegurar = function () {
     try {
@@ -46,6 +46,7 @@ window.MD = window.MD || {};
   function duckMenos() { Au.activas = Math.max(0, Au.activas - 1); if (Au.activas === 0 && Au.duckOn) { clearTimeout(Au.tDuck); Au.tDuck = setTimeout(() => { if (Au.activas === 0 && Au.duckOn) { Au.duckOn = false; if (MD.Nativo) MD.Nativo.duck(false); } }, 900); } }
   // Toca UNO de la lista (al azar, sin repetir el ultimo de esa clave). Devuelve el ref que eligio (o null).
   Au.tocar = function (refs, vol, clave) {
+    if (Au.mute && clave && clave.indexOf('prev') !== 0 && clave.indexOf('prueba') !== 0) return null;    // 2.0-dev31: tracker en silencio (B2 un toque); las pruebas de la app suenan igual
     const lista = (refs || []).filter(Au.existe); if (!lista.length) return null;
     Au.asegurar();                                          // 2.0-dev29: si el tracker se conecto solo (sin tocar nada), el audio quedaba dormido y los sonidos no salian: se despierta en cada sonido
     let c = lista.filter((r) => r !== Au.ultimo[clave]); if (!c.length) c = lista;

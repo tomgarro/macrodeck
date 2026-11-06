@@ -1,4 +1,5 @@
-// tracker_motor.js - El "Arduino virtual" del simulador: la misma logica que firmware/tracker/tracker_dnd/tracker_dnd.ino, linea por linea.
+// tracker_motor.js - El tracker virtual del simulador: la misma logica que el motor del Initiative Tracker 2.0 (macrodeck-tracker/firmware/tracker_dnd_esp32/motor.h), linea por linea.
+// 2.0-dev31 (motor 3.1): varios estados a la vez (mascara), D2 corto saca estados (lista con la perilla), selector de personajes con cursor, orden UNDO.
 // Recibe los 3 botones del joystick y larga por 'salida' las MISMAS lineas que larga el aparato (@evento, #foto, !saludo).
 // La app lo trata igual que a un Arduino real conectado por USB: el espejo (tracker_nucleo.js) lee esas lineas y dibuja.
 // Se prueba contra el sketch compilado en la compu (herramientas/tracker/prueba_diferencial.js).
@@ -17,8 +18,9 @@
       this.total = 4; this.turno = 1; this.ronda = 1; this.slotCfg = 1;
       this.tipo = Array(13).fill(ENEMIGO); this.alt = Array(13).fill(NORMAL); this.muerto = Array(13).fill(false);
       // 2.0-dev27: una condicion del PHB 2014 por lugar (codigo = posicion en la lista de la perilla) y agotamiento 0..6, que convive con todo
-      this.cond = Array(13).fill(0); this.agot = Array(13).fill(0);
-      this.perillaUlt = -1; this.perillaBase = -1; this.selActivo = false; this.selIdx = 0;
+      this.cond = Array(13).fill(0); this.agot = Array(13).fill(0);       // 2.0-dev31: cond = MASCARA (bit p-1 = estado de la posicion p, 1..16 sin el 6)
+      this.perillaUlt = -1; this.perillaBase = -1; this.selActivo = false; this.selIdx = 0; this.selPos = -1; this.perillaTocada = false; this.sostenT = 0;
+      this.lista = false; this.listaPos = 0; this.listaT = 0; this.undoUlt = -1;
       this.ins = false; this.slotIns = 0; this.hist = [];
       this.tInicioTurno = 0; this.idleAvisado = false;
       this.pul = { I: false, C: false, D: false };
@@ -46,33 +48,83 @@
         else if (this.rx.length < 47) this.rx += c; else this.rx = '';
       }
     }
-    idxPerilla(k) { const lista = []; for (let i = 0; i < 18; i++) if ((this.estHab >> i) & 1) lista.push(i); const j = Math.min(lista.length - 1, (k * lista.length) >> 8); return lista[j]; }
+    // ---------- 2.0-dev31 (motor 3.1): perilla, estados y lista para sacarlos (igual que motor.h) ----------
+    listaSel() { const L = []; for (let i = 0; i < 17; i++) if ((this.estHab >> i) & 1) L.push(i); return L; }
+    posPerilla(k, n, actual) {
+      if (!n) return 0;
+      let j = (k * n) >> 8; if (j >= n) j = n - 1;
+      if (actual < 0 || j === actual) return j;
+      let a = ((k > 3 ? k - 3 : 0) * n) >> 8, b = ((k + 3 > 255 ? 255 : k + 3) * n) >> 8;
+      if (a >= n) a = n - 1; if (b >= n) b = n - 1;
+      return a === b ? j : actual;
+    }
+    listaQuitar(n) {
+      const L = [];
+      for (let p = 1; p <= 17; p++) {
+        if (p === 6) { if (this.agot[n]) L.push(6); }
+        else if (p === 17) { if (this.alt[n] === INCONSCIENTE) L.push(17); }
+        else if (this.cond[n] & (1 << (p - 1))) L.push(p);
+      }
+      return L;
+    }
+    cerrarLista() { if (this.lista) { this.lista = false; this.ev('SQ'); } }
     perilla(k, ms) {
-      this.perillaUlt = k;
-      if (this.selActivo) { const i = this.idxPerilla(k); if (i !== this.selIdx) { this.selIdx = i; this.ev('SP', i); } return; }
+      const prev = this.perillaUlt; this.perillaUlt = k;
+      if (this.lista) {
+        const L = this.listaQuitar(this.turno); if (!L.length) { this.cerrarLista(); return; }
+        const j = this.posPerilla(k, L.length, this.listaPos);
+        if (j !== this.listaPos) { this.listaPos = j; this.listaT = this.ms; this.ev('SL', L[j]); }
+        return;
+      }
+      if (this.selActivo) { const L = this.listaSel(), j = this.posPerilla(k, L.length, this.selPos); if (j !== this.selPos) { this.selPos = j; this.selIdx = L[j]; this.ev('SP', this.selIdx); } return; }
       if (!this.cenPres || this.modo !== 2 || this.ins || this.cmdInc || this.pul.I || this.pul.D) return;
       if (this.perillaBase < 0) { this.perillaBase = k; return; }
-      if (Math.abs(k - this.perillaBase) > 8) { this.selActivo = true; this.cmdInc = true; this.cmdMuerte = true; this.accionCen = true; this.selIdx = this.idxPerilla(k); this.ev('SP', this.selIdx); }
+      if (prev >= 0 && Math.abs(k - prev) >= 3) { this.perillaTocada = true; this.sostenT = this.ms; }
+      if (Math.abs(k - this.perillaBase) > 14) {
+        this.selActivo = true; this.cmdInc = true; this.cmdMuerte = true; this.accionCen = true;
+        const L = this.listaSel(); this.selPos = this.posPerilla(k, L.length, -1); this.selIdx = L[this.selPos]; this.ev('SP', this.selIdx);
+      }
     }
     aplicarSeleccion(idx, ms) {
       if (this.modo !== 2 || this.ins) return;
       const t = this.tipo[this.turno], n = this.turno;
       this.guardarHist(); this.marcarTurno();
-      if (idx >= 17) {
-        if (t === ENEMIGO) { this.cmdMuerte = true; this.enemAntes = this.enemigosVivos(); this.slotMuriendo = n; this.evTS('KL', t, n); this.sincronizar(); this.p.iniciar('fulminado', n, () => this.accionPost(), ms); this.postAcc = 1; return; }
-        this.alt[n] = INCONSCIENTE; this.cond[n] = 0; this.evTS('SI', t, n);
-      } else if (idx === 6) { this.agot[n] = (this.agot[n] + 1) % 7; this.ev('AG', L[t], n, this.agot[n]); }
-      else if (idx === 0) { this.alt[n] = NORMAL; this.cond[n] = 0; this.evTS('SN', t, n); }
-      else if (idx === 1) { this.alt[n] = CONCENTRACION; this.cond[n] = 0; this.evTS('SC', t, n); }
-      else if (idx === 2) { this.alt[n] = COMODIN; this.cond[n] = 0; this.evTS('SJ', t, n); }
-      else { this.alt[n] = NORMAL; this.cond[n] = idx; this.ev('ST', L[t], n, idx); }
+      if (idx === 0) { this.alt[n] = NORMAL; this.cond[n] = 0; this.evTS('SN', t, n); }
+      else if (idx === 6) { this.agot[n] = (this.agot[n] + 1) % 7; this.ev('AG', L[t], n, this.agot[n]); }
+      else if (idx <= 16) {
+        const bit = 1 << (idx - 1);
+        if (this.cond[n] & bit) { this.cond[n] &= ~bit; this.ev('SX', L[t], n, idx); }
+        else { this.cond[n] |= bit; if (idx === 1) this.evTS('SC', t, n); else if (idx === 2) this.evTS('SJ', t, n); else this.ev('ST', L[t], n, idx); }
+      }
       this.pedirSnap(); this.marcarCambio();
+    }
+    quitarEstado(n, cod) {
+      const t = this.tipo[n];
+      this.guardarHist(); this.marcarTurno();
+      if (cod === 6) { if (this.agot[n]) this.agot[n]--; this.ev('AG', L[t], n, this.agot[n]); }
+      else if (cod === 17) { this.alt[n] = NORMAL; this.ev('SX', L[t], n, 17); }
+      else { this.cond[n] &= ~(1 << (cod - 1)); this.ev('SX', L[t], n, cod); }
+      this.pedirSnap(); this.marcarCambio();
+    }
+    toqueEstado() {
+      const L = this.listaQuitar(this.turno);
+      if (!L.length) { this.ev('NO', 'S'); return; }
+      if (L.length === 1) { this.quitarEstado(this.turno, L[0]); return; }
+      this.lista = true; this.listaT = this.ms;
+      this.listaPos = this.perillaUlt >= 0 ? this.posPerilla(this.perillaUlt, L.length, -1) : 0;
+      this.ev('SL', L[this.listaPos]);
     }
     orden(s) {
       if (s[0] === '?') { this.holaPend = true; this.snapPend = true; return; }
       let m;
       if ((m = /^B,([ICD]),([01])$/.exec(s))) { this.boton(m[1], m[2] === '1'); return; }
       if ((m = /^K,(-?\d+)/.exec(s))) { this.perilla(Math.max(0, Math.min(255, +m[1])), this.ms); return; }
+      if ((m = /^UNDO(?:,(-?\d+))?$/.exec(s))) {                    // 2.0-dev31: deshacer (tecla A2 del Macrodeck); con numero, las repetidas se ignoran
+        if (m[1] !== undefined) { const n = (+m[1]) & 0xFFFF; if (n === this.undoUlt) return; this.undoUlt = n; }
+        if (this.modo === 3 || this.p.anim) return;
+        this.cerrarLista(); if (this.selActivo) { this.selActivo = false; this.ev('SQ'); }
+        this.ctrlZ(); return;
+      }
       if ((m = /^COL,([A-Za-z]),(-?\d+),(-?\d+),(-?\d+)/.exec(s))) {
         const t = L.indexOf(m[1]); if (t < 0) return;
         this.col[t] = [m[2], m[3], m[4]].map((v) => Math.max(0, Math.min(255, +v)));
@@ -118,11 +170,12 @@
     pedirSnap() { this.snapPend = true; }
     foto() {
       let s = '#' + 'QCBF'[this.modo] + ',' + this.ronda + ',' + this.turno + ',' + this.total + ',' + this.slotCfg + ',' + (this.ins ? this.slotIns : 0) + ',';
-      for (let i = 1; i <= this.total; i++) s += L[this.tipo[i]] + Trk.ALT_LETRAS[this.alt[i]] + (this.muerto[i] ? '0' : '1');
-      s += ',';
-      for (let i = 1; i <= this.total; i++) s += '0123456789ABCDEFGH'[this.cond[i] > 17 ? 0 : this.cond[i]] + (this.agot[i] > 6 ? 0 : this.agot[i]);
+      for (let i = 1; i <= this.total; i++) s += L[this.tipo[i]] + this.letraAlt(i) + (this.muerto[i] ? '0' : '1');
+      s += ',';                                                          // 2.0-dev31: mascara de estados en 4 hex + agotamiento, por lugar
+      for (let i = 1; i <= this.total; i++) s += ('000' + (this.cond[i] & 0xFFFF).toString(16).toUpperCase()).slice(-4) + (this.agot[i] > 6 ? 0 : this.agot[i]);
       return s;
     }
+    letraAlt(i) { return this.alt[i] === INCONSCIENTE ? 'I' : ((this.cond[i] & 1) ? 'C' : ((this.cond[i] & 2) ? 'J' : 'N')); }
     servirSerie() {
       if (this.holaPend) { this.tx('!TRK,' + this.version + ',' + (this.restauradoEnBoot ? '1' : '0')); this.holaPend = false; }
       if (this.snapPend || this.ms - this.ultTx >= LATIDO_MS) { this.tx(this.foto()); this.snapPend = false; }
@@ -142,7 +195,7 @@
     servirEE() {
       if (this.modo === 2 && !this.combateGanado && this.eeSucio && !this.p.anim && this.ms - this.eeT > 600) {
         this.eeSucio = false;
-        this.alGuardar({ turno: this.turno, ronda: this.ronda, total: this.total, tipo: this.tipo.slice(), alt: this.alt.slice(), muerto: this.muerto.slice(), cond: this.cond.slice(), agot: this.agot.slice() });
+        this.alGuardar({ v: 31, turno: this.turno, ronda: this.ronda, total: this.total, tipo: this.tipo.slice(), alt: this.alt.slice(), muerto: this.muerto.slice(), cond: this.cond.slice(), agot: this.agot.slice() });
       }
     }
     restaurarDe(o) {
@@ -150,7 +203,13 @@
         if (!(o.total >= 1 && o.total <= 12 && o.turno >= 1 && o.turno <= o.total)) return;
         for (let i = 0; i <= 12; i++) if ((o.tipo[i] | 0) >= N_TIPOS) return;       // un tipo que no existe: el guardado esta roto (se ignora)
         this.total = o.total; this.turno = o.turno; this.ronda = Math.max(1, o.ronda | 0);
-        for (let i = 0; i <= 12; i++) { this.tipo[i] = o.tipo[i] | 0; this.alt[i] = o.alt[i] | 0; this.muerto[i] = !!o.muerto[i]; const c = (o.cond && o.cond[i]) | 0, g = (o.agot && o.agot[i]) | 0; this.cond[i] = (c >= 3 && c <= 16 && c !== 6) ? c : 0; this.agot[i] = (g >= 0 && g <= 6) ? g : 0; }
+        for (let i = 0; i <= 12; i++) {
+          this.tipo[i] = o.tipo[i] | 0; this.muerto[i] = !!o.muerto[i]; const a = o.alt[i] | 0, c = (o.cond && o.cond[i]) | 0, g = (o.agot && o.agot[i]) | 0;
+          this.alt[i] = a === INCONSCIENTE ? INCONSCIENTE : NORMAL;
+          this.cond[i] = (o.v >= 31 ? c & 0xFFFF : ((c >= 3 && c <= 16 && c !== 6) ? 1 << (c - 1) : 0)) & ~32;     // los guardados viejos tenian UNA condicion
+          if (a === CONCENTRACION) this.cond[i] |= 1; if (a === COMODIN) this.cond[i] |= 2;
+          this.agot[i] = (g >= 0 && g <= 6) ? g : 0;
+        }
         this.modo = 2; this.slotCfg = this.total; this.hist = []; this.combateGanado = false; this.restauradoEnBoot = true; this.marcarTurno();
       } catch (e) { /* se ignora un guardado roto */ }
     }
@@ -160,7 +219,7 @@
       this.ms = ms;
       this.servirSerie();
       this.sincronizar();
-      if (this.p.anim) { this.p.animTick(ms); this.sincronizar(); return; }
+      if (this.p.anim) { this.p.animTick(ms); this.sincronizar(); this.huboAnim = true; return; }
       this.manejarBotones(ms);
       this.sincronizar();
       this.p.tick(ms);
@@ -186,7 +245,9 @@
     }
 
     manejarBotones(ms) {
-      const bIzq = this.pul.I, bDer = this.pul.D, bCen = this.leerCentro(ms);
+      const bIzq = this.pul.I, bDer = this.pul.D;
+      let bCen = this.leerCentro(ms);
+      if (this.huboAnim) { this.huboAnim = false; if (bCen && this.cenPres) { this.cenPres = false; this.selActivo = false; } }     // 2.0-dev31: apretada nueva despues de una animacion (igual que motor.h 3.1)
       let pushIzq = false, pushDer = false;
       if (bIzq && !this.ultIzq && ms - this.dbIzq > 200) { pushIzq = true; this.dbIzq = ms; } this.ultIzq = bIzq;
       if (bDer && !this.ultDer && ms - this.dbDer > 200) { pushDer = true; this.dbDer = ms; } this.ultDer = bDer;
@@ -196,13 +257,27 @@
         else if (ms - this.tTriple > 3000) {
           this.ev('RS'); this.invalidarEE();
           this.modo = 0; this.reiniciarMemoria(); this.ins = false; this.contTriple = false; this.cenPres = false;
-          this.selActivo = false; this.pedirSnap(); this.sincronizar(); this.p.iniciar('estrobo', 3, null, ms);
+          this.selActivo = false; this.lista = false; this.pedirSnap(); this.sincronizar(); this.p.iniciar('estrobo', 3, null, ms);
         }
         return;
       } else this.contTriple = false;
 
       // COMBATE TERMINADO: no responde a nada (solo al reinicio de 3 botones)
       if (this.modo === 3) { this.cenPres = false; return; }
+
+      // 2.0-dev31: lista para sacar estados abierta
+      if (this.lista) {
+        if (this.modo !== 2 || this.ins || pushIzq || pushDer || ms - this.listaT > 8000) { this.cerrarLista(); this.cenPres = false; return; }
+        if (bCen && !this.cenPres) { this.cenPres = true; this.tPresCen = ms; }
+        if (!bCen && this.cenPres) {
+          this.cenPres = false;
+          const L = this.listaQuitar(this.turno), pos = this.listaPos;
+          this.cerrarLista();
+          if (pos >= 0 && pos < L.length) this.quitarEstado(this.turno, L[pos]);
+        }
+        this.accionCen = true;
+        return;
+      }
 
       let avanzar = false, retroceder = false, insertar = false, ctrlz = false;
       if (bCen) {
@@ -222,18 +297,18 @@
           let t = this.total + dir, w = 0; if (t > 12) { t = 1; w = 1; } if (t < 1) { t = 12; w = 1; }
           this.total = t; this.ev(dir > 0 ? 'QU' : 'QD', this.total, w); this.pedirSnap();
         } else if (this.modo === 1) {
-          this.cambiarTipoConfig(dir, this.slotCfg);
-          this.evTS(dir > 0 ? 'CN' : 'CP', this.tipo[this.slotCfg], this.slotCfg); this.pedirSnap();
+          let c = this.slotCfg + dir; if (c > this.total) c = 1; if (c < 1) c = this.total;
+          this.slotCfg = c; this.evTS('CM', this.tipo[this.slotCfg], this.slotCfg); this.pedirSnap();
         } else this.navegarTurno(dir);
       }
 
-      if (bCen && !this.cenPres) { this.cenPres = true; this.tPresCen = ms; this.accionCen = false; this.cmdInc = false; this.cmdMuerte = false; this.perillaBase = this.perillaUlt; this.selActivo = false; }
+      if (bCen && !this.cenPres) { this.cenPres = true; this.tPresCen = ms; this.sostenT = ms; this.accionCen = false; this.cmdInc = false; this.cmdMuerte = false; this.perillaBase = this.perillaUlt; this.selActivo = false; this.selPos = -1; this.perillaTocada = false; }
 
       if (bCen && this.cenPres) {
-        const dur = ms - this.tPresCen;
+        const dur = ms - this.tPresCen, quieto = ms - this.sostenT;
         if (this.modo === 2 && !bIzq && !bDer) {
           const t = this.tipo[this.turno];
-          if (dur >= 2000 && !this.cmdInc) {
+          if (quieto >= 2000 && !this.cmdInc) {
             this.cmdInc = true; this.accionCen = true;
             if (t === ENEMIGO) {
               this.cmdMuerte = true; this.enemAntes = this.enemigosVivos(); this.guardarHist(); this.slotMuriendo = this.turno;
@@ -242,33 +317,28 @@
               this.guardarHist(); this.alt[this.turno] = INCONSCIENTE; this.evTS('SI', t, this.turno); this.pedirSnap(); this.marcarCambio();
             }
           }
-          if (dur >= 4000 && !this.cmdMuerte && t >= INVITADO) {
+          if (quieto >= 4000 && !this.cmdMuerte && t >= INVITADO) {
             this.cmdMuerte = true; this.enemAntes = this.enemigosVivos(); this.guardarHist(); this.slotMuriendo = this.turno;
             this.evTS('KL', t, this.turno); this.sincronizar(); this.p.iniciar('fulminado', this.turno, () => this.accionPost(), ms); this.postAcc = 1;
           }
         } else if (this.modo === 0 && dur >= 2000 && !this.accionCen && !bIzq && !bDer) {
           this.accionCen = true; this.modo = 1; this.slotCfg = 1; this.hist = []; this.guardarHist();
           this.ev('QO', this.total); this.pedirSnap(); this.sincronizar(); this.p.iniciar('flash', 0, null, ms);
+        } else if (this.modo === 1 && !this.ins && dur >= 2000 && !this.accionCen && !bIzq && !bDer) {
+          this.accionCen = true; this.guardarHist(); this.modo = 2; this.reiniciarEstadisticas(); this.ev('CG', this.total);
+          this.pedirSnap(); this.sincronizar(); this.p.iniciar('flash', 0, null, ms);
         }
       }
 
       if (!bCen && this.cenPres) {
         const dur = ms - this.tPresCen; this.cenPres = false;
         if (this.selActivo) { this.selActivo = false; this.ev('SQ'); this.aplicarSeleccion(this.selIdx, ms); }
-        if (!this.accionCen && dur < 1000) {
+        if (!this.accionCen && dur < 1000 && !this.perillaTocada) {
           if (this.ins) {
             this.ins = false; this.guardarHist(); this.evTS('IO', this.tipo[this.slotIns], this.slotIns); this.pedirSnap(); this.marcarCambio();
           } else if (this.modo === 1) {
-            this.guardarHist(); this.evTS('CS', this.tipo[this.slotCfg], this.slotCfg); this.slotCfg++;
-            if (this.slotCfg > this.total) { this.modo = 2; this.reiniciarEstadisticas(); this.ev('CG', this.total); }
-            else if (!this.disponible(this.tipo[this.slotCfg], this.slotCfg)) this.cambiarTipoConfig(1, this.slotCfg);
-            this.pedirSnap();
-          } else if (this.modo === 2) {
-            this.guardarHist(); this.marcarTurno();
-            let e = this.alt[this.turno]; e = (e === INCONSCIENTE) ? NORMAL : (e + 1) % 3; this.alt[this.turno] = e; this.cond[this.turno] = 0;
-            this.evTS(e === NORMAL ? 'SN' : (e === CONCENTRACION ? 'SC' : 'SJ'), this.tipo[this.turno], this.turno);
-            this.pedirSnap(); this.marcarCambio();
-          }
+            this.guardarHist(); this.cambiarTipoConfig(1, this.slotCfg); this.evTS('CN', this.tipo[this.slotCfg], this.slotCfg); this.pedirSnap();
+          } else if (this.modo === 2) this.toqueEstado();
         }
         this.cmdInc = false; this.cmdMuerte = false;
       }

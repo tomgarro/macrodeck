@@ -1,6 +1,6 @@
 // tracker_eventos.js - Initiative Tracker: la lista de "movimientos" (eventos) y que suena / que luz se prende con cada uno.
 //
-// Cada movimiento del Arduino tiene un ID de 2 letras (ver el sketch). Para cada uno se puede elegir:
+// Cada movimiento del tracker tiene un ID de 2 letras (ver motor.h del Initiative Tracker 2.0). Para cada uno se puede elegir:
 //   - SONIDO: de fabrica (la seleccion de Frodo, que se guarda en la app y NUNCA se pisa), silencio, o uno o varios de la biblioteca (al azar, sin repetir).
 //   - LUZ: un look de las lamparas de D&D (el mismo catalogo de la pestana Luces), cuantos segundos y en cual lampara.
 //   - POR PERSONAJE: lo mismo, pero solo cuando el evento es de una clase (ej.: otro sonido cuando le toca a Nabi).
@@ -22,29 +22,29 @@ window.MD = window.MD || {};
     { id: 'QU', g: C, n: 'Subir la cantidad', d: 'Al sumar un combatiente (también al dar la vuelta de 12 a 1)', sf: ['cfgMove1'] },
     { id: 'QD', g: C, n: 'Bajar la cantidad', d: 'Al restar un combatiente (también al dar la vuelta de 1 a 12)', sf: ['cfgMove1'] },
     { id: 'QO', g: C, n: 'Cantidad confirmada', d: 'Mantenés el centro 2 s: pasa a elegir los personajes', sug: { look: 'lf_hechizo', seg: 2 } },
-    { id: 'CN', g: P, n: 'Personaje siguiente', d: 'Al cambiar de personaje para el lugar que se está armando', clase: true, sf: ['cfgMove1'] },
-    { id: 'CP', g: P, n: 'Personaje anterior', d: 'Lo mismo, hacia el otro lado', clase: true, sf: ['cfgMove1'] },
-    { id: 'CS', g: P, n: 'Personaje confirmado', d: 'Un toque corto en el centro: queda elegido y pasa al lugar que sigue', clase: true },
-    { id: 'CG', g: P, n: 'Empieza el combate', d: 'Se eligió el último personaje', sug: { look: 'lf_combate', seg: 4 } },
+    { id: 'CM', g: P, n: 'Se mueve el cursor', d: 'C2 / E2 al armar: pasa a otro lugar (da la vuelta)', clase: true, sf: ['cfgMove1'] },
+    { id: 'CN', g: P, n: 'Cambia el personaje', d: 'Toque corto de D2 al armar: el personaje que sigue en el lugar marcado', clase: true, sf: ['cfgMove1'] },
+    { id: 'CG', g: P, n: 'Empieza el combate', d: 'D2 mantenida 2 s al armar', sug: { look: 'lf_combate', seg: 4 } },
     { id: 'TN', g: T, n: 'Turno siguiente', d: 'Botón izquierdo', clase: true, sf: ['cmbMove1', 'cmbMove2', 'cmbMove3'] },
     { id: 'TP', g: T, n: 'Turno anterior', d: 'Botón derecho', clase: true, sf: ['cmbMove1', 'cmbMove2', 'cmbMove3'] },
     { id: 'RN', g: T, n: 'Ronda nueva', d: 'Se da la vuelta completa hacia adelante', clase: true, sf: ['roundchange1', 'roundchange2', 'roundchange3'], sug: { look: 'lf_relampago', seg: 2 } },
     { id: 'RP', g: T, n: 'Ronda anterior', d: 'Se da la vuelta completa hacia atrás', clase: true, sf: ['roundchange1', 'roundchange2', 'roundchange3'] },
-    { id: 'SC', g: E, n: 'Concentración', d: 'Toque corto en el centro: pasa a concentración (rosa)', clase: true, sug: { look: 'lf_hechizo', seg: 2 } },
-    { id: 'SJ', g: E, n: 'Wild (comodín)', d: 'Segundo toque: wild, un comodín (verde lima)', clase: true, sug: { look: 'lf_veneno', seg: 2 } },
-    { id: 'SN', g: E, n: 'Vuelve a normal', d: 'Tercer toque, o un toque sobre alguien caído', clase: true },
-    { id: 'SI', g: E, n: 'Cae inconsciente', d: 'Centro mantenido 2 s sobre un personaje (no enemigo)', clase: true, sug: { look: 'lf_alarma', seg: 2 } },
-    { id: 'ST', g: E, n: 'Estado nuevo', d: 'D2 apretada + perilla: una condición del PHB (cegado, envenenado, paralizado…). La luz de abajo es la del estado, se cambia en «Estados»', clase: true },
-    { id: 'AG', g: E, n: 'Sube el agotamiento', d: 'D2 apretada + perilla en Agotamiento: sube un nivel (al 7.º vuelve a 0)', clase: true },
-    { id: 'KL', g: E, n: 'Muere', d: 'Centro mantenido 2 s sobre un enemigo (4 s sobre un invitado). Suena apenas empieza el destello', clase: true, sf: ['kill1'], sug: { look: 'lf_rugido', seg: 2.5 } },
-    { id: 'IN', g: I, n: 'Se inserta alguien', d: 'Centro + izquierdo: aparece un lugar nuevo después del turno actual', clase: true },
+    { id: 'SC', g: E, n: 'Concentración', d: 'D2 apretada + perilla en Concentración (rosa). Convive con los otros estados', clase: true, sug: { look: 'lf_hechizo', seg: 2 } },
+    { id: 'SJ', g: E, n: 'Wild (comodín)', d: 'D2 apretada + perilla en Wild (verde lima). Convive con los otros estados', clase: true, sug: { look: 'lf_veneno', seg: 2 } },
+    { id: 'SN', g: E, n: 'Vuelve a normal', d: 'D2 apretada + perilla al mínimo (Normal): saca todos los estados menos el agotamiento', clase: true },
+    { id: 'SI', g: E, n: 'Cae inconsciente', d: 'D2 mantenida QUIETA 2 s sobre un personaje (no enemigo)', clase: true, sug: { look: 'lf_alarma', seg: 2 } },
+    { id: 'ST', g: E, n: 'Estado nuevo', d: 'D2 apretada + perilla: una condición del PHB (cegado, envenenado, paralizado…). Se suma a los que ya tiene. La luz de abajo es la del estado, se cambia en «Estados»', clase: true },
+    { id: 'SX', g: E, n: 'Estado quitado', d: 'Toque corto de D2 (o la lista para sacar), o elegir con la perilla un estado que ya tenía. También cuando despierta un caído', clase: true },
+    { id: 'AG', g: E, n: 'Cambia el agotamiento', d: 'D2 apretada + perilla en Agotamiento: sube un nivel (al 7.º vuelve a 0). Con la lista para sacar, baja uno', clase: true },
+    { id: 'KL', g: E, n: 'Muere', d: 'D2 mantenida QUIETA 2 s sobre un enemigo (4 s sobre un invitado). Suena apenas empieza el destello', clase: true, sf: ['kill1'], sug: { look: 'lf_rugido', seg: 2.5 } },
+    { id: 'IN', g: I, n: 'Se inserta alguien', d: 'D2 + C1: aparece un lugar nuevo después del turno actual', clase: true },
     { id: 'IT', g: I, n: 'Cambia el tipo del insertado', d: 'Mientras se elige quién es el que se inserta', clase: true, sf: ['cfgMove1'] },
     { id: 'IO', g: I, n: 'Insertado confirmado', d: 'Un toque en el centro: queda en el orden', clase: true },
-    { id: 'UN', g: I, n: 'Deshacer', d: 'Centro + derecho: vuelve un paso atrás (hasta 5)' },
-    { id: 'NO', g: I, n: 'No se puede', d: 'Insertar con 12 lugares llenos, o deshacer sin nada que deshacer' },
+    { id: 'UN', g: I, n: 'Deshacer', d: 'A2 (o D2 + E1): vuelve un paso atrás (hasta 5)' },
+    { id: 'NO', g: I, n: 'No se puede', d: 'Insertar con 12 lugares llenos, deshacer sin nada que deshacer, o sacar estados a alguien que no tiene' },
     { id: 'VI', g: S, n: 'Victoria', d: 'Cae el último enemigo', sug: { look: 'lf_curacion', seg: 6 } },
     { id: 'TK', g: S, n: 'Caída total (TPK)', d: 'Caen todos los del grupo: vuelve a empezar', sug: { look: 'lf_alarma', seg: 5 } },
-    { id: 'RS', g: S, n: 'Reinicio de 3 botones', d: 'Los tres botones juntos 3 s: vuelve a la cantidad', sug: { look: 'lf_apagar', seg: 2 } },
+    { id: 'RS', g: S, n: 'Reinicio del combate', d: 'Restart en el menú del tracker (HOME 3 s), o D2 + D1 3 s: vuelve a la cantidad', sug: { look: 'lf_apagar', seg: 2 } },
     { id: 'ID', g: S, n: 'Turno inactivo', d: 'Nadie toca el tracker hace 3 minutos (la ficha parpadea rápido)', clase: true },
   ];
   Trk.EV = {}; Trk.EVENTOS.forEach((e) => { Trk.EV[e.id] = e; });
@@ -53,7 +53,7 @@ window.MD = window.MD || {};
   // ---------- configuracion (solo cambios) ----------
   // entrada = { s?: ['f:cmbMove1' | 's:<idDeLaBiblioteca>', ...] ([] = silencio), vol?: 0..1, l?: { look, seg, lamp:'dnd'|'dnd-1'|'dnd-2' } | null (= sin luz) }
   // "undefined" en s o l = no se tocó: vale lo de más abajo (clase -> evento -> fábrica).
-  Trk.cfgNueva = function () { return { v: 1, vol: 1, duck: true, luces: true, auto: true, baud: 115200, ev: {}, cl: {}, taller: null, luzTurno: { on: false, seg: 4, lamp: 'dnd', efecto: 'respirar', brillo: 80 } }; };
+  Trk.cfgNueva = function () { return { v: 1, vol: 1, mute: false, duck: true, luces: true, auto: true, ev: {}, cl: {}, taller: null, luzTurno: { on: false, seg: 4, lamp: 'dnd', efecto: 'respirar', brillo: 80 } }; };
   // Taller de colores (3.0): lo que Frodo eligio para el tracker. mask = personajes que se pueden elegir (bits E D R N X L I a b c d; el enemigo siempre), brillo 5..100, col = color por letra, nom = nombre de cada personaje (D R N X L I a b c d: se puede cambiar para otra campaña), cls = su clase (texto libre).
   Trk.tallerNormalizar = function (t) {
     if (!t || typeof t !== 'object') return null;
@@ -75,7 +75,7 @@ window.MD = window.MD || {};
     const b = Trk.cfgNueva(); if (!c || typeof c !== 'object') return b;
     const n = (v, d, a, z) => { v = Number(v); return isFinite(v) ? Math.min(z, Math.max(a, v)) : d; };
     b.vol = n(c.vol, 1, 0, 1); b.duck = c.duck !== false; b.luces = c.luces !== false; b.auto = c.auto !== false;
-    b.baud = [9600, 19200, 38400, 57600, 115200].indexOf(c.baud) >= 0 ? c.baud : 115200;
+    b.mute = c.mute === true;                                     // 2.0-dev31: B2 un toque = sonidos del tracker en silencio
     b.taller = Trk.tallerNormalizar(c.taller);
     if (c.luzTurno && typeof c.luzTurno === 'object') {
       const z = c.luzTurno;

@@ -88,6 +88,11 @@ window.MD = window.MD || {};
     // Devuelve true si la tecla se la queda el tracker (no se manda como tecla).
     _trkTecla(i, abajo) {
       if (!this.trkPresente) return false;
+      if (i === 5 && !this.abajo.has(8)) {                                          // 2.0-dev31 (Macrodeck dev57): A2 = deshacer (trama 'T' con boton 3)
+        if (abajo) { this.trkCons[i] = true; this.onFrame(Uint8Array.of(0x54, 3, 1)); return true; }
+        if (this.trkCons[i]) { this.trkCons[i] = false; return true; }
+        return false;
+      }
       if (abajo) {
         if (i >= 7 && i <= 9) this.trkMasc[i] = 1 << (i - 7);
         else if (this.abajo.has(8) && i <= 4) this.trkMasc[i] = i === 2 ? 1 : (i === 4 ? 4 : (i === 3 ? 5 : 0));

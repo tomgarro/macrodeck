@@ -670,8 +670,10 @@ window.MD = window.MD || {};
     const cfg = A.cfg; const t = esc.teclas[i];
     const caja = h('div', { class: 'tarjeta', id: 'editorTecla' });
     caja.append(h('h3', null, 'Tecla ' + NOM[i]));
-    if (MD.IT && MD.IT.esFija(i)) caja.append(h('p', { class: 'aviso', id: 'avisoTrkTecla' }, i === MD.IT.TECLA_VOL
-      ? 'Ojo: ' + NOM[i] + ' es la tecla del VOLUMEN del Initiative Tracker (mantenela apretada y girá la perilla). Mientras el tracker esté conectado esta tecla NO suena y la e-Paper muestra un parlante. Cuando se desconecta, vuelve a ser la que armaste acá.'
+    if (MD.IT && MD.IT.esFija(i)) caja.append(h('p', { class: 'aviso', id: 'avisoTrkTecla' }, i === MD.IT.TECLA_UNDO
+      ? 'Ojo: ' + NOM[i] + ' es la tecla de DESHACER del Initiative Tracker. Mientras el tracker esté conectado esta tecla NO suena y la e-Paper muestra la flecha de deshacer. Cuando se desconecta, vuelve a ser la que armaste acá.'
+      : i === MD.IT.TECLA_VOL
+      ? 'Ojo: ' + NOM[i] + ' es la tecla del VOLUMEN del Initiative Tracker (mantenela apretada y girá la perilla; un toque lo silencia). Mientras el tracker esté conectado esta tecla NO suena y la e-Paper muestra un parlante. Cuando se desconecta, vuelve a ser la que armaste acá.'
       : 'Ojo: ' + NOM[i] + ' es una de las 3 teclas del Initiative Tracker (C2 = turno siguiente, D2 = centro / estado, E2 = turno anterior). Mientras el tracker esté conectado esta tecla NO suena y la e-Paper muestra el control del tracker. Cuando se desconecta, vuelve a ser la que armaste acá.'));
     if (!t) {
       caja.append(vacio('mesa', 'Esta tecla está vacía', 'Creala y elegí qué suena, cómo se llama y con qué icono se ve en la e-Paper.'));
@@ -858,7 +860,6 @@ window.MD = window.MD || {};
       h('div', { class: 'lista-mas' },
         fila('sonidos', 'Sonidos', n ? n + ' sonidos en este celu' : 'Tu biblioteca de sonidos', 'sonidos'),
         fila('drive', 'Drive', 'Sincronizar, subir y bajar sonidos y escenas', 'drive', A.drivePend),
-        fila('tracker', 'Initiative Tracker clásico', 'El tracker con Arduino (hasta que el nuevo esté andando)', 'tracker'),
         fila('herramientas', 'Herramientas', 'Packs, logos, apariencia, diagnóstico y ayuda', 'herramientas')),
       (MD.Panel && MD.Panel.opcionesPantalla) ? h('div', { class: 'tarjeta', id: 'masPantalla' }, h('h3', { style: 'margin:0 0 8px' }, 'Pantalla'), MD.Panel.opcionesPantalla()) : null);
   }

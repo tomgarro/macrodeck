@@ -1,25 +1,22 @@
-// tracker_serie.js - Initiative Tracker: la conexion con el Arduino (o con el simulador) y el servicio que lo mantiene vivo.
+// tracker_serie.js - Initiative Tracker 2.0: la conexion con el tracker (real o simulado) y el servicio que lo mantiene vivo.
 //
-// TRANSPORTES (los tres entregan LINEAS completas, una por vez y en orden; nunca se mezclan):
-//   usb : plugin nativo "TrackerSerie" de la APK (Android, cable OTG). La parte nativa arma las lineas y las manda una a una.
-//   web : Web Serial del navegador (Chrome/Edge de escritorio). Sirve para probar el Arduino real desde la compu.
-//   sim : el Arduino virtual de la app (tracker_motor.js).
-//   md  : (2.0-dev13) el tracker ESP32 REAL, por la radio ESP-NOW del Macrodeck; el Macrodeck le pasa las lineas a la app por Bluetooth (tramas 'L' / 'N' / 'u').
+// TRANSPORTES (los dos entregan LINEAS completas, una por vez y en orden; nunca se mezclan):
+//   md  : el tracker REAL (Initiative Tracker 2.0), por la radio ESP-NOW del Macrodeck; el Macrodeck le pasa las lineas a la app por Bluetooth (tramas 'L' / 'N' / 'u').
+//         Todo inalambrico: el tracker va a bateria y no se enchufa al celu (el USB es solo para cargarle el firmware).
+//   sim : el tracker virtual de la app (tracker_motor.js, la misma logica que el motor del tracker). Para Frodo, que no tiene tracker ni Macrodeck.
+// 2.0-dev31: se sacaron los caminos del Initiative Tracker 1.0 (Arduino por USB-OTG y Web Serial). El 1.0 va a tener su propia app.
 //
 // SERVICIO (MD.Trk.Servicio): corre siempre, aunque estes en otra pestana: lee lineas, mantiene el espejo, dispara sonidos y luces, cuenta estadisticas y
 // guarda el monitor serie. La pestana Tracker solo lo muestra.
 window.MD = window.MD || {};
 (function (MD) {
   const Trk = MD.Trk || (MD.Trk = {});
-  const cap = window.Capacitor;
-  const nativo = () => !!(cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform());
-  const plugin = () => { try { return nativo() ? ((cap.Plugins && cap.Plugins.TrackerSerie) || (typeof cap.registerPlugin === 'function' ? cap.registerPlugin('TrackerSerie') : null)) : null; } catch (e) { return null; } };
   const MAX_LOG = 600;
 
   const Sv = Trk.Servicio = {
     A: null, cfg: Trk.cfgNueva(), espejo: new Trk.Espejo(), stats: Trk.statsNueva(),
     modo: null, estado: 'desconectado', detalle: '', ultRx: 0, rxN: 0, hola: null, deseado: false,
-    log: [], logN: 0, oyentes: new Set(), motor: null, mdPres: false, mdRx: '', cfgTracker: null, comb: null, pushHecho: false, tSim: 0, usbEsc: [], web: null, tVigia: 0, tReint: 0, tGuardar: 0, ultEvento: null, avisoHola: '',
+    log: [], logN: 0, oyentes: new Set(), motor: null, mdPres: false, mdRx: '', cfgTracker: null, comb: null, pushHecho: false, tSim: 0, tVigia: 0, tGuardar: 0, ultEvento: null, avisoHola: '',
   };
 
   // ---------- avisos a quien mira ----------
@@ -27,14 +24,25 @@ window.MD = window.MD || {};
   const avisar = (que) => Sv.oyentes.forEach((fn) => { try { fn(que); } catch (e) {} });
   Sv.avisar = avisar;
 
+  Sv.HUEVO_RONDA1 = true;                     // ver docs/EASTER_EGGS.md (false = apagado)
   // ---------- configuracion ----------
   Sv.guardarCfg = function () {
     clearTimeout(Sv.tGuardar);
     Sv.tGuardar = setTimeout(() => { try { MD.Almacen.guardarConfigClave('tracker_cfg', Sv.cfg); } catch (e) {} }, 400);
-    Trk.Audio.volumen = Sv.cfg.vol; Trk.Audio.duck = Sv.cfg.duck;
+    Trk.Audio.volumen = Sv.cfg.vol; Trk.Audio.mute = !!Sv.cfg.mute; Trk.Audio.duck = Sv.cfg.duck;
     Trk.Audio.precargar(Sv.cfg).catch(() => {});
     Trk.aplicarNombres(Sv.cfg.taller);
     avisar('cfg');
+  };
+  // 2.0-dev31: SILENCIO del tracker (B2 un toque en el Macrodeck, o el boton de Ajustes). Solo los sonidos del tracker: las escenas siguen sonando.
+  // El tracker lo muestra en su OLED (VOL,-1 = parlante tachado) y la app con el cartel de volumen.
+  Sv.fijarMute = function (si) {
+    si = !!si; if (si === !!Sv.cfg.mute) { mandarVol(true); return; }
+    Sv.cfg.mute = si; Trk.Audio.mute = si;
+    clearTimeout(Sv.tGuardar);
+    Sv.tGuardar = setTimeout(() => { try { MD.Almacen.guardarConfigClave('tracker_cfg', Sv.cfg); } catch (e) {} }, 400);
+    avisar('vol'); mandarVol(true);
+    if (MD.IT && MD.IT.volCambio) MD.IT.volCambio();
   };
   // ---------- volumen de los sonidos (2.0-dev26) ----------
   // UNICO camino para cambiarlo: el deslizador de Ajustes del tracker y la perilla del Macrodeck con B2 apretada (it_enlace.js) llaman a esto.
@@ -45,7 +53,7 @@ window.MD = window.MD || {};
     const mostrar = !!(o && o.mostrar), cambio = v !== Sv.cfg.vol;
     if (!cambio && !mostrar) return;
     if (cambio) {
-      Sv.cfg.vol = v; Trk.Audio.volumen = v;
+      Sv.cfg.vol = v; Trk.Audio.volumen = v; Sv.cfg.mute = false; Trk.Audio.mute = false;        // 2.0-dev31: mover el volumen saca el silencio
       clearTimeout(Sv.tGuardar);
       Sv.tGuardar = setTimeout(() => { try { MD.Almacen.guardarConfigClave('tracker_cfg', Sv.cfg); } catch (e) {} }, 400);
     }
@@ -60,8 +68,8 @@ window.MD = window.MD || {};
     clearTimeout(volTx.pend);
     const ir = () => {
       volTx.pend = 0;
-      const p = Math.round(Sv.cfg.vol * 100);
-      if (p === volTx.ult || Sv.estado !== 'conectado' || Sv.modo === 'sim' || !Sv.firmwareNuevo()) return;       // el simulador no tiene OLED; el Uno (2.1) no la entiende
+      const p = Sv.cfg.mute ? -1 : Math.round(Sv.cfg.vol * 100);                                   // 2.0-dev31: -1 = silencio
+      if (p === volTx.ult || Sv.estado !== 'conectado' || Sv.modo === 'sim') return;       // el simulador no tiene OLED
       if (Sv.enviarLinea('VOL,' + p)) { volTx.ult = p; volTx.t = Date.now(); }
     };
     const falta = 120 - (Date.now() - volTx.t);
@@ -71,12 +79,12 @@ window.MD = window.MD || {};
     try { Sv.cfg = Trk.cfgNormalizar(await MD.Almacen.leerConfigClave('tracker_cfg')); } catch (e) { Sv.cfg = Trk.cfgNueva(); }
     Trk.aplicarNombres(Sv.cfg.taller);
     Sv.cfgCargada = true;      // desde aca la configuracion del tracker viaja con "Sincronizar todo" (ver A.driveEscenas)
-    Trk.Audio.volumen = Sv.cfg.vol; Trk.Audio.duck = Sv.cfg.duck;
+    Trk.Audio.volumen = Sv.cfg.vol; Trk.Audio.mute = !!Sv.cfg.mute; Trk.Audio.duck = Sv.cfg.duck;
     Trk.Audio.bibliotecaMeta = () => ((Sv.A && Sv.A.cfg && Sv.A.cfg.sonidos) || []);
   };
 
   // ---------- monitor serie ----------
-  // dir: 'rx' (del Arduino) | 'tx' (a el) | 'info'. Los latidos (#) iguales seguidos se juntan en un solo renglon con contador (no inunda el monitor).
+  // dir: 'rx' (del tracker) | 'tx' (a el) | 'info'. Los latidos (#) iguales seguidos se juntan en un solo renglon con contador (no inunda el monitor).
   Sv.anotar = function (dir, txt, extra) {
     const t = Date.now(), ult = Sv.log[Sv.log.length - 1];
     const k = txt[0] === '#' ? '#' : (txt[0] === '@' ? '@' : (txt[0] === '!' ? '!' : (dir === 'info' ? 'i' : 'o')));
@@ -110,7 +118,7 @@ window.MD = window.MD || {};
     if (!x) return;
     if (x.k === 'hola') {
       Sv.hola = x; Sv.anotar('rx', txt, { nota: 'Tracker v' + x.ver + (x.restaurado ? ' · retomó el combate guardado' : '') });
-      if (x.restaurado) { Sv.stats.t0 = Sv.stats.t0 || Date.now(); if (!Sv.avisoRetomado) { Sv.avisoRetomado = true; avisar('aviso:Retomé el combate que estaba guardado en el Arduino'); } }
+      if (x.restaurado) { Sv.stats.t0 = Sv.stats.t0 || Date.now(); if (!Sv.avisoRetomado) { Sv.avisoRetomado = true; avisar('aviso:Retomé el combate que estaba guardado en el tracker'); } }
       avisar('hola');
       if (Sv.firmwareNuevo()) { Sv.pushHecho = false; Sv.estHecho = false; Sv.enviarLinea('CFG'); }          // 3.0: pregunta la configuracion para ponerla igual a la del Taller de colores
       return;
@@ -124,8 +132,9 @@ window.MD = window.MD || {};
 
   // un movimiento del tracker -> sonido + luz + estadisticas
   Sv.alEvento = function (id, a, txt) {
-    if (id === 'SP' || id === 'SQ') { if (MD.IT && MD.IT.selEstado) MD.IT.selEstado(id === 'SP'); return; }      // 2.0-dev27: el selector de estados se abrio / se cerro (no es un evento para sonidos)
+    if (id === 'SP' || id === 'SQ' || id === 'SL') { if (MD.IT && MD.IT.selEstado) MD.IT.selEstado(id !== 'SQ'); Sv.anotar('rx', txt, { nota: id === 'SL' ? 'lista para sacar estados' : (id === 'SP' ? 'selector de estados' : 'selector cerrado') }); return; }      // 2.0-dev27/31: selector de estados y lista para sacarlos (no son eventos para sonidos)
     const ev = Trk.EV[id], t = Trk.claseDe(id, a), ahora = Date.now();
+    if (id === 'VI' && Sv.HUEVO_RONDA1 && Sv.espejo.S.ronda === 1) setTimeout(() => avisar('aviso:⚡ ¡Masacre en la primera ronda! Los enemigos piden revancha… y un dado nuevo.'), 1800);
     Trk.statsContar(Sv.stats, id, a, ahora);
     Sv.ultEvento = { id, a, t: ahora };
     if (Trk.Hist) Trk.Hist.alEvento(id, a, ahora);                                  // 2.0-dev13: combates guardados (estadisticas)
@@ -145,18 +154,18 @@ window.MD = window.MD || {};
     try {
       if (Sv.modo === 'sim') Sv.motor.entrada(txt);
       else if (Sv.modo === 'md') { if (!Sv.mdEnviar(txt)) return false; }
-      else if (Sv.modo === 'usb') plugin().escribir({ texto: txt });
-      else if (Sv.modo === 'web' && Sv.web && Sv.web.writer) Sv.web.writer.write(new TextEncoder().encode(txt)).catch(() => {});
     } catch (e) { Sv.anotar('info', 'No se pudo enviar: ' + ((e && e.message) || e)); return false; }
     return true;
   };
 
   // Una orden completa (con salto de linea): B,C,1 · COL,D,255,0,0 · CFG · ...  (el '?' suelto no lo necesita)
   Sv.enviarLinea = (txt) => Sv.enviar(String(txt).replace(/[\r\n]+/g, '') + '\n');
-  // 3.0: el firmware nuevo (ESP32) entiende los botones por serie y las ordenes COL / HAB / BRI / CFG / DEF. El Uno (2.1) no.
-  Sv.firmwareNuevo = () => Sv.modo === 'sim' || (!!Sv.hola && parseFloat(Sv.hola.ver) >= 3);
+  // El tracker 2.0 (motor 3.x) entiende los botones y las ordenes COL / HAB / BRI / CFG / DEF. (Queda por compatibilidad: hoy es siempre true.)
+  Sv.firmwareNuevo = () => Sv.modo === 'sim' || Sv.modo === 'md';
   Sv.puedeBoton = () => Sv.estado === 'conectado' && Sv.firmwareNuevo();
-  // El joystick que sirve para TODOS los transportes: el simulador lo recibe directo; el tracker real, como la orden "B,<lado>,<0|1>"
+  // 2.0-dev31: deshacer (A2 del Macrodeck o el boton de la pestaña)
+  Sv.deshacer = () => (Sv.estado === 'conectado' ? Sv.enviarLinea('UNDO') : false);
+  // Los botones para los dos transportes: el simulador los recibe directo; el tracker real, como la orden "B,<lado>,<0|1>"
   Sv.boton = (lado, abajo) => {
     if (Sv.modo === 'sim') { Sv.simBoton(lado, abajo); return true; }
     if (!Sv.puedeBoton()) return false;
@@ -251,30 +260,11 @@ window.MD = window.MD || {};
     if (estado !== 'conectado') Sv.avisoRetomado = false;
     Sv.anotar('info', 'Conexión: ' + estado + (detalle ? ' · ' + detalle : ''));
     avisar('estado');
-    Sv.vivo(estado === 'conectado' && Sv.modo === 'usb');
   }
-
-  // Mantener la app despierta con el celu bloqueado mientras el Arduino esta conectado por USB (si no, Android congela el audio y la lectura del serial).
-  // Usa el mismo servicio en primer plano que el Macrodeck; si el Macrodeck ya lo tiene prendido (A._svcOn), no lo toca, y al desconectar tampoco lo apaga.
-  Sv._vivoPropio = false;
-  Sv.vivo = function (si) {
-    const N = MD.Nativo, A = Sv.A;
-    if (!N || !N.servicio) return;
-    try {
-      if (si && !Sv._vivoPropio && !(A && A._svcOn)) {
-        Sv._vivoPropio = true;
-        N.servicio(true, '✔ Initiative Tracker conectado', 'Sonidos y luces listos', 'conectado');
-        if (MD.Vivo) { Trk.Audio.asegurar(); MD.Vivo.activar(Trk.Audio.ctx); }
-      } else if (!si && Sv._vivoPropio) {
-        Sv._vivoPropio = false;
-        if (!(A && A._svcOn)) { N.servicio(false); if (MD.Vivo) MD.Vivo.parar(); }
-      }
-    } catch (e) {}
-  };
   Sv.sinSenal = () => Sv.estado === 'conectado' && Sv.modo !== 'sim' && Date.now() - Sv.ultRx > 8000;
-  Sv.soporte = () => ({ usb: !!plugin(), web: typeof navigator !== 'undefined' && 'serial' in navigator, sim: true, md: Sv.mdDisponible() });
+  Sv.soporte = () => ({ sim: true, md: Sv.mdDisponible() });
 
-  // vigia: si no llega nada, pide un saludo ('?'); si el cable se corta, reintenta (si es el modo USB y esta pedido)
+  // vigia: si no llega nada, pide un saludo ('?')
   function vigia() {
     clearInterval(Sv.tVigia);
     Sv.tVigia = setInterval(() => {
@@ -289,35 +279,27 @@ window.MD = window.MD || {};
   // ---------- conectar ----------
   Sv.conectar = async function (modo) {
     Trk.Audio.asegurar();                                  // el toque del boton es el "permiso" que pide el navegador para el sonido
-    modo = modo || Sv.modo || (Sv.soporte().usb ? 'usb' : (Sv.soporte().web ? 'web' : 'sim'));
+    modo = modo || Sv.modo || (Sv.mdDisponible() ? 'md' : 'sim');
     if (Sv.estado === 'conectado' || Sv.estado === 'conectando') await Sv.desconectar(true);
     Sv.modo = modo; Sv.deseado = true; Sv.rxN = 0; Sv.ultRx = Date.now(); Sv.hola = null;
     Sv.espejo.reiniciar(); Sv.stats = Trk.statsNueva();
-    poner('conectando', modo === 'usb' ? 'buscando el Arduino por el cable USB…' : (modo === 'web' ? 'elegí el puerto en la ventana del navegador' : ''));
+    poner('conectando', '');
     try {
       if (modo === 'sim') iniciarSim();
       else if (modo === 'md') iniciarMd();
-      else if (modo === 'usb') await iniciarUsb();
-      else if (modo === 'web') await iniciarWeb();
       else throw new Error('modo desconocido');
       if (modo === 'md' && !Sv.mdPres) { poner('conectando', 'esperando al tracker (¿está prendido y cerca del Macrodeck?)'); return; }
-      poner('conectado', modo === 'sim' ? 'simulador' : modo === 'md' ? 'por el Macrodeck' : (Sv.detalle !== 'buscando el Arduino por el cable USB…' && Sv.detalle !== 'elegí el puerto en la ventana del navegador' ? Sv.detalle : ''));
+      poner('conectado', modo === 'sim' ? 'simulador' : 'por el Macrodeck');
       vigia();
-      if (modo !== 'sim') setTimeout(() => { if (Sv.rxN === 0 && Sv.estado === 'conectado') Sv.enviar('?'); }, 1800);    // el Uno se reinicia al abrir el puerto: se le pide el saludo por si ya arrancó
+      if (modo !== 'sim') setTimeout(() => { if (Sv.rxN === 0 && Sv.estado === 'conectado') Sv.enviar('?'); }, 1800);
     } catch (e) {
-      Sv.deseado = modo === 'usb' && !!Sv.cfg.auto;
+      Sv.deseado = false;
       poner('error', (e && e.message) || String(e));
-      if (modo === 'usb' && Sv.cfg.auto) programarReintento();
     }
   };
   Sv.desconectar = async function (interno) {
     if (!interno) Sv.deseado = false;
-    clearTimeout(Sv.tReint);
-    try {
-      if (Sv.modo === 'sim') { clearInterval(Sv.tSim); Sv.motor = null; }
-      else if (Sv.modo === 'usb') { const p = plugin(); if (p) await p.desconectar(); }
-      else if (Sv.modo === 'web' && Sv.web) { try { Sv.web.activo = false; if (Sv.web.reader) await Sv.web.reader.cancel(); if (Sv.web.writer) Sv.web.writer.releaseLock(); if (Sv.web.port) await Sv.web.port.close(); } catch (e) {} Sv.web = null; }
-    } catch (e) {}
+    try { if (Sv.modo === 'sim') { clearInterval(Sv.tSim); Sv.motor = null; } } catch (e) {}
     if (!interno) poner('desconectado', '');
   };
   // ----- por el Macrodeck -----
@@ -326,57 +308,16 @@ window.MD = window.MD || {};
     Sv.mdRx = '';
     Sv.detalle = 'por el Macrodeck';
   }
-  function programarReintento() {
-    clearTimeout(Sv.tReint);
-    if (!Sv.cfg.auto || Sv.modo !== 'usb') return;
-    Sv.tReint = setTimeout(() => { if (Sv.estado !== 'conectado' && Sv.estado !== 'conectando') Sv.conectar('usb'); }, 3500);
-  }
-
-  // ----- usb (APK) -----
-  let oyenteUsb = false;
-  async function iniciarUsb() {
-    const p = plugin(); if (!p) throw new Error('Esta versión de la app no trae el USB. Instalá la APK nueva.');
-    if (!oyenteUsb) {
-      oyenteUsb = true;
-      p.addListener('linea', (d) => { if (Sv.modo === 'usb') Sv.linea(d && d.texto); });
-      p.addListener('estado', (d) => {
-        if (Sv.modo !== 'usb' || !d) return;
-        if (d.estado === 'desconectado' && Sv.estado === 'conectado') { poner('desconectado', d.detalle || 'se cortó el cable'); if (Sv.deseado) programarReintento(); }
-        else if (d.estado === 'enchufado' && Sv.cfg.auto && Sv.estado !== 'conectado' && Sv.estado !== 'conectando') Sv.conectar('usb');
-      });
-    }
-    const r = await p.conectar({ baud: Sv.cfg.baud });
-    Sv.detalle = (r && r.nombre) || 'Arduino';
-  }
-  // ----- Web Serial (escritorio) -----
-  async function iniciarWeb() {
-    if (!('serial' in navigator)) throw new Error('Este navegador no tiene Web Serial (usá Chrome o Edge en la compu)');
-    const port = await navigator.serial.requestPort(); await port.open({ baudRate: Sv.cfg.baud });
-    const w = Sv.web = { port, activo: true, reader: port.readable.getReader(), writer: port.writable.getWriter() };
-    (async () => {
-      const dec = new TextDecoder(); let resto = '';
-      try {
-        while (w.activo) {
-          const { value, done } = await w.reader.read(); if (done) break;
-          resto += dec.decode(value, { stream: true });
-          let i; while ((i = resto.indexOf('\n')) >= 0) { const l = resto.slice(0, i); resto = resto.slice(i + 1); Sv.linea(l); }
-          if (resto.length > 400) resto = '';                                   // basura sin fin de linea: se descarta
-        }
-      } catch (e) { /* el puerto se cerró */ }
-      if (w.activo && Sv.modo === 'web') poner('desconectado', 'se cortó la conexión');
-    })();
-    Sv.detalle = 'puerto serie';
-  }
   // ----- simulador -----
   function iniciarSim() {
     let guardado = null; try { guardado = JSON.parse(localStorage.getItem('trk_sim_guardado') || 'null'); } catch (e) {}
     const t0 = performance.now();
     let cfgSim = null; try { cfgSim = JSON.parse(localStorage.getItem('trk_sim_cfg') || 'null'); } catch (e) {}
-    Sv.motor = new Trk.Motor({ invertir: true, version: '3.0', cfg: cfgSim, alCfg: (o) => { try { localStorage.setItem('trk_sim_cfg', JSON.stringify(o)); } catch (e) {} }, salida: (l) => Sv.linea(l), restaurar: guardado, alGuardar: (o) => { try { if (o) localStorage.setItem('trk_sim_guardado', JSON.stringify(o)); else localStorage.removeItem('trk_sim_guardado'); } catch (e) {} } });
+    Sv.motor = new Trk.Motor({ invertir: true, version: '3.1', cfg: cfgSim, alCfg: (o) => { try { localStorage.setItem('trk_sim_cfg', JSON.stringify(o)); } catch (e) {} }, salida: (l) => Sv.linea(l), restaurar: guardado, alGuardar: (o) => { try { if (o) localStorage.setItem('trk_sim_guardado', JSON.stringify(o)); else localStorage.removeItem('trk_sim_guardado'); } catch (e) {} } });
     clearInterval(Sv.tSim);
     Sv.tSim = setInterval(() => { if (Sv.motor) Sv.motor.tick(Math.floor(performance.now() - t0)); }, 4);
   }
-  // un toque tiene que durar al menos 50 ms para que el Arduino virtual lo vea (como un boton de verdad: nunca dura 1 ms)
+  // un toque tiene que durar al menos 50 ms para que el tracker virtual lo vea (como un boton de verdad: nunca dura 1 ms)
   const pulso = {};
   Sv.simBoton = (lado, abajo) => {
     if (Sv.modo !== 'sim' || !Sv.motor) return;
@@ -401,7 +342,6 @@ window.MD = window.MD || {};
   Trk.iniciar = async function (A) {
     Sv.A = A; await Sv.cargarCfg();
     Trk.Audio.precargar(Sv.cfg).catch(() => {});
-    // conexion automatica: en la APK, si ya habia un Arduino enchufado y permitido
-    if (Sv.cfg.auto && plugin()) setTimeout(() => { if (Sv.estado === 'desconectado') { Sv.modo = 'usb'; plugin().listar().then((r) => { if (r && r.dispositivos && r.dispositivos.length && r.permitido) Sv.conectar('usb'); }).catch(() => {}); } }, 1200);
+    if (!Sv.modo) Sv.modo = 'md';                          // 2.0-dev31: el camino de siempre es por el Macrodeck (se conecta solo cuando el tracker aparece)
   };
 })(window.MD);

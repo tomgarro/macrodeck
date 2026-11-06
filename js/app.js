@@ -9,8 +9,8 @@
   const vista = document.getElementById('vista'), tabsEl = document.getElementById('tabs');
   const estadoCab = document.getElementById('estadoCab'), estadoTxt = document.getElementById('estadoTxt');
   // v1.3-dev33: 5 pestanas. "Mas" junta Sonidos, Drive y Herramientas (siguen siendo las mismas pantallas, solo que un toque mas adentro).
-  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['audios', 'Audios', 'audios'], ['luces', 'Luces', 'luz'], ['it', 'Tracker IT', 'tracker', 'IT'], ['mas', 'Más', 'mas']];     // 2.0-dev13: la pestana nueva ocupa el lugar; la clasica (Arduino) paso a Más hasta que el IT nuevo este andando
-  const EN_MAS = ['sonidos', 'drive', 'herramientas', 'tracker'];
+  const TABS = [['mesa', 'Mesa', 'mesa'], ['escenas', 'Escenas', 'escenas'], ['audios', 'Audios', 'audios'], ['luces', 'Luces', 'luz'], ['it', 'Tracker', 'tracker', 'Tracker'], ['mas', 'Más', 'mas']];     // 2.0-dev31: una sola pestaña del tracker (el 2.0); la clasica del Arduino se saco
+  const EN_MAS = ['sonidos', 'drive', 'herramientas'];
 
   // ---------- guardar ----------
   // v1.3-dev18: el guardado ya no es mudo. Cada cambio se guarda solo a los 0,4 s; ademas se guarda YA al ocultar la app, al cambiar de
@@ -671,7 +671,7 @@
 
   // ---------- pantallas ----------
   // v1.3-dev13: cada pestana lleva su icono (MDI); la de Drive muestra un numerito si hay sonidos nuevos o cambiados.
-  A.irATab = function (id) { volcar(); A.tab = id; A.render(); vista.scrollTop = 0; };
+  A.irATab = function (id) { volcar(); A.tab = id === 'tracker' ? 'it' : id; A.render(); vista.scrollTop = 0; };      // 2.0-dev31: la pestaña clasica del tracker ya no existe
   A.pintarTabs = function () {
     tabsEl.innerHTML = '';
     const activa = EN_MAS.includes(A.tab) ? 'mas' : A.tab;
@@ -682,7 +682,7 @@
     const sc = vista.scrollTop;
     vista.innerHTML = ''; A.mesaCeldas = []; A.mesaFaders = []; A.mesaVol = A.mesaSonando = null;
     if (EN_MAS.includes(A.tab)) vista.append(h('button', { type: 'button', class: 'atras', onclick: () => A.irATab('mas') }, MDg.IUI.svg('atras'), 'Más'));
-    ({ mesa: MDg.UI.vistaMesa, mas: MDg.UI.vistaMas, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, tracker: MDg.Trk.vista, it: (A2, v2) => MDg.Trk.vista(A2, v2, { it: true }), drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
+    ({ mesa: MDg.UI.vistaMesa, mas: MDg.UI.vistaMas, escenas: MDg.UI.vistaEscenas, sonidos: MDg.UI.vistaSonidos, audios: MDg.Audios.vista, luces: MDg.UI.vistaLuces, it: (A2, v2) => MDg.Trk.vista(A2, v2, { it: true }), drive: MDg.DriveUI.vista, herramientas: MDg.UI.vistaHerramientas })[A.tab](A, vista);
     A.pintarTabs();
     if (MDg.Sync) MDg.Sync.montar();                          // 1.3-dev31: boton grande "Sincronizar todo" arriba, en todas las pestanas
     if (MDg.Maqueta) MDg.Maqueta.montar(A);                    // 1.3-dev22: version de escritorio

@@ -115,9 +115,8 @@ window.MD = window.MD || {};
         const k = i - off;
         if (k >= 1 && k <= S.total) {
           const c = this.colorDe(S.tipo[k]);
-          if (k < S.cfg) this.led(i, c[0], c[1], c[2]);
-          else if (k === S.cfg) this.led(i, trunc(fr(c[0] * p)), trunc(fr(c[1] * p)), trunc(fr(c[2] * p)));
-          else this.led(i, 255, 255, 255);
+          if (k === S.cfg) this.led(i, trunc(fr(c[0] * p)), trunc(fr(c[1] * p)), trunc(fr(c[2] * p)));       // 2.0-dev31: el cursor late; los demas con su color
+          else this.led(i, c[0], c[1], c[2]);
         } else this.led(i, 0, 0, 0);
       }
     }
@@ -136,8 +135,15 @@ window.MD = window.MD || {};
         if (S.muerto[k]) { this.led(i, 0, 0, 0); continue; }
         const b = this.colorDe(S.tipo[k]);
         if (S.ins && k === S.ins) { this.led(i, M(b[0], pIns), M(b[1], pIns), M(b[2], pIns)); continue; }
-        const cd = S.cond[k] | 0, est = S.alt[k], alt = est !== 0 || cd !== 0;
-        const a = cd ? Trk.colEstMapa[cd] : ((alt && est !== 3) ? Trk.colEstMapa[est] : [0, 0, 0]);
+        // 2.0-dev31: varios estados: un color por vez (cambia en cada respiracion, o en cada pulso en su turno), igual que renderCombate de motor.h 3.1
+        const m = S.cond[k] | 0, est = S.alt[k] === 3 ? 3 : 0, cods = [];
+        for (let q = 1; q <= 16; q++) if (q !== 6 && (m & (1 << (q - 1)))) cods.push(q);
+        const alt = est !== 0 || cods.length > 0;
+        let a = [0, 0, 0];
+        if (cods.length) {
+          const v = k === S.turno ? Math.floor((Math.floor(((F >>> 0) * (inact ? 6258 : 1565)) / 256) + 64) / 256) : Math.floor((Math.floor(((F >>> 0) * 626) / 256) + 192) / 256);
+          a = Trk.colEstMapa[cods[v % cods.length]];
+        }
         if (k === S.turno) {
           if (!alt) this.led(i, M(255, pT), M(255, pT), M(255, pT));
           else if (est === 3) this.led(i, M(b[0], lat), M(b[1], lat), M(b[2], lat));
@@ -249,9 +255,13 @@ window.MD = window.MD || {};
         if (!Trk.TIPOS[t] || Trk.ALT_LETRAS.indexOf(e) < 0 || (v !== '0' && v !== '1')) return { k: 'otro', txt: l };
         S.tipo[i] = t; S.alt[i] = Trk.ALT_LETRAS.indexOf(e); S.muerto[i] = v === '0';
       }
-      // 2.0-dev27: cola opcional ",<cond><agot>" por lugar (cond 0..9 / A..H = codigo 0..17; agot 0..6)
+      // 2.0-dev31 (motor 3.1): cola ",<mascara 4 hex><agot>" por lugar. La de la 1.10 a 1.12 (",<cond><agot>", 2 letras) tambien se entiende.
       const cola = cuerpo.slice(S.total * 3);
-      if (cola[0] === ',') for (let i = 1; i <= S.total; i++) { const c = '0123456789ABCDEFGH'.indexOf(cola[1 + (i - 1) * 2]), g = +cola[2 + (i - 1) * 2]; S.cond[i] = c > 0 ? c : 0; S.agot[i] = g >= 0 && g <= 6 ? g : 0; }
+      if (cola[0] === ',') {
+        if (cola.length >= 1 + S.total * 5) for (let i = 1; i <= S.total; i++) { const o = 1 + (i - 1) * 5, mm = parseInt(cola.substr(o, 4), 16), g = +cola[o + 4]; S.cond[i] = (mm || 0) & ~32 & 0xFFFF; S.agot[i] = g >= 0 && g <= 6 ? g : 0; }
+        else for (let i = 1; i <= S.total; i++) { const c = '0123456789ABCDEFGH'.indexOf(cola[1 + (i - 1) * 2]), g = +cola[2 + (i - 1) * 2]; S.cond[i] = (c >= 3 && c <= 16 && c !== 6) ? 1 << (c - 1) : 0; S.agot[i] = g >= 0 && g <= 6 ? g : 0; }
+      }
+      for (let i = 1; i <= S.total; i++) { if (S.alt[i] === 1) S.cond[i] |= 1; if (S.alt[i] === 2) S.cond[i] |= 2; }
       return { k: 'snap', S };
     }
     if (l.startsWith('!CFG,')) {                          // 3.0: !CFG,mascara,brillo,<11 colores en rrggbb>
@@ -270,6 +280,9 @@ window.MD = window.MD || {};
     return { k: 'otro', txt: l };
   };
   // numero de calavera: el 1.er enemigo del tracker es la calavera 1, etc. (del 7.o en adelante: lisa)
+  // 2.0-dev31: los estados de un lugar como lista de posiciones (1..16 de la mascara, 6 si tiene agotamiento, 17 si esta inconsciente)
+  Trk.estadosDe = function (S, k) { const o = []; const m = S.cond[k] | 0; for (let p = 1; p <= 17; p++) { if (p === 6) { if (S.agot[k]) o.push(6); } else if (p === 17) { if (S.alt[k] === 3) o.push(17); } else if (m & (1 << (p - 1))) o.push(p); } return o; };
+  Trk.textoEstados = function (S, k) { return Trk.estadosDe(S, k).map((p) => (p === 6 ? Trk.EST_NOMBRES_ES[6] + ' ' + S.agot[k] : Trk.EST_NOMBRES_ES[p]).toLowerCase()).join(' · '); };
   Trk.numEnemigo = function (S, i) { let n = 0; for (let k = 1; k <= i; k++) if (S.tipo[k] === 'E') n++; return n; };
 
   // ---------- el espejo: la pantalla del aparato (o del simulador) dibujada en la app ----------
@@ -302,20 +315,24 @@ window.MD = window.MD || {};
     // el evento mueve lo que se ve YA (sin esperar la foto completa)
     evento(id, a, ms) {
       const S = this.S, p = this.p, num = (v) => +v || 0;
-      if (['TN', 'TP', 'SC', 'SJ', 'SN', 'UN', 'CG'].indexOf(id) >= 0) this.inactivo = false;
+      if (['TN', 'TP', 'SC', 'SJ', 'SN', 'ST', 'SX', 'AG', 'UN', 'CG'].indexOf(id) >= 0) this.inactivo = false;
       if (id === 'RN' || id === 'RP') { S.ronda = num(a[0]); S.turno = num(a[2]) || S.turno; this.inactivo = false; p.arrancar('ronda', id === 'RN' ? 1 : -1, null, ms); }
       else if (id === 'TN' || id === 'TP') S.turno = num(a[1]) || S.turno;
-      else if (id === 'SC' || id === 'SJ' || id === 'SN' || id === 'SI') { const k = num(a[1]); if (k >= 1 && k <= 12) { S.alt[k] = id === 'SC' ? 1 : (id === 'SJ' ? 2 : (id === 'SN' ? 0 : 3)); S.cond[k] = 0; } }
-      else if (id === 'ST') { const k = num(a[1]); if (k >= 1 && k <= 12) { S.cond[k] = num(a[2]); S.alt[k] = 0; } }       // condicion puesta
+      // 2.0-dev31: varios estados a la vez (S.cond es una mascara); SX = se saco uno (17 = desperto)
+      else if (id === 'SC' || id === 'SJ') { const k = num(a[1]); if (k >= 1 && k <= 12) S.cond[k] |= id === 'SC' ? 1 : 2; }
+      else if (id === 'SN') { const k = num(a[1]); if (k >= 1 && k <= 12) { S.cond[k] = 0; S.alt[k] = 0; } }
+      else if (id === 'SI') { const k = num(a[1]); if (k >= 1 && k <= 12) S.alt[k] = 3; }
+      else if (id === 'ST') { const k = num(a[1]), c = num(a[2]); if (k >= 1 && k <= 12 && c >= 1 && c <= 16) S.cond[k] |= 1 << (c - 1); }
+      else if (id === 'SX') { const k = num(a[1]), c = num(a[2]); if (k >= 1 && k <= 12) { if (c === 17) S.alt[k] = 0; else if (c >= 1 && c <= 16) S.cond[k] &= ~(1 << (c - 1)); } }
       else if (id === 'AG') { const k = num(a[1]); if (k >= 1 && k <= 12) S.agot[k] = num(a[2]); }                      // nivel de agotamiento
       else if (id === 'KL') p.arrancar('fulminado', num(a[1]), null, ms);
       else if (id === 'QO') { S.modo = 'C'; S.cfg = 1; p.arrancar('flash', 0, null, ms); }
-      else if (id === 'CG') S.modo = 'B';
+      else if (id === 'CG') { S.modo = 'B'; p.arrancar('flash', 0, null, ms); }
       else if (id === 'VI') { S.modo = 'F'; p.arrancar('victoria', 0, null, ms); }
       else if (id === 'TK' || id === 'RS') { S.modo = id === 'TK' ? 'F' : 'Q'; p.arrancar('estrobo', 3, null, ms); }
       else if (id === 'ID') this.inactivo = true;
       else if (id === 'QU' || id === 'QD') S.total = num(a[0]) || S.total;
-      else if (id === 'CN' || id === 'CP' || id === 'IT') { const k = num(a[1]); if (k >= 1 && k <= 12 && Trk.TIPOS[a[0]]) S.tipo[k] = a[0]; }
+      else if (id === 'CN' || id === 'CP' || id === 'IT' || id === 'CM') { const k = num(a[1]); if (k >= 1 && k <= 12 && Trk.TIPOS[a[0]]) S.tipo[k] = a[0]; if (id === 'CM' && k >= 1 && k <= S.total) S.cfg = k; }   // 2.0-dev31: CM = el cursor del selector de personajes
       else if (id === 'CS') { const k = num(a[1]); if (k >= 1 && k < S.total) S.cfg = k + 1; }
     }
     tick() { this.p.tick(this.ahora()); }

@@ -60,7 +60,7 @@ window.MD = window.MD || {};
   }
   // 2.0-dev5: configuracion del Initiative Tracker (que suena y que se prende en cada evento, por evento y por clase).
   // Se "aplana" a un mapa clave -> entrada para juntarlo entrada por entrada con la base de la ultima sync:
-  //   'ev|ID' (evento) · 'cl|T|ID' (evento de una clase). Lo que NO viaja (volumen, ducking, USB, baudios) es de cada equipo.
+  //   'ev|ID' (evento) · 'cl|T|ID' (evento de una clase). Lo que NO viaja (volumen, silencio, ducking) es de cada equipo.
   function aplanarTracker(c) {
     const o = {};
     Object.keys((c && c.ev) || {}).forEach((id) => { o['ev|' + id] = c.ev[id]; });

@@ -613,6 +613,16 @@ body.au-ov-abierto #app{visibility:hidden}
 .tk-fichaT{flex:none;width:44px;height:74px;fill:#444}
 .tk-modo{font-size:.8rem;color:var(--tx2)}
 .tk-foto{position:relative;border-radius:10px;overflow:hidden;background:#040404;line-height:0;aspect-ratio:1998/800}
+/* 2.0-dev31: el tracker 2.0 sin foto: franja oscura con las fichas y el borde de la caja; teclas del Macrodeck para el simulador */
+.tk-foto2{aspect-ratio:1998/340;background:radial-gradient(120% 140% at 50% 0%,#1a1b21 0%,#07070a 70%)}
+.tk-cuerpo{fill:#121318;stroke:#2a2c35;stroke-width:3}
+.tk-keys{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:440px;margin:6px auto 0}
+.tk-key{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px;border-radius:12px;background:var(--panel2,#1c1d22);border:1px solid #33353f;touch-action:manipulation;min-height:58px}
+.tk-key b{font:700 1rem system-ui,sans-serif}.tk-key small{font-size:.68rem;color:#a7a9b4}
+.tk-key.p{border-color:var(--tk-oro,#e0b21f);background:#e0b21f2e}
+.tk-key.on{border-color:#d4342c;background:#d4342c26}
+.tk-key-c b{color:var(--tk-oro,#e0b21f)}
+.tarjeta.inactivo .tk-keys{opacity:.5}
 .tk-foto img{position:absolute;top:0;left:0;width:100%;display:block;user-select:none;-webkit-user-drag:none}
 .tk-foto svg{position:absolute;inset:0;width:100%;height:100%}
 .tk-vacio{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:12px;font:.8rem/1.3 system-ui,sans-serif;color:#cfcfcf;background:#000a}

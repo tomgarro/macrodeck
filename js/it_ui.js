@@ -148,7 +148,7 @@ window.MD = window.MD || {};
       estFilas);
     function estadoTxt() {
       const lista = Sv.estado === 'conectado' && Sv.firmwareNuevo();
-      estadoT.textContent = lista ? '● Tracker conectado: «Guardar y aplicar» se lo manda ahora.' : (Sv.estado === 'conectado' ? 'Este tracker es el Arduino viejo (firmware 2.x): no entiende colores nuevos.' : 'Sin tracker conectado: se guarda en la app y se manda solo cuando conecte (o con el simulador).');
+      estadoT.textContent = lista ? '● Tracker conectado: «Guardar y aplicar» se lo manda ahora.' : (Sv.estado === 'conectado' ? 'Conectado: se manda en un momento.' : 'Sin tracker conectado: se guarda en la app y se manda solo cuando conecte (o con el simulador).');
     }
     const tTaller = el('div', { class: 'tarjeta it-taller' },
       el('h3', null, 'Taller de colores ', el('small', null, 'personajes e invitados')),

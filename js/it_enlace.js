@@ -1,5 +1,9 @@
 // it_enlace.js - Initiative Tracker (IT) controlado desde el Macrodeck: las teclas C2, D2 y E2 (y B2 = volumen de sus sonidos, desde 2.0-dev26).
 //
+// 2.0-dev31: A2 = DESHACER (el Macrodeck dev57 se lo manda al tracker real como UNDO; con el simulado llega la trama 'T' con boton 3).
+//   B2 UN TOQUE = SILENCIO de los sonidos del tracker (solo del tracker; otro toque los vuelve a prender). B2 mantenida + perilla sigue siendo el volumen.
+//   La perilla ya no se le reenvia al tracker real desde la app: el Macrodeck dev57 se la manda directo por la radio. Con el simulado, la manda la app.
+//
 // 2.0-dev26: VOLUMEN DEL TRACKER. Con un tracker conectado, B2 (tecla 6) deja de ser una tecla de sonido: MIENTRAS esta apretada, la perilla del Macrodeck
 //   es el volumen de los sonidos del tracker (0 a 100 %, de fabrica 100 %, queda guardado en ese celu). Al soltar B2 la perilla vuelve a ser el volumen general.
 //   - "Agarre": si la perilla esta lejos del volumen actual, no lo mueve hasta que lo alcanza o lo cruza (asi no pega un salto). Pasa lo mismo al soltar B2.
@@ -15,9 +19,8 @@
 //     TODOS los gestos del joystick de 3 botones (insertar = centro + izquierda, deshacer = centro + derecha, reiniciar = los tres 3 s).
 //     A1 y B1 con D2 mantenida quedan reservadas para macros futuras.
 //   - En el mapa de la e-Paper esas 3 teclas muestran los controles del tracker (flecha, circulo, flecha) mientras haya tracker.
-//   - Quien "es" el tracker se enchufa con MD.IT.usar({ nombre, presente(), boton(lado, abajo) }). Son TRES casos (2.0-dev13):
+//   - Quien "es" el tracker se enchufa con MD.IT.usar({ nombre, presente(), boton(lado, abajo), deshacer() }). Son DOS casos (2.0-dev31):
 //       sim : el tracker simulado de la app. Los botones llegan como trama 'T' y se los pasa a Sv.simBoton.
-//       usb : el tracker ESP32 real por cable (USB-OTG o Web Serial). Los botones llegan como 'T' y salen por el cable como la orden "B,I,1".
 //       md  : el tracker ESP32 real por la RADIO del Macrodeck (ESP-NOW). El Macrodeck manda los botones por la radio el mismo (no manda 'T'); la app solo
 //             recibe las lineas del tracker ('L') y avisa de su presencia ('N'). Si la app necesita mandarle algo, lo hace con 'u'.
 //   - El firmware (programa_dnd.cpp) y el Macrodeck simulado (simulador.js) hacen LO MISMO con las teclas: si cambia uno, cambia el otro.
@@ -28,8 +31,9 @@ window.MD = window.MD || {};
   IT.TECLAS = [7, 8, 9];                 // C2, D2, E2
   IT.LADOS = ['I', 'C', 'D'];            // izquierda, centro, derecha (las mismas letras que usa el simulador del tracker)
   IT.NOMBRES = ['TURNO SIG', 'OK/ESTADO', 'TURNO ANT'];
-  IT.TECLA_VOL = 6;                      // B2: volumen de los sonidos del tracker (con B2 apretada, la perilla)
-  IT.esFija = (i) => i === 6 || i === 7 || i === 8 || i === 9;
+  IT.TECLA_VOL = 6;                      // B2: volumen de los sonidos del tracker (con B2 apretada, la perilla); un toque = silencio
+  IT.TECLA_UNDO = 5;                     // A2: deshacer (2.0-dev31)
+  IT.esFija = (i) => i === 5 || i === 6 || i === 7 || i === 8 || i === 9;
 
   // ---------- iconos de 24 x 24 (1 bit, MSB primero, 3 bytes por fila) ----------
   function dibujo(fn) {
@@ -52,6 +56,13 @@ window.MD = window.MD || {};
     return x > 15 && ((d >= 5.5 && d <= 7.2) || (d >= 8.8 && d <= 10.2)) && Math.abs(y - 12) <= d * 0.8;
   });
   IT.iconoVol = iconoVol;
+  // flecha curva de "deshacer" para A2 (2.0-dev31): un arco de 3/4 y la punta de flecha a la izquierda
+  const iconoUndo = dibujo((x, y) => {
+    const d = Math.hypot(x - 13, y - 13), ang = Math.atan2(y - 13, x - 13);
+    if (d >= 6 && d <= 9 && !(ang < -1.9 || ang > 2.2)) return true;
+    return y >= 3 && y <= 13 && x >= 2 && x <= 9 && Math.abs(y - 8) <= (x - 2) * 0.9 && x <= 9;
+  });
+  IT.iconoUndo = iconoUndo;
 
   // ---------- presencia ----------
   IT.usar = function (adaptador) { IT.adaptador = adaptador; IT.revisar(true); };
@@ -63,18 +74,21 @@ window.MD = window.MD || {};
     const out = teclas.slice();
     IT.TECLAS.forEach((k, j) => { out[k] = { nombre: IT.NOMBRES[j], tipo: 'una_vez', ducking: false, icono: iconos[j] }; });
     out[IT.TECLA_VOL] = { nombre: 'VOLUMEN', tipo: 'una_vez', ducking: false, icono: iconoVol };       // 2.0-dev26: B2
+    out[IT.TECLA_UNDO] = { nombre: 'DESHACER', tipo: 'una_vez', ducking: false, icono: iconoUndo };    // 2.0-dev31: A2
     return out;
   };
   // Los LEDs de esas 3 teclas (y B2): prendidas fijas mientras haya tracker (modo 1) -> se nota cuales son. B2 respira mientras se la mantiene (modo 2).
   IT.ajustarLeds = function (leds) {
     if (!IT.presente()) return leds;
-    const o = leds.slice(); IT.TECLAS.forEach((k) => { o[k] = 1; }); o[IT.TECLA_VOL] = V.abajo ? 2 : 1; return o;
+    const S = servicio(), mudo = !!(S && S.cfg.mute);
+    const o = leds.slice(); IT.TECLAS.forEach((k) => { o[k] = 1; }); o[IT.TECLA_UNDO] = 1; o[IT.TECLA_VOL] = V.abajo ? 2 : (mudo ? 0 : 1); return o;      // 2.0-dev31: B2 apagada = tracker en silencio
   };
 
   // ---------- 2.0-dev26: B2 + perilla = volumen de los sonidos del tracker ----------
   const TOL = 12;                         // "agarre" de la perilla, sobre 0..255 (unos 5 %), igual que en gestos.js
   const MS_OLED = 1800;                   // cuanto queda el volumen en la OLED del Macrodeck despues del ultimo cambio
-  const V = { abajo: false, agarrado: false, obj: 0, lado: 0, movio: false, ultP: -1, pendMaster: false, ladoM: 0, hasta: 0, tOled: 0 };
+  const V = { abajo: false, agarrado: false, obj: 0, lado: 0, movio: false, ultP: -1, pendMaster: false, ladoM: 0, hasta: 0, tOled: 0, t0: 0, tMostrar: 0 };
+  const TOQUE_MS = 350;                   // 2.0-dev31: B2 soltada antes de esto y sin mover la perilla = un toque (silencio)
   const servicio = () => (MD.Trk && MD.Trk.Servicio) || null;
   const ahora = () => performance.now();
   // La llama app.js en cada apretada / soltada de una tecla. Devuelve true si B2 se la queda el tracker (no se manda al motor de sonidos).
@@ -83,7 +97,8 @@ window.MD = window.MD || {};
     const S = servicio();
     if (!abajo) {                                       // la soltada se la queda SOLO si la apretada fue del volumen (si no, el motor tiene que verla)
       if (!V.abajo) return false;
-      V.abajo = false; V.hasta = ahora() + MS_OLED;
+      V.abajo = false; V.hasta = ahora() + MS_OLED; clearTimeout(V.tMostrar);
+      if (!V.movio && ahora() - V.t0 < TOQUE_MS && S) { S.fijarMute(!S.cfg.mute); return true; }      // 2.0-dev31: un toque = silencio / sonido
       if (V.movio && IT.A && IT.A.motor) {              // la perilla quedo lejos del volumen general: tiene que volver a "agarrarlo" para no pegar un salto
         const obj = Math.round(IT.A.motor.volGeneral * 255);
         V.pendMaster = true; V.ladoM = V.ultP >= 0 ? (V.ultP > obj ? 1 : -1) : 0;
@@ -93,11 +108,12 @@ window.MD = window.MD || {};
       return true;
     }
     if (!S || !IT.presente()) return false;             // sin tracker, B2 es una tecla comun
-    V.abajo = true; V.movio = false;
+    V.abajo = true; V.movio = false; V.t0 = ahora(); V.k0 = -1; V.v0 = S.cfg.vol;
     V.obj = Math.round(S.cfg.vol * 255);
     V.agarrado = V.ultP >= 0 && Math.abs(V.ultP - V.obj) <= TOL;
     V.lado = V.ultP >= 0 ? (V.ultP > V.obj ? 1 : -1) : 0;
-    S.fijarVol(S.cfg.vol, { mostrar: true });           // al apretar ya se ve el volumen de ahora (OLED del Macrodeck, OLED del tracker y cartel)
+    clearTimeout(V.tMostrar);                           // 2.0-dev31: el volumen se muestra recien si B2 sigue apretada (un toque es el silencio)
+    V.tMostrar = setTimeout(() => { if (V.abajo) S.fijarVol(S.cfg.vol, { mostrar: true }); }, TOQUE_MS);
     return true;
   };
   // La perilla (0..255). Devuelve true si este modulo se QUEDA con el valor (no se toca el volumen general).
@@ -108,13 +124,13 @@ window.MD = window.MD || {};
     const S = servicio();
     if (V.abajo) {
       if (!S || !IT.presente()) { V.abajo = false; return false; }      // el tracker se fue con B2 apretada: se suelta sola
-      if (!V.agarrado) {
-        const lado = v > V.obj ? 1 : -1;
-        if (Math.abs(v - V.obj) <= TOL || (V.lado && lado !== V.lado)) V.agarrado = true;
-        else { V.lado = lado; return true; }            // todavia no lo alcanzo: la OLED dice "TURN KNOB"
-      }
-      V.movio = true;
-      S.fijarVol(v / 255);
+      // 2.0-dev31: SIN "agarre" (antes habia que girar a ciegas hasta pasar por el volumen). El volumen se mueve desde el primer giro y en proporcion:
+      // girando para arriba va del volumen actual al 100 % en el recorrido que le queda a la perilla; para abajo, del actual al 0 %. Nunca salta.
+      if (V.k0 < 0) { V.k0 = v; V.v0 = S.cfg.vol; return true; }        // primer dato despues de apretar B2: el punto de partida
+      if (v === V.k0) return true;
+      const nv = v > V.k0 ? V.v0 + (v - V.k0) / (255 - V.k0) * (1 - V.v0) : V.v0 * (v / V.k0);
+      V.movio = true; V.agarrado = true;
+      S.fijarVol(nv);
       return true;
     }
     if (V.pendMaster && IT.A && IT.A.motor) {
@@ -125,11 +141,12 @@ window.MD = window.MD || {};
     return false;
   };
   // ---------- 2.0-dev27: ESTADOS (D2 apretada + perilla) ----------
-  // La perilla se le manda SIEMPRE al tracker ('K,<0..255>'; como mucho una cada 70 ms y siempre llega la ultima), asi sabe donde esta cuando se aprieta D2.
+  // La perilla se le manda SIEMPRE al tracker SIMULADO ('K,<0..255>'; como mucho una cada 70 ms y siempre llega la ultima), asi sabe donde esta cuando se aprieta D2.
+  // 2.0-dev31: al tracker REAL se la manda el Macrodeck (dev57) directo por la radio: la app ya no (eran dos caminos y llegaban desordenados).
   // Mientras el selector esta abierto (el tracker avisa con @SP ... @SQ) el volumen general no se mueve; al cerrarlo la perilla tiene que volver a "agarrarlo".
   const K = { t: 0, ult: -1, pend: 0, sel: false };
   function mandarK(v) {
-    const S = servicio(); if (!S || !IT.presente() || S.estado !== 'conectado' || !S.firmwareNuevo()) return;
+    const S = servicio(); if (!S || !IT.presente() || S.estado !== 'conectado' || S.modo !== 'sim') return;
     clearTimeout(K.pend);
     const ir = () => { K.pend = 0; if (K.ult === K.v) return; if (S.enviarLinea('K,' + K.v)) { K.ult = K.v; K.t = Date.now(); } };
     K.v = v;
@@ -145,8 +162,9 @@ window.MD = window.MD || {};
   IT.oled = function () {
     const S = servicio(); if (!S) return null;
     if (!V.abajo && !(IT.presente() && ahora() < V.hasta)) return null;
+    if (S.cfg.mute && !V.abajo) return ['TRACKER', 'SOUND', 'MUTED', 'B2: ON'];          // 2.0-dev31
     const v = Math.round(S.cfg.vol * 100), celdas = Math.round(v / 100 * 8);
-    return ['TRACKER', 'VOLUME', '[' + '#'.repeat(celdas) + '-'.repeat(8 - celdas) + ']', (V.abajo && !V.agarrado) ? 'TURN KNOB' : v + '%'];
+    return ['TRACKER', 'VOLUME', '[' + '#'.repeat(celdas) + '-'.repeat(8 - celdas) + ']', v + '%'];
   };
   // El volumen cambio (por la perilla o por el deslizador de la app): la OLED del Macrodeck lo muestra un rato y despues vuelve a lo de siempre
   IT.volCambio = function () {
@@ -170,6 +188,7 @@ window.MD = window.MD || {};
 
   // Llega un boton del Macrodeck (trama 'T'): se lo pasa al tracker
   IT.boton = function (b, abajo) {
+    if (b === 3) { if (abajo && IT.presente() && IT.adaptador && IT.adaptador.deshacer) { try { IT.adaptador.deshacer(); } catch (e) {} } return; }      // 2.0-dev31: A2 = deshacer
     if (!IT.presente() || b < 0 || b > 2) return;
     try { IT.adaptador.boton(IT.LADOS[b], !!abajo); } catch (e) {}
     if (MD.Diag) MD.Diag.anotar('tracker: ' + ['izquierda', 'centro', 'derecha'][b] + (abajo ? ' abajo' : ' arriba'));
@@ -189,12 +208,12 @@ window.MD = window.MD || {};
     IT.A = A;
     const Trk = MD.Trk, Sv = Trk && Trk.Servicio;
     if (Sv) {
-      // Hoy el "tracker" que se puede controlar es el simulado de la pestana Initiative Tracker (el Arduino real tiene su joystick de verdad).
-      // El tracker "es" lo que este conectado en el servicio: el simulado, el real por cable (si su firmware es el 3.x, que entiende los botones por serie) o el real por la radio.
+      // El tracker "es" lo que este conectado en el servicio: el simulado o el real por la radio del Macrodeck.
       IT.usar({
         nombre: 'tracker',
-        presente: () => Sv.estado === 'conectado' && (Sv.modo === 'sim' || Sv.modo === 'md' || Sv.firmwareNuevo()),
+        presente: () => Sv.estado === 'conectado' && (Sv.modo === 'sim' || Sv.modo === 'md'),
         boton: (lado, abajo) => { if (Sv.modo !== 'md') Sv.boton(lado, abajo); },       // por la radio los botones los manda el Macrodeck solo
+        deshacer: () => { if (Sv.modo !== 'md') Sv.deshacer(); },                         // 2.0-dev31: por la radio el UNDO lo manda el Macrodeck
       });
       Sv.alCambio((que) => { if (que === 'estado' || que === 'hola') IT.revisar(); });
     }
