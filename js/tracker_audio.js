@@ -47,6 +47,7 @@ window.MD = window.MD || {};
   // Toca UNO de la lista (al azar, sin repetir el ultimo de esa clave). Devuelve el ref que eligio (o null).
   Au.tocar = function (refs, vol, clave) {
     const lista = (refs || []).filter(Au.existe); if (!lista.length) return null;
+    Au.asegurar();                                          // 2.0-dev29: si el tracker se conecto solo (sin tocar nada), el audio quedaba dormido y los sonidos no salian: se despierta en cada sonido
     let c = lista.filter((r) => r !== Au.ultimo[clave]); if (!c.length) c = lista;
     const ref = c[Math.floor(Math.random() * c.length)]; Au.ultimo[clave] = ref;
     const v = Math.max(0, Math.min(1, (vol == null ? 1 : vol))) * Au.volumen * (ref[0] === 's' ? Math.min(2, (Au.bibliotecaMeta().find((s) => s.id === ref.slice(2)) || {}).volumen || 1) : 1);
