@@ -59,11 +59,23 @@ window.MD = window.MD || {};
   Trk.S8 = S8;
   const PL = (frames, M) => fr((S8(Math.floor(((frames >>> 0) * M) / 256)) + 127) / 254);   // 0..1, avanza M/256 puntos por cuadro (25 ms)
 
-  // ---------- fuego suave (2.0-dev32; copia de factorFuegoSuave() de motor.h, tracker ESP32 1.14 = el fuego del Uno): dos ondas lentas, entre 50 % y 100 % ----------
-  Trk.factorFuegoSuave = function (ms, index) {
-    const ia = ((Math.imul(ms >>> 0, 40053) >>> 16) + Math.trunc((index * 9371 + 50) / 100)) & 255;
-    const ib = ((Math.imul(ms >>> 0, 72095) >>> 16) - Math.trunc((index * 6926 + 50) / 100)) & 255;
-    return fr(fr(0.75) + fr(fr(fr(0.125) * (S8(ia) + S8(ib + 64))) / fr(127)));
+  // ---------- fuego vivo (2.0-dev33; copia exacta de factorFuegoVivo() de motor.h, tracker ESP32 1.15): azar suave por LED, 55 % a 100 % ----------
+  function azarFuego8(punto, index, semilla) {
+    let h = (Math.imul(punto >>> 0, 0x9E3779B1) ^ Math.imul(index, 0x85EBCA77) ^ semilla) >>> 0;
+    h ^= h >>> 15; h = Math.imul(h, 0x2C1B3C6D) >>> 0; h ^= h >>> 12; h = Math.imul(h, 0x297A2D39) >>> 0; h ^= h >>> 15;
+    return (h >>> 24) & 255;
+  }
+  function ruidoFuego(ms, index, periodo, semilla) {
+    ms = ms >>> 0;
+    const punto = Math.floor(ms / periodo), t = ms % periodo;
+    const a = azarFuego8(punto, index, semilla), b = azarFuego8(punto + 1, index, semilla);
+    const w = Math.floor((t * 256) / periodo);
+    const sv = (w * w * (768 - 2 * w)) >> 16;
+    return (a * (256 - sv) + b * sv) >> 8;
+  }
+  Trk.factorFuegoVivo = function (ms, index) {
+    const lento = ruidoFuego(ms, index, 200, 0x1234567), rapido = ruidoFuego(ms, index, 70, 0x89ABCDE);
+    return fr((140 * 255 + 77 * lento + 38 * rapido) / 65025);
   };
 
   // ---------- la pantalla de 12 LEDs ----------
@@ -152,7 +164,7 @@ window.MD = window.MD || {};
             this.led(i, mx(0), mx(1), mx(2));
           }
         } else {
-          const ff = Trk.factorFuegoSuave(ms, k);                     // 2.0-dev32: fuego suave (igual que factorFuegoSuave de motor.h, tracker ESP32 1.14)
+          const ff = Trk.factorFuegoVivo(ms, k);                      // 2.0-dev33: fuego vivo (igual que factorFuegoVivo de motor.h, tracker ESP32 1.15)
           this.led(i, M(b[0], ff), M(b[1], ff), M(b[2], ff));
         }
       }
