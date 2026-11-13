@@ -59,14 +59,11 @@ window.MD = window.MD || {};
   Trk.S8 = S8;
   const PL = (frames, M) => fr((S8(Math.floor(((frames >>> 0) * M) / 256)) + 127) / 254);   // 0..1, avanza M/256 puntos por cuadro (25 ms)
 
-  // ---------- fuego erratico (2.0-dev24; copia de factorFuegoErratico() de motor.h del ESP32): cada LED salta a un brillo al azar (35 a 100 %) cada ~70 ms, con un fundido de 25 ms ----------
-  const azarFuego = (a) => { a = Math.imul(a, 2654435761) >>> 0; a = (a ^ (a >>> 13)) >>> 0; a = Math.imul(a, 1274126177) >>> 0; a = (a ^ (a >>> 16)) >>> 0; return a & 255; };
-  Trk.factorFuegoErratico = function (ms, index) {
-    const t = ((ms >>> 0) + Math.imul(index, 53)) >>> 0, slot = Math.floor(t / 70), resto = t % 70;
-    const A = fr(azarFuego((Math.imul(slot, 31) + Math.imul(index, 977)) >>> 0) / 255);
-    const B = fr(azarFuego((Math.imul(slot + 1, 31) + Math.imul(index, 977)) >>> 0) / 255);
-    const u = resto < 25 ? fr(resto / 25) : 1;
-    return fr(fr(0.35) + fr(fr(0.65) * fr(A + fr(fr(B - A) * u))));
+  // ---------- fuego suave (2.0-dev32; copia de factorFuegoSuave() de motor.h, tracker ESP32 1.14 = el fuego del Uno): dos ondas lentas, entre 50 % y 100 % ----------
+  Trk.factorFuegoSuave = function (ms, index) {
+    const ia = ((Math.imul(ms >>> 0, 40053) >>> 16) + Math.trunc((index * 9371 + 50) / 100)) & 255;
+    const ib = ((Math.imul(ms >>> 0, 72095) >>> 16) - Math.trunc((index * 6926 + 50) / 100)) & 255;
+    return fr(fr(0.75) + fr(fr(fr(0.125) * (S8(ia) + S8(ib + 64))) / fr(127)));
   };
 
   // ---------- la pantalla de 12 LEDs ----------
@@ -155,7 +152,7 @@ window.MD = window.MD || {};
             this.led(i, mx(0), mx(1), mx(2));
           }
         } else {
-          const ff = Trk.factorFuegoErratico(ms, k);                  // 2.0-dev24: fuego erratico (igual que factorFuegoErratico de motor.h, firmware ESP32 1.7)
+          const ff = Trk.factorFuegoSuave(ms, k);                     // 2.0-dev32: fuego suave (igual que factorFuegoSuave de motor.h, tracker ESP32 1.14)
           this.led(i, M(b[0], ff), M(b[1], ff), M(b[2], ff));
         }
       }
