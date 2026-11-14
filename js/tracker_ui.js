@@ -20,7 +20,8 @@ window.MD = window.MD || {};
   }
   const svgIcono = (n) => MD.IUI.svg(n);
   const rgb = (c) => 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')';
-  const nombreFicha = (S, k) => { const t = S.tipo[k]; return Trk.TIPOS[t].n + (t === 'E' ? ' ' + Trk.numEnemigo(S, k) : ''); };
+  // 2.0-dev34: los enemigos se cuentan desde 0, como las marcas de su calavera (Enemigo 0 = lisa)
+  const nombreFicha = (S, k) => { const t = S.tipo[k]; return Trk.TIPOS[t].n + (t === 'E' ? ' ' + (Trk.numEnemigo(S, k) - 1) + (Trk.numEnemigo(S, k) > 7 ? ' · ¿y su calavera?' : '') : ''); };
 
   // ============================================================================================================
   // Cartel del volumen (2.0-dev26): aparece en CUALQUIER pantalla (la pestana, la pantalla de mesa...) cada vez que cambia el volumen de los sonidos del
